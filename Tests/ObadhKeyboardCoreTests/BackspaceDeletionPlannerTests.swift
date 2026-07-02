@@ -23,10 +23,24 @@ final class BackspaceDeletionPlannerTests: XCTestCase {
         )
     }
 
+    func testWordDeletionCanCrossTrailingNewline() {
+        XCTAssertEqual(
+            BackspaceDeletionPlanner.deleteCount(before: "আমি\n", unit: .word),
+            "আমি\n".count
+        )
+    }
+
     func testSentenceDeletionStopsAfterPreviousSentenceBoundary() {
         XCTAssertEqual(
             BackspaceDeletionPlanner.deleteCount(before: "আমি ভালো। এখন লিখছি", unit: .sentence),
             " এখন লিখছি".count
+        )
+    }
+
+    func testSentenceDeletionCanCrossTrailingNewline() {
+        XCTAssertEqual(
+            BackspaceDeletionPlanner.deleteCount(before: "আমি ভালো\n", unit: .sentence),
+            "আমি ভালো\n".count
         )
     }
 

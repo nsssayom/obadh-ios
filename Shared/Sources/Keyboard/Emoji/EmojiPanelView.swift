@@ -4,6 +4,7 @@ import UIKit
 protocol EmojiPanelViewDelegate: AnyObject {
     func emojiPanelView(_ view: EmojiPanelView, didSelect item: EmojiItem)
     func emojiPanelViewDidRequestSearch(_ view: EmojiPanelView)
+    func emojiPanelViewDidRequestClearSearch(_ view: EmojiPanelView)
     func emojiPanelViewDidRequestKeyboard(_ view: EmojiPanelView)
     func emojiPanelViewDidBeginBackspace(_ view: EmojiPanelView)
     func emojiPanelViewDidEndBackspace(_ view: EmojiPanelView)
@@ -22,18 +23,24 @@ final class EmojiPanelView: UIView {
         static let searchIconLeading: CGFloat = 16
         static let searchTextSpacing: CGFloat = 10
         static let searchTextTrailing: CGFloat = 16
+        static let searchClearSize: CGFloat = 22
+        static let searchClearTrailing: CGFloat = 13
         static let collectionTopSpacing: CGFloat = 9
         static let collectionBottomSpacing: CGFloat = 4
         static let categoryHeight: CGFloat = 44
-        static let minimumEmojiCellSize: CGFloat = 42
-        static let maximumEmojiCellSize: CGFloat = 54
-        static let emojiGlyphScale: CGFloat = 0.76
+        static let minimumEmojiCellSize: CGFloat = 36
+        static let maximumEmojiCellSize: CGFloat = 46
+        static let targetEmojiCellSize: CGFloat = 39
+        static let emojiGlyphScale: CGFloat = 0.80
     }
 
     private let searchHitControl = UIControl()
     private let searchChrome = UIControl()
     private let searchIcon = UIImageView(image: UIImage(systemName: "magnifyingglass"))
+    private let searchTextStack = UIStackView()
     private let searchLabel = UILabel()
+    private let searchCaret = UIView()
+    private let searchClearButton = UIButton(type: .system)
     private let collectionView: UICollectionView
     private let categoryStack = UIStackView()
     private var categoryButtons: [EmojiCategory: UIButton] = [:]
@@ -55,10 +62,10 @@ final class EmojiPanelView: UIView {
 
     override init(frame: CGRect) {
         let layout = UICollectionViewFlowLayout()
-        layout.scrollDirection = .vertical
+        layout.scrollDirection = .horizontal
         layout.minimumInteritemSpacing = 6
-        layout.minimumLineSpacing = 7
-        layout.sectionInset = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+        layout.minimumLineSpacing = 8
+        layout.sectionInset = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         super.init(frame: frame)
         configure()
@@ -108,21 +115,22 @@ final class EmojiPanelView: UIView {
         guard let layout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout else {
             return
         }
-        let width = bounds.width
-        let targetCellSize: CGFloat = width >= 700 ? 48 : 45
-        let columns = max(1, floor(
-            (
-                width
-                    - layout.sectionInset.left
-                    - layout.sectionInset.right
-                    + layout.minimumInteritemSpacing
-            ) / (targetCellSize + layout.minimumInteritemSpacing)
-        ))
-        let availableWidth = width - layout.sectionInset.left - layout.sectionInset.right
-        let rawItemWidth = floor((availableWidth - (columns - 1) * layout.minimumInteritemSpacing) / columns)
-        let itemWidth = min(Metrics.maximumEmojiCellSize, max(Metrics.minimumEmojiCellSize, rawItemWidth))
-        layout.itemSize = CGSize(width: itemWidth, height: itemWidth)
-        EmojiCell.glyphFontSize = floor(itemWidth * Metrics.emojiGlyphScale)
+        let availableHeight = max(
+            1,
+            collectionView.bounds.height - layout.sectionInset.top - layout.sectionInset.bottom
+        )
+        let verticalSpacing = layout.minimumInteritemSpacing
+        let rowCount = max(
+            1,
+            floor((availableHeight + verticalSpacing) / (Metrics.targetEmojiCellSize + verticalSpacing))
+        )
+        let rawItemSide = floor((availableHeight - max(0, rowCount - 1) * verticalSpacing) / rowCount)
+        let itemSide = min(Metrics.maximumEmojiCellSize, max(Metrics.minimumEmojiCellSize, rawItemSide))
+        if layout.itemSize.width != itemSide || layout.itemSize.height != itemSide {
+            layout.itemSize = CGSize(width: itemSide, height: itemSide)
+            layout.invalidateLayout()
+        }
+        EmojiCell.glyphFontSize = floor(itemSide * Metrics.emojiGlyphScale)
         reloadCategoryButtons()
     }
 
@@ -149,14 +157,40 @@ final class EmojiPanelView: UIView {
         )
         searchChrome.addSubview(searchIcon)
 
+        searchTextStack.translatesAutoresizingMaskIntoConstraints = false
+        searchTextStack.axis = .horizontal
+        searchTextStack.alignment = .center
+        searchTextStack.distribution = .fill
+        searchTextStack.spacing = 2
+        searchTextStack.isUserInteractionEnabled = false
+        searchChrome.addSubview(searchTextStack)
+
         searchLabel.translatesAutoresizingMaskIntoConstraints = false
         searchLabel.text = "Search Emoji"
         searchLabel.font = .systemFont(ofSize: 22, weight: .regular)
-        searchChrome.addSubview(searchLabel)
+        searchLabel.lineBreakMode = .byTruncatingTail
+        searchLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        searchTextStack.addArrangedSubview(searchLabel)
+
+        searchCaret.translatesAutoresizingMaskIntoConstraints = false
+        searchCaret.layer.cornerRadius = 1
+        searchTextStack.addArrangedSubview(searchCaret)
+
+        searchClearButton.translatesAutoresizingMaskIntoConstraints = false
+        searchClearButton.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
+        searchClearButton.setPreferredSymbolConfiguration(
+            UIImage.SymbolConfiguration(pointSize: 18, weight: .regular),
+            forImageIn: .normal
+        )
+        searchClearButton.addTarget(self, action: #selector(handleClearSearchTap), for: .touchUpInside)
+        searchChrome.addSubview(searchClearButton)
 
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         collectionView.backgroundColor = .clear
-        collectionView.alwaysBounceVertical = true
+        collectionView.alwaysBounceHorizontal = true
+        collectionView.alwaysBounceVertical = false
+        collectionView.showsHorizontalScrollIndicator = false
+        collectionView.showsVerticalScrollIndicator = false
         collectionView.keyboardDismissMode = .none
         collectionView.dataSource = self
         collectionView.delegate = self
@@ -214,15 +248,26 @@ final class EmojiPanelView: UIView {
             searchIcon.widthAnchor.constraint(equalToConstant: Metrics.searchIconSize),
             searchIcon.heightAnchor.constraint(equalToConstant: Metrics.searchIconSize),
 
-            searchLabel.leadingAnchor.constraint(
+            searchTextStack.leadingAnchor.constraint(
                 equalTo: searchIcon.trailingAnchor,
                 constant: Metrics.searchTextSpacing
             ),
-            searchLabel.trailingAnchor.constraint(
-                equalTo: searchChrome.trailingAnchor,
-                constant: -Metrics.searchTextTrailing
+            searchTextStack.trailingAnchor.constraint(
+                equalTo: searchClearButton.leadingAnchor,
+                constant: -6
             ),
-            searchLabel.centerYAnchor.constraint(equalTo: searchChrome.centerYAnchor),
+            searchTextStack.centerYAnchor.constraint(equalTo: searchChrome.centerYAnchor),
+
+            searchCaret.widthAnchor.constraint(equalToConstant: 2),
+            searchCaret.heightAnchor.constraint(equalToConstant: 24),
+
+            searchClearButton.trailingAnchor.constraint(
+                equalTo: searchChrome.trailingAnchor,
+                constant: -Metrics.searchClearTrailing
+            ),
+            searchClearButton.centerYAnchor.constraint(equalTo: searchChrome.centerYAnchor),
+            searchClearButton.widthAnchor.constraint(equalToConstant: Metrics.searchClearSize),
+            searchClearButton.heightAnchor.constraint(equalToConstant: Metrics.searchClearSize),
 
             collectionView.leadingAnchor.constraint(equalTo: leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -289,6 +334,8 @@ final class EmojiPanelView: UIView {
     private func applyTheme() {
         searchChrome.backgroundColor = KeyboardTheme.emojiSearchBackgroundColor(for: traitCollection)
         searchIcon.tintColor = KeyboardTheme.emojiPlaceholderColor(for: traitCollection)
+        searchCaret.backgroundColor = KeyboardTheme.textColor(for: traitCollection)
+        searchClearButton.tintColor = KeyboardTheme.emojiPlaceholderColor(for: traitCollection)
         keyboardButton.setTitleColor(
             KeyboardTheme.emojiCategoryTintColor(selected: false, traitCollection: traitCollection),
             for: .normal
@@ -319,7 +366,9 @@ final class EmojiPanelView: UIView {
         dismissVariantPopover(animated: false)
         switch selectedCategory {
         case _ where isSearchActive:
-            visibleItems = dataStore.search(searchQuery, limit: 240)
+            visibleItems = searchQuery.isEmpty
+                ? searchIdleItems()
+                : applyVariantPreferences(to: dataStore.search(searchQuery, limit: 240))
             searchLabel.text = searchQuery.isEmpty ? "Search Emoji" : searchQuery
         case .recents:
             visibleItems = dataStore.items(for: recentEmojis)
@@ -342,6 +391,7 @@ final class EmojiPanelView: UIView {
         categoryStackHeightConstraint?.constant = isSearchActive ? 0 : Metrics.categoryHeight
         reloadCategoryButtons()
         updateSearchLabelAppearance()
+        updateSearchControls()
         collectionView.reloadData()
         collectionView.setContentOffset(.zero, animated: false)
     }
@@ -350,6 +400,38 @@ final class EmojiPanelView: UIView {
         searchLabel.textColor = isSearchActive && !searchQuery.isEmpty
             ? KeyboardTheme.textColor(for: traitCollection)
             : KeyboardTheme.emojiPlaceholderColor(for: traitCollection)
+    }
+
+    private func updateSearchControls() {
+        let showsClearButton = isSearchActive && !searchQuery.isEmpty
+        searchClearButton.isHidden = !showsClearButton
+        searchClearButton.isEnabled = showsClearButton
+        searchCaret.isHidden = !isSearchActive
+
+        guard isSearchActive else {
+            searchCaret.layer.removeAllAnimations()
+            searchCaret.alpha = 0
+            return
+        }
+
+        guard searchCaret.layer.animation(forKey: "blink") == nil else { return }
+        searchCaret.alpha = 1
+        let animation = CABasicAnimation(keyPath: "opacity")
+        animation.fromValue = 1
+        animation.toValue = 0
+        animation.duration = 0.55
+        animation.autoreverses = true
+        animation.repeatCount = .infinity
+        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        searchCaret.layer.add(animation, forKey: "blink")
+    }
+
+    private func searchIdleItems() -> [EmojiItem] {
+        let recentItems = dataStore.items(for: recentEmojis)
+        if !recentItems.isEmpty {
+            return recentItems
+        }
+        return applyVariantPreferences(to: dataStore.items(in: .smileys))
     }
 
     private func applyVariantPreferences(to items: [EmojiItem]) -> [EmojiItem] {
@@ -382,6 +464,11 @@ final class EmojiPanelView: UIView {
     @objc private func handleSearchTap() {
         guard !isSearchActive else { return }
         delegate?.emojiPanelViewDidRequestSearch(self)
+    }
+
+    @objc private func handleClearSearchTap() {
+        guard isSearchActive, !searchQuery.isEmpty else { return }
+        delegate?.emojiPanelViewDidRequestClearSearch(self)
     }
 
     @objc private func handleCategoryTap(_ sender: UIButton) {

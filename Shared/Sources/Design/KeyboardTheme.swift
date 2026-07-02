@@ -250,6 +250,24 @@ enum KeyboardTheme {
         return clamp(scaledHeight, min: minimumHeight, max: max(minimumHeight, referenceExtensionHeight))
     }
 
+    static func preferredEmojiKeyboardHeight(
+        for screenSize: CGSize,
+        traitCollection: UITraitCollection
+    ) -> CGFloat {
+        let shorterSide = min(screenSize.width, screenSize.height)
+        let longerSide = max(screenSize.width, screenSize.height)
+        let isLandscape = traitCollection.verticalSizeClass == .compact || screenSize.width > screenSize.height
+
+        if isLandscape {
+            return clamp(shorterSide * 0.58, min: 250, max: 330)
+        }
+
+        let scale = clamp(shorterSide / referencePhoneWidth, min: 0.88, max: 1.0)
+        let fourRowEmojiHeight = 332 * scale
+        let maximumHeight = longerSide * 0.42
+        return clamp(fourRowEmojiHeight, min: 306 * scale, max: maximumHeight)
+    }
+
     private static func clamp(_ value: CGFloat, min lowerBound: CGFloat, max upperBound: CGFloat) -> CGFloat {
         Swift.max(lowerBound, Swift.min(value, upperBound))
     }

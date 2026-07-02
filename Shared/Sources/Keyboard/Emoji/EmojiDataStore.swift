@@ -85,6 +85,31 @@ enum EmojiCategory: String, CaseIterable {
             .symbols
         }
     }
+
+    static func fromStorageCode(_ code: UInt8) -> Self? {
+        switch code {
+        case 1:
+            .smileys
+        case 2:
+            .people
+        case 3:
+            .animals
+        case 4:
+            .food
+        case 5:
+            .activities
+        case 6:
+            .travel
+        case 7:
+            .objects
+        case 8:
+            .symbols
+        case 9:
+            .flags
+        default:
+            nil
+        }
+    }
 }
 
 struct EmojiDataStore {
@@ -94,61 +119,38 @@ struct EmojiDataStore {
     private let displayItemsByCategory: [EmojiCategory: [EmojiItem]]
     private let itemsByEmoji: [String: EmojiItem]
     private let variantOptionsByEmoji: [String: [EmojiItem]]
-
-    private struct SearchCandidate {
-        let item: EmojiItem
-        let score: Int
-        let index: Int
-
-        func isRankedBefore(_ other: SearchCandidate) -> Bool {
-            if score != other.score {
-                return score < other.score
-            }
-            return index < other.index
-        }
-    }
+    private let searchIndex: EmojiSearchIndex
 
     init(bundle: Bundle) {
         guard
             let url = bundle.url(
                 forResource: "emoji",
-                withExtension: "tsv",
+                withExtension: "bin",
                 subdirectory: "ObadhModels/emoji"
             ),
-            let contents = try? String(contentsOf: url, encoding: .utf8)
+            let data = try? Data(contentsOf: url, options: [.mappedIfSafe]),
+            let compiled = EmojiBinaryDecoder.decode(data)
         else {
             self.init(items: [])
             return
         }
 
-        var loadedItems: [EmojiItem] = []
-        loadedItems.reserveCapacity(4_000)
+        self.init(items: compiled.items, searchIndex: compiled.searchIndex)
+    }
 
-        for line in contents.split(separator: "\n", omittingEmptySubsequences: true) {
-            guard !line.hasPrefix("#") else { continue }
-            let columns = line.split(separator: "\t", omittingEmptySubsequences: false)
-            guard columns.count >= 5 else { continue }
-            let group = String(columns[1])
-            let name = String(columns[3])
-            let keywords = String(columns[4])
-            let item = EmojiItem(
-                emoji: String(columns[0]),
-                category: EmojiCategory.fromUnicodeGroup(group),
-                group: group,
-                subgroup: String(columns[2]),
-                name: name,
-                keywords: keywords,
-                normalizedName: Self.normalize(name),
-                normalizedKeywords: Self.keywordTokens(from: keywords),
-                searchText: Self.normalize("\(name) \(keywords)")
-            )
-            loadedItems.append(item)
+    init(binaryData data: Data) {
+        guard let compiled = EmojiBinaryDecoder.decode(data) else {
+            self.init(items: [])
+            return
         }
-
-        self.init(items: loadedItems)
+        self.init(items: compiled.items, searchIndex: compiled.searchIndex)
     }
 
     init(items: [EmojiItem]) {
+        self.init(items: items, searchIndex: EmojiSearchIndex(items: items))
+    }
+
+    private init(items: [EmojiItem], searchIndex: EmojiSearchIndex) {
         self.items = items
         displayItemsByCategory = Dictionary(
             grouping: items.filter { !Self.isSkinToneVariant($0.name) },
@@ -156,6 +158,7 @@ struct EmojiDataStore {
         )
         itemsByEmoji = Dictionary(uniqueKeysWithValues: items.map { ($0.emoji, $0) })
         variantOptionsByEmoji = Self.makeVariantOptionsByEmoji(items: items)
+        self.searchIndex = searchIndex
     }
 
     func items(in category: EmojiCategory) -> [EmojiItem] {
@@ -181,66 +184,11 @@ struct EmojiDataStore {
         let normalized = Self.normalize(query)
         guard !normalized.isEmpty, limit > 0 else { return [] }
 
-        var matches: [SearchCandidate] = []
-        matches.reserveCapacity(min(limit, items.count))
-        let includesSkinToneQuery = normalized.contains("skin") || normalized.contains("tone")
-        for (index, item) in items.enumerated() {
-            if Self.isSkinToneVariant(item.name) && !includesSkinToneQuery {
-                continue
-            }
-            guard let score = searchScore(for: item, query: normalized) else {
-                continue
-            }
-            insert(SearchCandidate(item: item, score: score, index: index), into: &matches, limit: limit)
-        }
-
-        return matches.map(\.item)
-    }
-
-    private func insert(_ candidate: SearchCandidate, into matches: inout [SearchCandidate], limit: Int) {
-        var insertionIndex = matches.endIndex
-        for index in matches.indices {
-            if candidate.isRankedBefore(matches[index]) {
-                insertionIndex = index
-                break
-            }
-        }
-
-        if insertionIndex == matches.endIndex {
-            guard matches.count < limit else { return }
-            matches.append(candidate)
-            return
-        }
-
-        matches.insert(candidate, at: insertionIndex)
-        if matches.count > limit {
-            matches.removeLast()
-        }
-    }
-
-    private func searchScore(for item: EmojiItem, query: String) -> Int? {
-        if item.normalizedName == query {
-            return 0
-        }
-        if item.normalizedKeywords.contains(query) {
-            return 1
-        }
-        if item.normalizedName.hasPrefix(query) {
-            return 2
-        }
-        if item.normalizedKeywords.contains(where: { $0.hasPrefix(query) }) {
-            return 3
-        }
-        if item.normalizedName.contains(query) {
-            return 4
-        }
-        if item.normalizedKeywords.contains(where: { $0.contains(query) }) {
-            return 5
-        }
-        if item.searchText.contains(query) {
-            return 6
-        }
-        return nil
+        return searchIndex.search(
+            normalizedQuery: normalized,
+            items: items,
+            limit: limit
+        )
     }
 
     static func normalize(_ value: String) -> String {
@@ -253,7 +201,7 @@ struct EmojiDataStore {
     static func keywordTokens(from value: String) -> [String] {
         value
             .split { character in
-                character == "," || character == ";" || character.isWhitespace
+                !character.isLetter && !character.isNumber
             }
             .map { normalize(String($0)) }
             .filter { !$0.isEmpty }
@@ -291,7 +239,7 @@ struct EmojiDataStore {
         return optionsByEmoji
     }
 
-    private static func isSkinToneVariant(_ name: String) -> Bool {
+    fileprivate static func isSkinToneVariant(_ name: String) -> Bool {
         skinToneBaseKey(for: name) != nil
     }
 
@@ -320,5 +268,400 @@ struct EmojiDataStore {
             return 5
         }
         return 99
+    }
+}
+
+private struct EmojiSearchIndex {
+    private struct TokenPosting {
+        let itemIndex: Int
+        let weight: Int
+    }
+
+    private struct CandidateAccumulator {
+        var bestScoreByTermIndex: [Int: Int] = [:]
+
+        mutating func merge(termIndex: Int, termScore: Int) {
+            if let existing = bestScoreByTermIndex[termIndex] {
+                bestScoreByTermIndex[termIndex] = min(existing, termScore)
+            } else {
+                bestScoreByTermIndex[termIndex] = termScore
+            }
+        }
+
+        var matchedTermCount: Int {
+            bestScoreByTermIndex.count
+        }
+
+        var score: Int {
+            bestScoreByTermIndex.values.reduce(0, +)
+        }
+    }
+
+    private struct RankedCandidate {
+        let item: EmojiItem
+        let score: Int
+        let index: Int
+
+        func isRankedBefore(_ other: RankedCandidate) -> Bool {
+            if score != other.score {
+                return score < other.score
+            }
+            return index < other.index
+        }
+    }
+
+    private let postingsByToken: [String: [TokenPosting]]
+    private let sortedTokens: [String]
+
+    init(items: [EmojiItem]) {
+        var postingsByToken: [String: [TokenPosting]] = [:]
+
+        for (index, item) in items.enumerated() {
+            var bestWeightByToken: [String: Int] = [:]
+            Self.add(tokens: EmojiDataStore.keywordTokens(from: item.normalizedName), weight: 0, into: &bestWeightByToken)
+            Self.add(tokens: item.normalizedKeywords, weight: 2, into: &bestWeightByToken)
+            Self.add(tokens: EmojiDataStore.keywordTokens(from: item.subgroup), weight: 5, into: &bestWeightByToken)
+
+            for (token, weight) in bestWeightByToken {
+                postingsByToken[token, default: []].append(TokenPosting(itemIndex: index, weight: weight))
+            }
+        }
+
+        self.postingsByToken = postingsByToken
+        sortedTokens = postingsByToken.keys.sorted()
+    }
+
+    init(compiledPostings: [(token: String, postings: [(itemIndex: Int, weight: Int)])]) {
+        var postingsByToken: [String: [TokenPosting]] = [:]
+        postingsByToken.reserveCapacity(compiledPostings.count)
+        for entry in compiledPostings {
+            postingsByToken[entry.token] = entry.postings.map {
+                TokenPosting(itemIndex: $0.itemIndex, weight: $0.weight)
+            }
+        }
+        self.postingsByToken = postingsByToken
+        sortedTokens = postingsByToken.keys.sorted()
+    }
+
+    func search(normalizedQuery: String, items: [EmojiItem], limit: Int) -> [EmojiItem] {
+        let queryTerms = Array(EmojiDataStore.keywordTokens(from: normalizedQuery).prefix(5))
+        guard !queryTerms.isEmpty else { return [] }
+
+        var accumulators: [Int: CandidateAccumulator] = [:]
+        accumulators.reserveCapacity(limit * 8)
+
+        for (termIndex, term) in queryTerms.enumerated() {
+            let bestScores = bestTokenScores(for: term)
+            for (itemIndex, score) in bestScores {
+                var accumulator = accumulators[itemIndex] ?? CandidateAccumulator()
+                accumulator.merge(termIndex: termIndex, termScore: score)
+                accumulators[itemIndex] = accumulator
+            }
+        }
+
+        let includesSkinToneQuery = normalizedQuery.contains("skin") || normalizedQuery.contains("tone")
+        var candidates: [RankedCandidate] = []
+        candidates.reserveCapacity(min(limit, accumulators.count))
+
+        for (itemIndex, accumulator) in accumulators where accumulator.matchedTermCount == queryTerms.count {
+            guard items.indices.contains(itemIndex) else { continue }
+            let item = items[itemIndex]
+            if EmojiDataStore.isSkinToneVariant(item.name) && !includesSkinToneQuery {
+                continue
+            }
+            let score = phraseAdjustedScore(
+                accumulator.score,
+                item: item,
+                normalizedQuery: normalizedQuery
+            )
+            insert(RankedCandidate(item: item, score: score, index: itemIndex), into: &candidates, limit: limit)
+        }
+
+        return candidates.map(\.item)
+    }
+
+    private static func add(tokens: [String], weight: Int, into bestWeightByToken: inout [String: Int]) {
+        for token in tokens where token.count > 1 {
+            if let existing = bestWeightByToken[token] {
+                bestWeightByToken[token] = min(existing, weight)
+            } else {
+                bestWeightByToken[token] = weight
+            }
+        }
+    }
+
+    private func bestTokenScores(for term: String) -> [Int: Int] {
+        var bestScores: [Int: Int] = [:]
+        bestScores.reserveCapacity(24)
+
+        addMatches(for: term, baseScore: 0, into: &bestScores)
+
+        if term.count >= 2 {
+            for token in prefixTokens(for: term) where token != term {
+                addMatches(for: token, baseScore: 20, into: &bestScores)
+            }
+        }
+
+        if term.count >= 3 {
+            for token in sortedTokens where token.contains(term) && !token.hasPrefix(term) {
+                addMatches(for: token, baseScore: 46, into: &bestScores)
+            }
+
+            let maxDistance = term.count >= 6 ? 2 : 1
+            for token in sortedTokens where abs(token.count - term.count) <= maxDistance {
+                guard let distance = Self.boundedEditDistance(term, token, maxDistance: maxDistance) else {
+                    continue
+                }
+                addMatches(for: token, baseScore: 54 + distance * 10, into: &bestScores)
+            }
+        }
+
+        return bestScores
+    }
+
+    private func addMatches(for token: String, baseScore: Int, into bestScores: inout [Int: Int]) {
+        guard let postings = postingsByToken[token] else { return }
+        for posting in postings {
+            let score = baseScore + posting.weight
+            if let existing = bestScores[posting.itemIndex] {
+                bestScores[posting.itemIndex] = min(existing, score)
+            } else {
+                bestScores[posting.itemIndex] = score
+            }
+        }
+    }
+
+    private func prefixTokens(for prefix: String) -> ArraySlice<String> {
+        var lowerBound = 0
+        var upperBound = sortedTokens.count
+        while lowerBound < upperBound {
+            let mid = (lowerBound + upperBound) / 2
+            if sortedTokens[mid] < prefix {
+                lowerBound = mid + 1
+            } else {
+                upperBound = mid
+            }
+        }
+
+        var end = lowerBound
+        while end < sortedTokens.count, sortedTokens[end].hasPrefix(prefix) {
+            end += 1
+        }
+        return sortedTokens[lowerBound..<end]
+    }
+
+    private func phraseAdjustedScore(_ score: Int, item: EmojiItem, normalizedQuery: String) -> Int {
+        if item.normalizedName == normalizedQuery {
+            return score - 80
+        }
+        if item.normalizedKeywords.contains(normalizedQuery) {
+            return score - 70
+        }
+        if item.normalizedName.hasPrefix(normalizedQuery) {
+            return score - 54
+        }
+        if item.searchText.hasPrefix(normalizedQuery) {
+            return score - 42
+        }
+        if item.searchText.contains(normalizedQuery) {
+            return score - 18
+        }
+        return score
+    }
+
+    private func insert(_ candidate: RankedCandidate, into candidates: inout [RankedCandidate], limit: Int) {
+        var insertionIndex = candidates.endIndex
+        for index in candidates.indices {
+            if candidate.isRankedBefore(candidates[index]) {
+                insertionIndex = index
+                break
+            }
+        }
+
+        if insertionIndex == candidates.endIndex {
+            guard candidates.count < limit else { return }
+            candidates.append(candidate)
+            return
+        }
+
+        candidates.insert(candidate, at: insertionIndex)
+        if candidates.count > limit {
+            candidates.removeLast()
+        }
+    }
+
+    private static func boundedEditDistance(_ lhs: String, _ rhs: String, maxDistance: Int) -> Int? {
+        let left = Array(lhs.utf8)
+        let right = Array(rhs.utf8)
+        guard abs(left.count - right.count) <= maxDistance else { return nil }
+
+        var previous = Array(0...right.count)
+        var current = Array(repeating: 0, count: right.count + 1)
+
+        for leftIndex in 1...left.count {
+            current[0] = leftIndex
+            var rowMinimum = current[0]
+
+            for rightIndex in 1...right.count {
+                let substitutionCost = left[leftIndex - 1] == right[rightIndex - 1] ? 0 : 1
+                current[rightIndex] = min(
+                    previous[rightIndex] + 1,
+                    current[rightIndex - 1] + 1,
+                    previous[rightIndex - 1] + substitutionCost
+                )
+                rowMinimum = min(rowMinimum, current[rightIndex])
+            }
+
+            guard rowMinimum <= maxDistance else { return nil }
+            swap(&previous, &current)
+        }
+
+        let distance = previous[right.count]
+        return distance <= maxDistance ? distance : nil
+    }
+}
+
+private struct EmojiBinaryDecoder {
+    private static let magic = Array("OBEMOJI1".utf8)
+    private static let version: UInt32 = 1
+    private static let headerSize = 44
+    private static let itemRecordSize = 36
+    private static let tokenRecordSize = 12
+    private static let postingRecordSize = 8
+    private static let keywordSeparator: Character = "\u{1f}"
+
+    struct Result {
+        let items: [EmojiItem]
+        let searchIndex: EmojiSearchIndex
+    }
+
+    static func decode(_ data: Data) -> Result? {
+        data.withUnsafeBytes { bytes in
+            guard bytes.count >= headerSize else { return nil }
+            for index in magic.indices where bytes[index] != magic[index] {
+                return nil
+            }
+            guard readUInt32(bytes, at: 8) == version else { return nil }
+            let itemCount = Int(readUInt32(bytes, at: 12))
+            let tokenCount = Int(readUInt32(bytes, at: 16))
+            let postingCount = Int(readUInt32(bytes, at: 20))
+            let itemOffset = Int(readUInt32(bytes, at: 24))
+            let tokenOffset = Int(readUInt32(bytes, at: 28))
+            let postingOffset = Int(readUInt32(bytes, at: 32))
+            let stringOffset = Int(readUInt32(bytes, at: 36))
+            let stringSize = Int(readUInt32(bytes, at: 40))
+
+            guard
+                rangeIsValid(offset: itemOffset, count: itemCount, stride: itemRecordSize, total: bytes.count),
+                rangeIsValid(offset: tokenOffset, count: tokenCount, stride: tokenRecordSize, total: bytes.count),
+                rangeIsValid(offset: postingOffset, count: postingCount, stride: postingRecordSize, total: bytes.count),
+                stringOffset >= 0,
+                stringSize >= 0,
+                stringOffset + stringSize <= bytes.count
+            else {
+                return nil
+            }
+
+            func string(at relativeOffset: UInt32) -> String? {
+                let start = stringOffset + Int(relativeOffset)
+                guard start >= stringOffset, start < stringOffset + stringSize else {
+                    return nil
+                }
+                var end = start
+                while end < stringOffset + stringSize, bytes[end] != 0 {
+                    end += 1
+                }
+                guard end < stringOffset + stringSize else {
+                    return nil
+                }
+                return String(decoding: bytes[start..<end], as: UTF8.self)
+            }
+
+            var items: [EmojiItem] = []
+            items.reserveCapacity(itemCount)
+            for itemIndex in 0..<itemCount {
+                let offset = itemOffset + itemIndex * itemRecordSize
+                guard let category = EmojiCategory.fromStorageCode(bytes[offset]) else {
+                    return nil
+                }
+                let stringOffsets = (0..<8).map { fieldIndex in
+                    readUInt32(bytes, at: offset + 4 + fieldIndex * 4)
+                }
+                guard
+                    let emoji = string(at: stringOffsets[0]),
+                    let group = string(at: stringOffsets[1]),
+                    let subgroup = string(at: stringOffsets[2]),
+                    let name = string(at: stringOffsets[3]),
+                    let keywords = string(at: stringOffsets[4]),
+                    let normalizedName = string(at: stringOffsets[5]),
+                    let normalizedKeywordPayload = string(at: stringOffsets[6]),
+                    let searchText = string(at: stringOffsets[7])
+                else {
+                    return nil
+                }
+                let normalizedKeywords = normalizedKeywordPayload
+                    .split(separator: keywordSeparator)
+                    .map(String.init)
+                items.append(
+                    EmojiItem(
+                        emoji: emoji,
+                        category: category,
+                        group: group,
+                        subgroup: subgroup,
+                        name: name,
+                        keywords: keywords,
+                        normalizedName: normalizedName,
+                        normalizedKeywords: normalizedKeywords,
+                        searchText: searchText
+                    )
+                )
+            }
+
+            var compiledPostings: [(token: String, postings: [(itemIndex: Int, weight: Int)])] = []
+            compiledPostings.reserveCapacity(tokenCount)
+            for tokenIndex in 0..<tokenCount {
+                let offset = tokenOffset + tokenIndex * tokenRecordSize
+                guard let token = string(at: readUInt32(bytes, at: offset)) else {
+                    return nil
+                }
+                let start = Int(readUInt32(bytes, at: offset + 4))
+                let count = Int(readUInt32(bytes, at: offset + 8))
+                guard start >= 0, count >= 0, start + count <= postingCount else {
+                    return nil
+                }
+
+                var postings: [(itemIndex: Int, weight: Int)] = []
+                postings.reserveCapacity(count)
+                for postingIndex in start..<(start + count) {
+                    let postingOffsetForIndex = postingOffset + postingIndex * postingRecordSize
+                    let itemIndex = Int(readUInt32(bytes, at: postingOffsetForIndex))
+                    let weight = Int(readUInt16(bytes, at: postingOffsetForIndex + 4))
+                    guard itemIndex >= 0, itemIndex < itemCount else {
+                        return nil
+                    }
+                    postings.append((itemIndex: itemIndex, weight: weight))
+                }
+                compiledPostings.append((token: token, postings: postings))
+            }
+
+            return Result(
+                items: items,
+                searchIndex: EmojiSearchIndex(compiledPostings: compiledPostings)
+            )
+        }
+    }
+
+    private static func rangeIsValid(offset: Int, count: Int, stride: Int, total: Int) -> Bool {
+        guard offset >= 0, count >= 0, stride > 0 else { return false }
+        guard count == 0 || offset <= total else { return false }
+        return count <= (total - offset) / stride
+    }
+
+    private static func readUInt32(_ bytes: UnsafeRawBufferPointer, at offset: Int) -> UInt32 {
+        UInt32(littleEndian: bytes.loadUnaligned(fromByteOffset: offset, as: UInt32.self))
+    }
+
+    private static func readUInt16(_ bytes: UnsafeRawBufferPointer, at offset: Int) -> UInt16 {
+        UInt16(littleEndian: bytes.loadUnaligned(fromByteOffset: offset, as: UInt16.self))
     }
 }

@@ -30,6 +30,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var rowHeightConstraints: [NSLayoutConstraint] = []
     private var emojiPanelBottomToSafeAreaConstraint: NSLayoutConstraint?
     private var emojiPanelBottomToKeyboardConstraint: NSLayoutConstraint?
+    private var keyboardHeightConstraint: NSLayoutConstraint?
     private var lastAppliedMetricSize: CGSize = .zero
 
     var enableInputClicksWhenVisible: Bool {
@@ -95,6 +96,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         view.backgroundColor = .clear
         view.isOpaque = false
         view.clipsToBounds = false
+        let heightConstraint = view.heightAnchor.constraint(equalToConstant: preferredActiveKeyboardHeight)
+        heightConstraint.priority = UILayoutPriority(999)
+        heightConstraint.isActive = true
+        keyboardHeightConstraint = heightConstraint
 
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (controller: KeyboardViewController, _) in
             controller.view.backgroundColor = .clear
@@ -218,6 +223,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func refreshKeyboard() {
         let metrics = currentMetrics
+        keyboardHeightConstraint?.constant = preferredActiveKeyboardHeight
         view.backgroundColor = .clear
         suggestionBar.isHidden = showsEmojiPanel
         keyboardStack.isHidden = showsEmojiPanel && !isEmojiSearchActive
@@ -299,7 +305,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     @objc private func handleKeyRelease(_ sender: KeyboardKeyButton) {
         if sender.key == .backspace {
-            backspaceRepeater.end()
+            endBackspacePress()
         }
     }
 
@@ -462,20 +468,24 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private func beginBackspacePress() {
         guard !backspaceRepeater.isActive else { return }
 
-        guard performBackspace(unit: .character) else { return }
+        guard performBackspace(unit: .character, requiresTextEvidence: true) else { return }
         feedbackController.keyTouched(.backspace)
-        backspaceRepeater.begin { [weak self] unit in
+        backspaceRepeater.begin { [weak self] _ in
             guard let self else { return }
-            guard performBackspace(unit: unit) else {
-                backspaceRepeater.end()
-                return
-            }
-            feedbackController.backspaceRepeated(unit: unit)
+            performBackspace(unit: .character, requiresTextEvidence: false)
+            feedbackController.backspaceRepeated(unit: .character)
         }
     }
 
+    private func endBackspacePress() {
+        backspaceRepeater.end()
+    }
+
     @discardableResult
-    private func performBackspace(unit: BackspaceDeletionUnit) -> Bool {
+    private func performBackspace(
+        unit: BackspaceDeletionUnit,
+        requiresTextEvidence: Bool = true
+    ) -> Bool {
         punctuationBuffer.reset()
 
         if composer.hasActiveInput {
@@ -496,13 +506,18 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
 
         let contextBeforeInput = textDocumentProxy.documentContextBeforeInput
-        guard contextBeforeInput?.isEmpty != true else {
+        guard !requiresTextEvidence || textDocumentProxy.hasText || contextBeforeInput?.isEmpty == false else {
             refreshSuggestions()
             return false
         }
-        guard textDocumentProxy.hasText || contextBeforeInput != nil else {
+
+        if unit == .character || contextBeforeInput?.isEmpty != false {
+            performTextUpdate {
+                textDocumentProxy.deleteBackward()
+            }
+            engine.clearAutosuggestSession()
             refreshSuggestions()
-            return false
+            return true
         }
 
         let deleteCount = BackspaceDeletionPlanner.deleteCount(
@@ -626,7 +641,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var currentMetrics: KeyboardMetrics {
         let bounds = view.bounds.size
         if bounds.width > 0, bounds.height > 0 {
-            return KeyboardTheme.metrics(for: bounds, traitCollection: traitCollection)
+            let metricHeight = showsEmojiPanel ? preferredKeyboardHeight : bounds.height
+            return KeyboardTheme.metrics(
+                for: CGSize(width: bounds.width, height: metricHeight),
+                traitCollection: traitCollection
+            )
         }
         let screenSize = view.window?.screen.bounds.size ?? UIScreen.main.bounds.size
         return KeyboardTheme.metrics(
@@ -642,16 +661,32 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         )
     }
 
+    private var preferredActiveKeyboardHeight: CGFloat {
+        let screenSize = view.window?.screen.bounds.size ?? UIScreen.main.bounds.size
+        if showsEmojiPanel {
+            return KeyboardTheme.preferredEmojiKeyboardHeight(
+                for: screenSize,
+                traitCollection: traitCollection
+            )
+        }
+        return KeyboardTheme.preferredKeyboardHeight(
+            for: screenSize,
+            traitCollection: traitCollection
+        )
+    }
+
     private func applyLayoutMetricsIfNeeded(force: Bool = false) {
         let size = view.bounds.size
+        let preferredHeight = preferredActiveKeyboardHeight
         let shouldReloadRows = force || size != lastAppliedMetricSize
-        guard shouldReloadRows else {
+        guard shouldReloadRows || keyboardHeightConstraint?.constant != preferredHeight else {
             return
         }
         lastAppliedMetricSize = size
 
         let metrics = currentMetrics
         let insets = metrics.keyboardInsets
+        keyboardHeightConstraint?.constant = preferredHeight
         keyboardStack.spacing = metrics.rowSpacing
         keyboardStackLeadingConstraint?.constant = insets.left
         keyboardStackTrailingConstraint?.constant = -insets.right
@@ -744,6 +779,13 @@ extension KeyboardViewController: EmojiPanelViewDelegate {
         refreshKeyboard()
     }
 
+    func emojiPanelViewDidRequestClearSearch(_ view: EmojiPanelView) {
+        feedbackController.suggestionAccepted()
+        emojiSearchQuery = ""
+        syncEmojiSearchQuery()
+        refreshKeyboard()
+    }
+
     func emojiPanelViewDidRequestKeyboard(_ view: EmojiPanelView) {
         feedbackController.suggestionAccepted()
         hideEmojiPanel()
@@ -755,7 +797,7 @@ extension KeyboardViewController: EmojiPanelViewDelegate {
     }
 
     func emojiPanelViewDidEndBackspace(_ view: EmojiPanelView) {
-        backspaceRepeater.end()
+        endBackspacePress()
     }
 }
 

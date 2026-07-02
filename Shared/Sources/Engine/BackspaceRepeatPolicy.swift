@@ -8,28 +8,28 @@ struct BackspaceRepeatStage: Equatable {
 struct BackspaceRepeatPolicy {
     static let nativeLike = Self(
         initialDelay: 0.38,
-        characterPhaseEnd: 1.2,
-        wordPhaseEnd: 2.8,
-        sentencePhaseEnd: 4.2
+        mediumRepeatStart: 1.2,
+        fastRepeatStart: 2.8,
+        fastestRepeatStart: 4.2
     )
 
     let initialDelay: TimeInterval
-    let characterPhaseEnd: TimeInterval
-    let wordPhaseEnd: TimeInterval
-    let sentencePhaseEnd: TimeInterval
+    let mediumRepeatStart: TimeInterval
+    let fastRepeatStart: TimeInterval
+    let fastestRepeatStart: TimeInterval
 
     func stage(elapsed: TimeInterval) -> BackspaceRepeatStage? {
         guard elapsed >= initialDelay else { return nil }
 
-        if elapsed < characterPhaseEnd {
+        if elapsed < mediumRepeatStart {
             return BackspaceRepeatStage(unit: .character, interval: 0.055)
         }
-        if elapsed < wordPhaseEnd {
-            return BackspaceRepeatStage(unit: .word, interval: 0.16)
+        if elapsed < fastRepeatStart {
+            return BackspaceRepeatStage(unit: .character, interval: 0.044)
         }
-        if elapsed < sentencePhaseEnd {
-            return BackspaceRepeatStage(unit: .sentence, interval: 0.34)
+        if elapsed < fastestRepeatStart {
+            return BackspaceRepeatStage(unit: .character, interval: 0.035)
         }
-        return BackspaceRepeatStage(unit: .availableContext, interval: 0.55)
+        return BackspaceRepeatStage(unit: .character, interval: 0.028)
     }
 }

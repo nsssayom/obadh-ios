@@ -1,7 +1,19 @@
+import Foundation
 import XCTest
 @testable import ObadhKeyboardCore
 
 final class EmojiDataStoreTests: XCTestCase {
+    func testCompiledEmojiBinaryLoadsAndSearches() throws {
+        let data = try Data(contentsOf: repositoryRoot()
+            .appendingPathComponent("Resources/ObadhModels/emoji/emoji.bin"))
+        let store = EmojiDataStore(binaryData: data)
+
+        XCTAssertGreaterThan(store.items.count, 3_500)
+        XCTAssertEqual(store.search("red heart", limit: 5).first?.emoji, "❤️")
+        XCTAssertFalse(store.search("smil", limit: 10).isEmpty)
+        XCTAssertTrue(store.search("grinning", limit: 10).contains { $0.emoji == "😀" })
+    }
+
     func testSearchIgnoresEmptyQueries() {
         let store = EmojiDataStore(items: [
             emoji("❤️", name: "red heart", keywords: "heart,love")
@@ -133,5 +145,12 @@ final class EmojiDataStoreTests: XCTestCase {
         case .recents:
             return "Recently Used"
         }
+    }
+
+    private func repositoryRoot() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 }
