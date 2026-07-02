@@ -14,9 +14,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private lazy var emojiDataStore = EmojiDataStore(bundle: Bundle(for: KeyboardViewController.self))
     private let keyboardStack = UIStackView()
     private let keyboardTouchSurface = KeyboardTouchSurfaceView()
+    private let keyPreviewCallout = KeyboardKeyPreviewCallout()
     private var keyButtons: [KeyboardKeyButton] = []
     private var highlightedKeyButton: KeyboardKeyButton?
     private var activeTouchKey: KeyboardKey?
+    private var keyPreviewDismissal: DispatchWorkItem?
     private var shifted = false
     private var keyboardMode: KeyboardMode = .letters
     private var isUpdatingTextProxy = false
@@ -34,6 +36,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var emojiPanelBottomToSafeAreaConstraint: NSLayoutConstraint?
     private var emojiPanelBottomToKeyboardConstraint: NSLayoutConstraint?
     private var keyboardHeightConstraint: NSLayoutConstraint?
+    private var viewWillAppearWasCalled = false
     private var lastAppliedMetricSize: CGSize = .zero
 
     var enableInputClicksWhenVisible: Bool {
@@ -43,6 +46,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     override func loadView() {
         let inputView = UIInputView(frame: .zero, inputViewStyle: .keyboard)
         inputView.allowsSelfSizing = true
+        inputView.clipsToBounds = true
         view = inputView
     }
 
@@ -62,7 +66,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        viewWillAppearWasCalled = true
+        view.setNeedsUpdateConstraints()
         feedbackController.prepare()
+    }
+
+    override func updateViewConstraints() {
+        super.updateViewConstraints()
+        updateKeyboardHeightConstraintIfReady()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -99,14 +110,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private func configureRootView() {
         view.backgroundColor = .clear
         view.isOpaque = false
-        view.clipsToBounds = false
+        view.clipsToBounds = true
         let heightConstraint = view.heightAnchor.constraint(equalToConstant: preferredActiveKeyboardHeight)
-        heightConstraint.priority = UILayoutPriority(999)
-        heightConstraint.isActive = true
+        heightConstraint.priority = UILayoutPriority.required - 1
         keyboardHeightConstraint = heightConstraint
 
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (controller: KeyboardViewController, _) in
             controller.view.backgroundColor = .clear
+            controller.view.clipsToBounds = true
+            controller.view.setNeedsUpdateConstraints()
             controller.applyLayoutMetricsIfNeeded(force: true)
             controller.refreshKeyboard()
         }
@@ -126,6 +138,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         view.addSubview(keyboardStack)
         keyboardTouchSurface.delegate = self
         view.addSubview(keyboardTouchSurface)
+        keyPreviewCallout.alpha = 0
+        keyPreviewCallout.isHidden = true
+        view.addSubview(keyPreviewCallout)
 
         let insets = metrics.keyboardInsets
         let leadingConstraint = keyboardStack.leadingAnchor.constraint(equalTo: view.leadingAnchor)
@@ -189,6 +204,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func reloadKeyboardRows() {
         let metrics = currentMetrics
+        hideKeyPreview(animated: false)
+        clearHighlightedKey()
+        activeTouchKey = nil
         keyButtons.removeAll(keepingCapacity: true)
         NSLayoutConstraint.deactivate(rowHeightConstraints)
         rowHeightConstraints.removeAll(keepingCapacity: true)
@@ -230,7 +248,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func refreshKeyboard() {
         let metrics = currentMetrics
-        keyboardHeightConstraint?.constant = preferredActiveKeyboardHeight
+        updateKeyboardHeightConstraintIfReady()
         view.backgroundColor = .clear
         suggestionBar.isHidden = showsEmojiPanel
         keyboardStack.isHidden = showsEmojiPanel && !isEmojiSearchActive
@@ -686,10 +704,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private var currentMetrics: KeyboardMetrics {
         let bounds = view.bounds.size
-        if bounds.width > 0, bounds.height > 0 {
-            let metricHeight = showsEmojiPanel ? preferredKeyboardHeight : bounds.height
+        if bounds.width > 0 {
             return KeyboardTheme.metrics(
-                for: CGSize(width: bounds.width, height: metricHeight),
+                for: CGSize(width: bounds.width, height: preferredKeyboardHeight),
                 traitCollection: traitCollection
             )
         }
@@ -724,15 +741,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private func applyLayoutMetricsIfNeeded(force: Bool = false) {
         let size = view.bounds.size
         let preferredHeight = preferredActiveKeyboardHeight
-        let shouldReloadRows = force || size != lastAppliedMetricSize
+        let metricSize = CGSize(width: size.width, height: preferredKeyboardHeight)
+        let shouldReloadRows = force || metricSize != lastAppliedMetricSize
         guard shouldReloadRows || keyboardHeightConstraint?.constant != preferredHeight else {
             return
         }
-        lastAppliedMetricSize = size
+        lastAppliedMetricSize = metricSize
 
         let metrics = currentMetrics
         let insets = metrics.keyboardInsets
-        keyboardHeightConstraint?.constant = preferredHeight
+        updateKeyboardHeightConstraintIfReady()
         keyboardStack.spacing = metrics.rowSpacing
         keyboardStackLeadingConstraint?.constant = 0
         keyboardStackTrailingConstraint?.constant = 0
@@ -790,6 +808,17 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         return rowCount * metrics.minimumKeyHeight + max(0, rowCount - 1) * metrics.rowSpacing
     }
 
+    private func updateKeyboardHeightConstraintIfReady() {
+        guard viewWillAppearWasCalled, let keyboardHeightConstraint else {
+            return
+        }
+
+        keyboardHeightConstraint.constant = preferredActiveKeyboardHeight
+        if !keyboardHeightConstraint.isActive {
+            keyboardHeightConstraint.isActive = true
+        }
+    }
+
     private func beginTouch(on key: KeyboardKey) {
         activeTouchKey = key
         setHighlightedKey(key)
@@ -835,11 +864,108 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let keyButton = keyButtons.first { $0.key == key }
         keyButton?.isHighlighted = true
         highlightedKeyButton = keyButton
+        if let keyButton {
+            showKeyPreview(for: keyButton)
+        } else {
+            hideKeyPreview(animated: false)
+        }
     }
 
     private func clearHighlightedKey() {
         highlightedKeyButton?.isHighlighted = false
         highlightedKeyButton = nil
+        scheduleKeyPreviewDismissal()
+    }
+
+    private func showKeyPreview(for button: KeyboardKeyButton) {
+        keyPreviewDismissal?.cancel()
+        keyPreviewDismissal = nil
+
+        let metrics = currentMetrics
+        guard
+            metrics.keyPreviewHeight > 0,
+            let previewText = button.previewText,
+            !previewText.isEmpty
+        else {
+            hideKeyPreview(animated: false)
+            return
+        }
+
+        keyPreviewCallout.update(
+            text: previewText,
+            metrics: metrics,
+            traitCollection: traitCollection
+        )
+
+        let size = KeyboardKeyPreviewCallout.preferredSize(
+            for: button.bounds,
+            metrics: metrics
+        )
+        let frameInView = button.convert(button.bounds, to: view)
+        let desiredX = frameInView.midX - size.width / 2
+        let x = min(max(0, desiredX), max(0, view.bounds.width - size.width))
+        let y = min(
+            max(0, frameInView.minY - size.height + metrics.keyPreviewStemHeight + 2),
+            max(0, view.bounds.height - size.height)
+        )
+
+        keyPreviewCallout.frame = CGRect(origin: CGPoint(x: x, y: y), size: size)
+        view.bringSubviewToFront(keyPreviewCallout)
+
+        guard keyPreviewCallout.isHidden || keyPreviewCallout.alpha < 1 else {
+            keyPreviewCallout.transform = .identity
+            return
+        }
+
+        keyPreviewCallout.isHidden = false
+        keyPreviewCallout.alpha = 0
+        keyPreviewCallout.transform = CGAffineTransform(scaleX: 0.94, y: 0.94)
+        UIView.animate(
+            withDuration: 0.055,
+            delay: 0,
+            options: [.allowUserInteraction, .beginFromCurrentState, .curveEaseOut]
+        ) {
+            self.keyPreviewCallout.alpha = 1
+            self.keyPreviewCallout.transform = .identity
+        }
+    }
+
+    private func scheduleKeyPreviewDismissal() {
+        guard !keyPreviewCallout.isHidden else { return }
+        keyPreviewDismissal?.cancel()
+        let dismissal = DispatchWorkItem { [weak self] in
+            self?.hideKeyPreview(animated: true)
+        }
+        keyPreviewDismissal = dismissal
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.055, execute: dismissal)
+    }
+
+    private func hideKeyPreview(animated: Bool) {
+        keyPreviewDismissal?.cancel()
+        keyPreviewDismissal = nil
+        guard !keyPreviewCallout.isHidden else { return }
+
+        let finish = {
+            self.keyPreviewCallout.alpha = 0
+            self.keyPreviewCallout.transform = .identity
+            self.keyPreviewCallout.isHidden = true
+        }
+
+        guard animated else {
+            finish()
+            return
+        }
+
+        UIView.animate(
+            withDuration: 0.09,
+            delay: 0,
+            options: [.allowUserInteraction, .beginFromCurrentState, .curveEaseIn]
+        ) {
+            self.keyPreviewCallout.alpha = 0
+            self.keyPreviewCallout.transform = CGAffineTransform(scaleX: 0.98, y: 0.98)
+        } completion: { _ in
+            finish()
+        }
     }
 
     private func updateKeyboardTouchRegions() {

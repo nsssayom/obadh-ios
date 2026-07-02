@@ -3,7 +3,6 @@ import UIKit
 final class KeyboardKeyButton: UIButton {
     let key: KeyboardKey
     private let spaceLanguageLabel = UILabel()
-    private var keyPreviewCallout: KeyboardKeyPreviewCallout?
     private var keyPreviewText: String?
     private var currentMetrics = KeyboardTheme.defaultMetrics
     private var spaceLanguageTrailingConstraint: NSLayoutConstraint?
@@ -88,6 +87,10 @@ final class KeyboardKeyButton: UIButton {
         }
     }
 
+    var previewText: String? {
+        keyPreviewText
+    }
+
     private func configure() {
         translatesAutoresizingMaskIntoConstraints = true
         layer.cornerRadius = KeyboardTheme.defaultMetrics.keyCornerRadius
@@ -152,11 +155,6 @@ final class KeyboardKeyButton: UIButton {
             self.transform = self.isHighlighted
                 ? CGAffineTransform(scaleX: 0.985, y: 0.985)
                 : .identity
-            if self.isHighlighted {
-                self.showKeyPreview()
-            } else {
-                self.hideKeyPreview(animated: animated)
-            }
         }
 
         guard animated else {
@@ -168,91 +166,6 @@ final class KeyboardKeyButton: UIButton {
             delay: 0,
             options: [.allowUserInteraction, .beginFromCurrentState, .curveEaseOut],
             animations: updates
-        )
-    }
-
-    private func showKeyPreview() {
-        guard
-            currentMetrics.keyPreviewHeight > 0,
-            let keyPreviewText,
-            !keyPreviewText.isEmpty,
-            let rowView = superview
-        else {
-            return
-        }
-        let container = rowView.superview ?? rowView
-
-        let callout = keyPreviewCallout ?? KeyboardKeyPreviewCallout()
-        keyPreviewCallout = callout
-        callout.update(
-            text: keyPreviewText,
-            metrics: currentMetrics,
-            traitCollection: traitCollection
-        )
-
-        let size = KeyboardKeyPreviewCallout.preferredSize(
-            for: bounds,
-            metrics: currentMetrics
-        )
-        let frameInContainer = convert(bounds, to: container)
-        let desiredX = frameInContainer.midX - size.width / 2
-        let clampedX = min(
-            max(0, desiredX),
-            max(0, container.bounds.width - size.width)
-        )
-        let y = max(0, frameInContainer.minY - size.height + currentMetrics.keyPreviewStemHeight + 2)
-
-        if callout.superview !== container {
-            callout.removeFromSuperview()
-            container.addSubview(callout)
-        }
-        container.bringSubviewToFront(callout)
-        callout.frame = CGRect(origin: CGPoint(x: clampedX, y: y), size: size)
-
-        guard callout.alpha < 1 else {
-            callout.transform = .identity
-            return
-        }
-
-        callout.alpha = 0
-        callout.transform = CGAffineTransform(scaleX: 0.92, y: 0.92)
-        UIView.animate(
-            withDuration: 0.055,
-            delay: 0,
-            options: [.allowUserInteraction, .beginFromCurrentState, .curveEaseOut]
-        ) {
-            callout.alpha = 1
-            callout.transform = .identity
-        }
-    }
-
-    private func hideKeyPreview(animated: Bool) {
-        guard let callout = keyPreviewCallout else {
-            return
-        }
-
-        let remove = {
-            callout.removeFromSuperview()
-            callout.transform = .identity
-            self.keyPreviewCallout = nil
-        }
-
-        guard animated else {
-            remove()
-            return
-        }
-
-        UIView.animate(
-            withDuration: 0.075,
-            delay: 0,
-            options: [.allowUserInteraction, .beginFromCurrentState, .curveEaseIn],
-            animations: {
-                callout.alpha = 0
-                callout.transform = CGAffineTransform(scaleX: 0.96, y: 0.96)
-            },
-            completion: { _ in
-                remove()
-            }
         )
     }
 
