@@ -117,12 +117,13 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         keyboardStack.alignment = .fill
         keyboardStack.distribution = .fill
         keyboardStack.spacing = metrics.rowSpacing
+        keyboardStack.isUserInteractionEnabled = true
         keyboardStack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(keyboardStack)
 
         let insets = metrics.keyboardInsets
-        let leadingConstraint = keyboardStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: insets.left)
-        let trailingConstraint = keyboardStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -insets.right)
+        let leadingConstraint = keyboardStack.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+        let trailingConstraint = keyboardStack.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         let topConstraint = keyboardStack.topAnchor.constraint(equalTo: suggestionBar.bottomAnchor, constant: insets.top)
         let bottomConstraint = keyboardStack.bottomAnchor.constraint(
             lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor,
@@ -185,9 +186,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             view.removeFromSuperview()
         }
 
-        for row in KeyboardLayoutProvider.rows(for: keyboardMode) {
+        let rows = KeyboardLayoutProvider.rows(for: keyboardMode)
+        for (rowIndex, row) in rows.enumerated() {
             let rowView = KeyboardRowView()
             rowView.translatesAutoresizingMaskIntoConstraints = false
+            rowView.touchInsets = rowTouchInsets(
+                rowIndex: rowIndex,
+                rowCount: rows.count,
+                metrics: metrics
+            )
             var rowButtons: [KeyboardKeyButton] = []
             rowButtons.reserveCapacity(row.keys.count)
 
@@ -200,19 +207,19 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                     showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive,
                     spaceCaption: spaceCaption
                 )
-                button.addTarget(self, action: #selector(handleKeyTouchDown(_:)), for: .touchDown)
-                button.addTarget(self, action: #selector(handleKeyTouchDown(_:)), for: .touchDragEnter)
-                button.addTarget(self, action: #selector(handleKeyPress(_:)), for: .touchUpInside)
-                button.addTarget(
-                    self,
-                    action: #selector(handleKeyRelease(_:)),
-                    for: [.touchDragExit, .touchUpOutside, .touchCancel]
-                )
                 rowButtons.append(button)
                 keyButtons.append(button)
             }
 
             rowView.configure(row: row, buttons: rowButtons, metrics: metrics)
+            rowView.addTarget(self, action: #selector(handleKeyTouchDown(_:)), for: .touchDown)
+            rowView.addTarget(self, action: #selector(handleKeyTouchDown(_:)), for: .touchDragEnter)
+            rowView.addTarget(self, action: #selector(handleKeyPress(_:)), for: .touchUpInside)
+            rowView.addTarget(
+                self,
+                action: #selector(handleKeyRelease(_:)),
+                for: [.touchDragExit, .touchUpOutside, .touchCancel]
+            )
             keyboardStack.addArrangedSubview(rowView)
             let heightConstraint = rowView.heightAnchor.constraint(equalToConstant: metrics.minimumKeyHeight)
             heightConstraint.priority = UILayoutPriority(999)
@@ -295,37 +302,40 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.35, execute: dismissal)
     }
 
-    @objc private func handleKeyTouchDown(_ sender: KeyboardKeyButton) {
-        if isEmojiSearchActive, sender.key == .backspace {
+    @objc private func handleKeyTouchDown(_ sender: UIControl) {
+        guard let keyButton = keyButton(from: sender) else { return }
+        if isEmojiSearchActive, keyButton.key == .backspace {
             beginEmojiSearchBackspacePress()
             return
         }
 
-        if sender.key == .backspace {
+        if keyButton.key == .backspace {
             beginBackspacePress()
         } else {
-            feedbackController.keyTouched(sender.key)
+            feedbackController.keyTouched(keyButton.key)
         }
     }
 
-    @objc private func handleKeyRelease(_ sender: KeyboardKeyButton) {
-        if sender.key == .backspace {
+    @objc private func handleKeyRelease(_ sender: UIControl) {
+        guard let keyButton = keyButton(from: sender) else { return }
+        if keyButton.key == .backspace {
             endBackspacePress()
         }
     }
 
-    @objc private func handleKeyPress(_ sender: KeyboardKeyButton) {
+    @objc private func handleKeyPress(_ sender: UIControl) {
+        guard let keyButton = keyButton(from: sender) else { return }
         if isEmojiSearchActive {
-            if sender.key == .backspace {
+            if keyButton.key == .backspace {
                 endBackspacePress()
                 return
             }
-            handleEmojiSearchKeyPress(sender.key)
+            handleEmojiSearchKeyPress(keyButton.key)
             refreshKeyboard()
             return
         }
 
-        switch sender.key {
+        switch keyButton.key {
         case let .character(value):
             punctuationBuffer.reset()
             composer.append(shifted ? value.uppercased() : value)
@@ -382,6 +392,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             showEmojiPanel()
         }
         refreshKeyboard()
+    }
+
+    private func keyButton(from sender: UIControl) -> KeyboardKeyButton? {
+        if let keyButton = sender as? KeyboardKeyButton {
+            return keyButton
+        }
+        if let touchCell = sender as? KeyboardTouchCellControl {
+            return touchCell.keyButton
+        }
+        return nil
     }
 
     private func showEmojiPanel() {
@@ -726,8 +746,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let insets = metrics.keyboardInsets
         keyboardHeightConstraint?.constant = preferredHeight
         keyboardStack.spacing = metrics.rowSpacing
-        keyboardStackLeadingConstraint?.constant = insets.left
-        keyboardStackTrailingConstraint?.constant = -insets.right
+        keyboardStackLeadingConstraint?.constant = 0
+        keyboardStackTrailingConstraint?.constant = 0
         keyboardStackTopConstraint?.constant = keyboardTopConstant(for: metrics)
         keyboardStackBottomConstraint?.constant = -insets.bottom
         keyboardStackHeightConstraint?.constant = keyRowsHeight(for: metrics)
@@ -742,6 +762,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
         for case let rowView as KeyboardRowView in keyboardStack.arrangedSubviews {
             rowView.metrics = metrics
+            rowView.touchInsets = rowTouchInsets(
+                rowIndex: keyboardStack.arrangedSubviews.firstIndex(of: rowView) ?? 0,
+                rowCount: keyboardStack.arrangedSubviews.count,
+                metrics: metrics
+            )
             rowView.setNeedsLayout()
         }
         for constraint in rowHeightConstraints {
@@ -779,6 +804,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let rowCount = CGFloat(KeyboardLayoutProvider.rows(for: keyboardMode).count)
         guard rowCount > 0 else { return 0 }
         return rowCount * metrics.minimumKeyHeight + max(0, rowCount - 1) * metrics.rowSpacing
+    }
+
+    private func rowTouchInsets(rowIndex: Int, rowCount: Int, metrics: KeyboardMetrics) -> UIEdgeInsets {
+        let halfGap = metrics.rowSpacing / 2
+        return UIEdgeInsets(
+            top: rowIndex == 0 ? 0 : halfGap,
+            left: 0,
+            bottom: rowIndex == rowCount - 1 ? 0 : halfGap,
+            right: 0
+        )
     }
 }
 
