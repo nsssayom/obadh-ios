@@ -43,15 +43,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         true
     }
 
-    override func loadView() {
-        let inputView = UIInputView(frame: .zero, inputViewStyle: .keyboard)
-        inputView.allowsSelfSizing = true
-        inputView.clipsToBounds = true
-        view = inputView
-    }
-
     override func viewDidLoad() {
         super.viewDidLoad()
+        configureInputViewShell()
         let configuration = engine.configureModels(in: Bundle(for: KeyboardViewController.self))
         if configuration.autosuggestAvailable {
             restorePersonalAutosuggest()
@@ -62,6 +56,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         configureEmojiPanel()
         reloadKeyboardRows()
         refreshKeyboard()
+    }
+
+    private func configureInputViewShell() {
+        guard let inputView else { return }
+        inputView.allowsSelfSizing = true
+        inputView.clipsToBounds = true
     }
 
     override func viewWillAppear(_ animated: Bool) {

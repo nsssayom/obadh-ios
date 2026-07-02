@@ -62,6 +62,7 @@ final class EmojiPanelView: UIView {
     private var sectionCategories: [EmojiCategory] = []
     private var sectionItems: [[EmojiItem]] = []
     private var variantPopover: EmojiVariantPopoverView?
+    private var recentsSnapshotNeedsRefresh = false
 
     override init(frame: CGRect) {
         let layout = UICollectionViewFlowLayout()
@@ -82,6 +83,7 @@ final class EmojiPanelView: UIView {
     func configure(dataStore: EmojiDataStore, recentEmojis: [String]) {
         self.dataStore = dataStore
         self.recentEmojis = recentEmojis
+        recentsSnapshotNeedsRefresh = false
         if selectedCategory == .recents && recentEmojis.isEmpty {
             selectedCategory = .smileys
         }
@@ -89,31 +91,12 @@ final class EmojiPanelView: UIView {
     }
 
     func recordRecentEmoji(_ emoji: String) {
-        let hadRecents = !recentEmojis.isEmpty
         recentEmojis.removeAll { $0 == emoji }
         recentEmojis.insert(emoji, at: 0)
         if recentEmojis.count > 64 {
             recentEmojis.removeLast(recentEmojis.count - 64)
         }
-
-        if isSearchActive {
-            if searchQuery.isEmpty {
-                reloadItems()
-            }
-            return
-        }
-
-        if !hadRecents || selectedCategory == .recents || sectionCategories.isEmpty {
-            reloadItems()
-            return
-        }
-
-        guard let recentsSection = sectionCategories.firstIndex(of: .recents) else {
-            reloadItems()
-            return
-        }
-        sectionItems[recentsSection] = dataStore.items(for: recentEmojis)
-        collectionView.reloadSections(IndexSet(integer: recentsSection))
+        recentsSnapshotNeedsRefresh = true
     }
 
     func setSearchQuery(_ query: String) {
@@ -386,7 +369,11 @@ final class EmojiPanelView: UIView {
     }
 
     private func selectCategory(_ category: EmojiCategory, animated: Bool = true) {
-        if isSearchActive || sectionCategories.isEmpty {
+        if category == .recents, recentsSnapshotNeedsRefresh || !sectionCategories.contains(.recents) {
+            rebuildBrowsingSections()
+            recentsSnapshotNeedsRefresh = false
+            collectionView.reloadData()
+        } else if isSearchActive || sectionCategories.isEmpty {
             rebuildBrowsingSections()
         }
         guard sectionCategories.contains(category) else { return }
@@ -407,6 +394,9 @@ final class EmojiPanelView: UIView {
     }
     private func reloadItems() {
         dismissVariantPopover(animated: false)
+        if isSearchActive || selectedCategory == .recents {
+            recentsSnapshotNeedsRefresh = false
+        }
         switch selectedCategory {
         case _ where isSearchActive:
             searchItems = searchQuery.isEmpty
