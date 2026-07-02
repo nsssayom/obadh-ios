@@ -61,6 +61,31 @@ enum EmojiCategory: String, CaseIterable {
         }
     }
 
+    var accessibilityLabel: String {
+        switch self {
+        case .recents:
+            "Recently Used"
+        case .smileys:
+            "Smileys and People"
+        case .people:
+            "People"
+        case .animals:
+            "Animals and Nature"
+        case .food:
+            "Food and Drink"
+        case .activities:
+            "Activities"
+        case .travel:
+            "Travel and Places"
+        case .objects:
+            "Objects"
+        case .symbols:
+            "Symbols"
+        case .flags:
+            "Flags"
+        }
+    }
+
     static func fromUnicodeGroup(_ group: String) -> Self {
         switch group {
         case "Smileys & Emotion":

@@ -296,6 +296,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     @objc private func handleKeyTouchDown(_ sender: KeyboardKeyButton) {
+        if isEmojiSearchActive, sender.key == .backspace {
+            beginEmojiSearchBackspacePress()
+            return
+        }
+
         if sender.key == .backspace {
             beginBackspacePress()
         } else {
@@ -311,6 +316,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     @objc private func handleKeyPress(_ sender: KeyboardKeyButton) {
         if isEmojiSearchActive {
+            if sender.key == .backspace {
+                endBackspacePress()
+                return
+            }
             handleEmojiSearchKeyPress(sender.key)
             refreshKeyboard()
             return
@@ -463,6 +472,35 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func syncEmojiSearchQuery() {
         emojiPanelView.setSearchQuery(emojiSearchQuery)
+    }
+
+    private func beginEmojiSearchBackspacePress() {
+        guard !backspaceRepeater.isActive else { return }
+
+        guard performEmojiSearchBackspace() else { return }
+        feedbackController.keyTouched(.backspace)
+        backspaceRepeater.begin { [weak self] _ in
+            guard let self else { return }
+            guard performEmojiSearchBackspace() else {
+                endBackspacePress()
+                return
+            }
+            feedbackController.backspaceRepeated(unit: .character)
+        }
+    }
+
+    @discardableResult
+    private func performEmojiSearchBackspace() -> Bool {
+        guard !emojiSearchQuery.isEmpty else {
+            exitEmojiSearch()
+            refreshKeyboard()
+            return false
+        }
+
+        emojiSearchQuery.removeLast()
+        syncEmojiSearchQuery()
+        refreshKeyboard()
+        return true
     }
 
     private func beginBackspacePress() {

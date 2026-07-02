@@ -28,6 +28,7 @@ final class EmojiPanelView: UIView {
         static let collectionTopSpacing: CGFloat = 9
         static let collectionBottomSpacing: CGFloat = 4
         static let categoryHeight: CGFloat = 44
+        static let categorySelectionDiameter: CGFloat = 36
         static let minimumEmojiCellSize: CGFloat = 36
         static let maximumEmojiCellSize: CGFloat = 46
         static let targetEmojiCellSize: CGFloat = 39
@@ -43,7 +44,7 @@ final class EmojiPanelView: UIView {
     private let searchClearButton = UIButton(type: .system)
     private let collectionView: UICollectionView
     private let categoryStack = UIStackView()
-    private var categoryButtons: [EmojiCategory: UIButton] = [:]
+    private var categoryButtons: [EmojiCategory: EmojiCategoryButton] = [:]
     private var keyboardButton = UIButton(type: .system)
     private var backspaceButton = UIButton(type: .system)
     private var searchChromeTopConstraint: NSLayoutConstraint?
@@ -57,7 +58,9 @@ final class EmojiPanelView: UIView {
     private var selectedCategory: EmojiCategory = .smileys
     private var isSearchActive = false
     private var searchQuery = ""
-    private var visibleItems: [EmojiItem] = []
+    private var searchItems: [EmojiItem] = []
+    private var sectionCategories: [EmojiCategory] = []
+    private var sectionItems: [[EmojiItem]] = []
     private var variantPopover: EmojiVariantPopoverView?
 
     override init(frame: CGRect) {
@@ -86,14 +89,31 @@ final class EmojiPanelView: UIView {
     }
 
     func recordRecentEmoji(_ emoji: String) {
+        let hadRecents = !recentEmojis.isEmpty
         recentEmojis.removeAll { $0 == emoji }
         recentEmojis.insert(emoji, at: 0)
         if recentEmojis.count > 64 {
             recentEmojis.removeLast(recentEmojis.count - 64)
         }
-        if selectedCategory == .recents {
-            reloadItems()
+
+        if isSearchActive {
+            if searchQuery.isEmpty {
+                reloadItems()
+            }
+            return
         }
+
+        if !hadRecents || selectedCategory == .recents || sectionCategories.isEmpty {
+            reloadItems()
+            return
+        }
+
+        guard let recentsSection = sectionCategories.firstIndex(of: .recents) else {
+            reloadItems()
+            return
+        }
+        sectionItems[recentsSection] = dataStore.items(for: recentEmojis)
+        collectionView.reloadSections(IndexSet(integer: recentsSection))
     }
 
     func setSearchQuery(_ query: String) {
@@ -169,6 +189,7 @@ final class EmojiPanelView: UIView {
         searchLabel.text = "Search Emoji"
         searchLabel.font = .systemFont(ofSize: 22, weight: .regular)
         searchLabel.lineBreakMode = .byTruncatingTail
+        searchLabel.setContentHuggingPriority(.required, for: .horizontal)
         searchLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         searchTextStack.addArrangedSubview(searchLabel)
 
@@ -253,7 +274,7 @@ final class EmojiPanelView: UIView {
                 constant: Metrics.searchTextSpacing
             ),
             searchTextStack.trailingAnchor.constraint(
-                equalTo: searchClearButton.leadingAnchor,
+                lessThanOrEqualTo: searchClearButton.leadingAnchor,
                 constant: -6
             ),
             searchTextStack.centerYAnchor.constraint(equalTo: searchChrome.centerYAnchor),
@@ -297,13 +318,13 @@ final class EmojiPanelView: UIView {
         categoryStack.addArrangedSubview(keyboardButton)
 
         for category in EmojiCategory.visibleCases {
-            let button = UIButton(type: .system)
+            let button = EmojiCategoryButton(selectionDiameter: Metrics.categorySelectionDiameter)
             button.setImage(UIImage(systemName: category.symbolName), for: .normal)
             button.setPreferredSymbolConfiguration(
                 UIImage.SymbolConfiguration(pointSize: 20, weight: .regular),
                 forImageIn: .normal
             )
-            button.layer.cornerCurve = .continuous
+            button.accessibilityLabel = category.accessibilityLabel
             button.tag = categoryIndex(category)
             button.addTarget(self, action: #selector(handleCategoryTap(_:)), for: .touchUpInside)
             categoryButtons[category] = button
@@ -336,10 +357,8 @@ final class EmojiPanelView: UIView {
         searchIcon.tintColor = KeyboardTheme.emojiPlaceholderColor(for: traitCollection)
         searchCaret.backgroundColor = KeyboardTheme.textColor(for: traitCollection)
         searchClearButton.tintColor = KeyboardTheme.emojiPlaceholderColor(for: traitCollection)
-        keyboardButton.setTitleColor(
-            KeyboardTheme.emojiCategoryTintColor(selected: false, traitCollection: traitCollection),
-            for: .normal
-        )
+        let inactiveTint = KeyboardTheme.emojiCategoryTintColor(selected: false, traitCollection: traitCollection)
+        keyboardButton.setTitleColor(inactiveTint, for: .normal)
         backspaceButton.tintColor = KeyboardTheme.emojiCategoryTintColor(selected: false, traitCollection: traitCollection)
         collectionView.indicatorStyle = traitCollection.userInterfaceStyle == .dark ? .white : .black
         reloadCategoryButtons()
@@ -349,36 +368,59 @@ final class EmojiPanelView: UIView {
     private func reloadCategoryButtons() {
         for (category, button) in categoryButtons {
             let selected = category == selectedCategory && !isSearchActive
-            button.tintColor = KeyboardTheme.emojiCategoryTintColor(
+            button.update(
                 selected: selected,
-                traitCollection: traitCollection
+                tintColor: KeyboardTheme.emojiCategoryTintColor(
+                    selected: selected,
+                    traitCollection: traitCollection
+                ),
+                selectedBackgroundColor: KeyboardTheme.emojiCategorySelectedBackgroundColor(for: traitCollection)
             )
-            button.backgroundColor = selected
-                ? KeyboardTheme.emojiCategorySelectedBackgroundColor(for: traitCollection)
-                : .clear
-            if button.bounds.width > 0 && button.bounds.height > 0 {
-                button.layer.cornerRadius = min(button.bounds.width, button.bounds.height) / 2
-            }
         }
     }
 
+    private func navigableCategories() -> [EmojiCategory] {
+        EmojiCategory.visibleCases.filter { category in
+            category != .recents || !recentEmojis.isEmpty
+        }
+    }
+
+    private func selectCategory(_ category: EmojiCategory, animated: Bool = true) {
+        if isSearchActive || sectionCategories.isEmpty {
+            rebuildBrowsingSections()
+        }
+        guard sectionCategories.contains(category) else { return }
+
+        guard category != selectedCategory || isSearchActive else {
+            scrollToCategory(category, animated: animated)
+            return
+        }
+
+        isSearchActive = false
+        searchQuery = ""
+        selectedCategory = category
+        if sectionCategories.isEmpty {
+            rebuildBrowsingSections()
+        }
+        reloadCategoryButtons()
+        scrollToCategory(category, animated: animated)
+    }
     private func reloadItems() {
         dismissVariantPopover(animated: false)
         switch selectedCategory {
         case _ where isSearchActive:
-            visibleItems = searchQuery.isEmpty
+            searchItems = searchQuery.isEmpty
                 ? searchIdleItems()
                 : applyVariantPreferences(to: dataStore.search(searchQuery, limit: 240))
-            searchLabel.text = searchQuery.isEmpty ? "Search Emoji" : searchQuery
+            searchLabel.text = searchQuery
         case .recents:
-            visibleItems = dataStore.items(for: recentEmojis)
+            rebuildBrowsingSections()
             searchLabel.text = "Search Emoji"
-            if visibleItems.isEmpty {
+            if !sectionCategories.contains(.recents) {
                 selectedCategory = .smileys
-                visibleItems = applyVariantPreferences(to: dataStore.items(in: .smileys))
             }
         default:
-            visibleItems = applyVariantPreferences(to: dataStore.items(in: selectedCategory))
+            rebuildBrowsingSections()
             searchLabel.text = "Search Emoji"
         }
         searchChromeTopConstraint?.constant = Metrics.searchTop
@@ -393,7 +435,94 @@ final class EmojiPanelView: UIView {
         updateSearchLabelAppearance()
         updateSearchControls()
         collectionView.reloadData()
-        collectionView.setContentOffset(.zero, animated: false)
+        if isSearchActive {
+            collectionView.setContentOffset(.zero, animated: false)
+        } else {
+            scrollToCategory(selectedCategory, animated: false)
+        }
+    }
+
+    private func rebuildBrowsingSections() {
+        let pairs: [(EmojiCategory, [EmojiItem])] = navigableCategories().compactMap { category in
+            let items = category == .recents
+                ? dataStore.items(for: recentEmojis)
+                : applyVariantPreferences(to: dataStore.items(in: category))
+            return items.isEmpty ? nil : (category, items)
+        }
+        sectionCategories = pairs.map(\.0)
+        sectionItems = pairs.map(\.1)
+        if !sectionCategories.contains(selectedCategory), let fallback = sectionCategories.first {
+            selectedCategory = fallback
+        }
+    }
+
+    private func scrollToCategory(_ category: EmojiCategory, animated: Bool) {
+        guard
+            !isSearchActive,
+            let section = sectionCategories.firstIndex(of: category),
+            sectionItems.indices.contains(section),
+            !sectionItems[section].isEmpty
+        else {
+            return
+        }
+
+        collectionView.layoutIfNeeded()
+        collectionView.scrollToItem(
+            at: IndexPath(item: 0, section: section),
+            at: .left,
+            animated: animated
+        )
+    }
+
+    private func item(at indexPath: IndexPath) -> EmojiItem? {
+        if isSearchActive {
+            guard indexPath.section == 0, searchItems.indices.contains(indexPath.item) else {
+                return nil
+            }
+            return searchItems[indexPath.item]
+        }
+
+        guard
+            sectionItems.indices.contains(indexPath.section),
+            sectionItems[indexPath.section].indices.contains(indexPath.item)
+        else {
+            return nil
+        }
+        return sectionItems[indexPath.section][indexPath.item]
+    }
+
+    private func updateSelectedCategoryForVisibleContent() {
+        guard !isSearchActive, !sectionCategories.isEmpty else { return }
+
+        let visibleIndexPaths = collectionView.indexPathsForVisibleItems
+        guard !visibleIndexPaths.isEmpty else { return }
+
+        let referenceX = collectionView.contentOffset.x + collectionView.bounds.width / 2
+        let closestSection = visibleIndexPaths.compactMap { indexPath -> (section: Int, distance: CGFloat)? in
+            guard
+                sectionCategories.indices.contains(indexPath.section),
+                let attributes = collectionView.layoutAttributesForItem(at: indexPath)
+            else {
+                return nil
+            }
+            return (indexPath.section, abs(attributes.frame.midX - referenceX))
+        }
+        .min { lhs, rhs in
+            lhs.distance < rhs.distance
+        }?
+        .section
+
+        guard
+            let closestSection,
+            sectionCategories.indices.contains(closestSection)
+        else {
+            return
+        }
+
+        let category = sectionCategories[closestSection]
+        guard category != selectedCategory else { return }
+        selectedCategory = category
+        reloadCategoryButtons()
     }
 
     private func updateSearchLabelAppearance() {
@@ -471,14 +600,11 @@ final class EmojiPanelView: UIView {
         delegate?.emojiPanelViewDidRequestClearSearch(self)
     }
 
-    @objc private func handleCategoryTap(_ sender: UIButton) {
+    @objc private func handleCategoryTap(_ sender: EmojiCategoryButton) {
         guard let category = EmojiCategory.visibleCases.first(where: { categoryIndex($0) == sender.tag }) else {
             return
         }
-        isSearchActive = false
-        selectedCategory = category
-        searchQuery = ""
-        reloadItems()
+        selectCategory(category)
     }
 
     private func categoryIndex(_ category: EmojiCategory) -> Int {
@@ -492,12 +618,11 @@ final class EmojiPanelView: UIView {
         case .began:
             guard
                 let indexPath = collectionView.indexPathForItem(at: pointInCollection),
-                visibleItems.indices.contains(indexPath.item),
+                let item = item(at: indexPath),
                 let cell = collectionView.cellForItem(at: indexPath)
             else {
                 return
             }
-            let item = visibleItems[indexPath.item]
             let options = dataStore.variantOptions(for: item)
             guard options.count > 1 else { return }
             showVariantPopover(options: options, sourceCell: cell)
@@ -586,8 +711,16 @@ final class EmojiPanelView: UIView {
 }
 
 extension EmojiPanelView: UICollectionViewDataSource, UICollectionViewDelegate {
+    func numberOfSections(in collectionView: UICollectionView) -> Int {
+        isSearchActive ? 1 : sectionItems.count
+    }
+
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        visibleItems.count
+        if isSearchActive {
+            return section == 0 ? searchItems.count : 0
+        }
+        guard sectionItems.indices.contains(section) else { return 0 }
+        return sectionItems[section].count
     }
 
     func collectionView(
@@ -598,14 +731,65 @@ extension EmojiPanelView: UICollectionViewDataSource, UICollectionViewDelegate {
             withReuseIdentifier: EmojiCell.reuseIdentifier,
             for: indexPath
         ) as! EmojiCell
-        cell.update(with: visibleItems[indexPath.item])
+        if let item = item(at: indexPath) {
+            cell.update(with: item)
+        }
         return cell
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        guard visibleItems.indices.contains(indexPath.item) else { return }
+        guard let item = item(at: indexPath) else { return }
         dismissVariantPopover(animated: false)
-        delegate?.emojiPanelView(self, didSelect: visibleItems[indexPath.item])
+        delegate?.emojiPanelView(self, didSelect: item)
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        updateSelectedCategoryForVisibleContent()
+    }
+}
+
+private final class EmojiCategoryButton: UIButton {
+    private let selectedBackgroundView = UIView()
+    private let selectionDiameter: CGFloat
+
+    init(selectionDiameter: CGFloat) {
+        self.selectionDiameter = selectionDiameter
+        super.init(frame: .zero)
+        configure()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(selected: Bool, tintColor: UIColor, selectedBackgroundColor: UIColor) {
+        self.tintColor = tintColor
+        selectedBackgroundView.backgroundColor = selected ? selectedBackgroundColor : .clear
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let diameter = min(selectionDiameter, bounds.width - 4, bounds.height - 4)
+        selectedBackgroundView.frame = CGRect(
+            x: (bounds.width - diameter) / 2,
+            y: (bounds.height - diameter) / 2,
+            width: diameter,
+            height: diameter
+        )
+        selectedBackgroundView.layer.cornerRadius = diameter / 2
+        selectedBackgroundView.layer.cornerCurve = .continuous
+    }
+
+    private func configure() {
+        backgroundColor = .clear
+        contentHorizontalAlignment = .center
+        contentVerticalAlignment = .center
+
+        selectedBackgroundView.isUserInteractionEnabled = false
+        selectedBackgroundView.backgroundColor = .clear
+        addSubview(selectedBackgroundView)
+        sendSubviewToBack(selectedBackgroundView)
     }
 }
 
