@@ -1,0 +1,12 @@
+.DS_Store
+.venv/
+.build/
+DerivedData/
+build/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+Frameworks/ObadhBridge.xcframework
+rust/ObadhBridge/target/
+Config/Signing.local.xcconfig

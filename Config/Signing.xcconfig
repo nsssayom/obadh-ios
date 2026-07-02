@@ -1,0 +1,5 @@
+CODE_SIGN_STYLE = Automatic
+
+// Local device signing lives outside Git. Create Config/Signing.local.xcconfig
+// with DEVELOPMENT_TEAM when running on a real iPhone/iPad.
+#include? "Signing.local.xcconfig"

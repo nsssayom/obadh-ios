@@ -1,0 +1,611 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00A0F8BFEB55AE4C83370FE3 /* KeyboardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A0E44B2BF4ECEBD1F200FA /* KeyboardTheme.swift */; };
+		14B443384482487193F34C8C /* KeyboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */; };
+		16C7798A088DC4BAE6921D2B /* KeyboardFeedbackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86492A9D653BD7ADC7768E20 /* KeyboardFeedbackController.swift */; };
+		1E29DA45C1A8A352AD8EB170 /* SuggestionBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D65EFAF37CE3C5028ECCF93 /* SuggestionBarView.swift */; };
+		30E0C1068BE02C5E421C3E6C /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
+		389445790B9C5BA874BD5E2C /* TextCompositionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA357898E8C15A804056128 /* TextCompositionController.swift */; };
+		4DFAA32AC12C80F82CE9685F /* KeyboardRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */; };
+		540C97813BB8F24D92201AD1 /* BackspaceRepeatPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */; };
+		7E7505AE67FE8CD5F09DA8AB /* KeyboardGeometryProbeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A112F2B098CDC6A3EDB88 /* KeyboardGeometryProbeView.swift */; };
+		8DEAC1E1856D9FA6655586A2 /* BackspaceDeletionPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */; };
+		8E471953129D5F47A9ACAF9A /* KeyboardLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */; };
+		9249FCD6DDEBECFECE0D6F6F /* ObadhModels in Resources */ = {isa = PBXBuildFile; fileRef = 62363696E04B4D208F1866B8 /* ObadhModels */; };
+		9FEAF3B40EDF24742EB4A431 /* PersonalAutosuggestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */; };
+		A02B5F9B3F2E94C08578F017 /* ObadhKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A26388F66E53BF178986A745 /* KeyboardPunctuationBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD3D9DEAF628AF8E00AFA3DA /* KeyboardPunctuationBuffer.swift */; };
+		A596F803163521C139657F2F /* BackspaceRepeatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */; };
+		AD7D82906C1826EC37751A77 /* EmojiRecentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A590DD924D6A20FFDF0681E /* EmojiRecentStore.swift */; };
+		AFBE28DCA5BEE23E22F67060 /* KeyboardKeyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61724397185A8DA236054BCD /* KeyboardKeyButton.swift */; };
+		B418D1F63C863DA414DFFFF1 /* EmojiPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */; };
+		C45E64AB6CF6B993F04F9984 /* EmojiDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A861B35EEA4DB2BBF06DA7ED /* EmojiDataStore.swift */; };
+		CA2CC44F410B4B5AA86BBD7E /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78C9F77251F3803865E9E7A5 /* KeyboardViewController.swift */; };
+		D238FEEFECD3153F54922E5E /* KeyboardComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 823506CDCE3CC47B4525E0AC /* KeyboardComposer.swift */; };
+		D772F15083EB0629D19F35B7 /* KeyboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */; };
+		D860BD2B5831772819AA47F3 /* ObadhBridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E6F87259C943124981B64B /* ObadhBridgeClient.swift */; };
+		E8A35065D6841D4145B2DF0E /* SetupViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7534AA815E56B808B60E8904 /* SetupViewController.swift */; };
+		E8B91E57533EED9A6C92D85C /* KeyboardKeyPreviewCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E848AE01B636BE2F743371 /* KeyboardKeyPreviewCallout.swift */; };
+		E8CA44E4569380821431B769 /* EmojiVariantPreferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */; };
+		F51F3E0D32EE3727F80AE2E8 /* KeyboardLayoutGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */; };
+		F83228BAD4E6CD8BA52B592F /* ObadhApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7A08BDE93B4142634C087E /* ObadhApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		6A3B5274D4601ACC78596C97 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 24015D786698A122BB7355F3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2D8AFC7EE2266176BF87087E;
+			remoteInfo = ObadhKeyboard;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		6670FC004E9E845C5D97E595 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A02B5F9B3F2E94C08578F017 /* ObadhKeyboard.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		1A590DD924D6A20FFDF0681E /* EmojiRecentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiRecentStore.swift; sourceTree = "<group>"; };
+		22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayout.swift; sourceTree = "<group>"; };
+		256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiVariantPreferenceStore.swift; sourceTree = "<group>"; };
+		27E6F87259C943124981B64B /* ObadhBridgeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhBridgeClient.swift; sourceTree = "<group>"; };
+		2DE3855A6D08F626A006C8BF /* Obadh.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Obadh.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPanelView.swift; sourceTree = "<group>"; };
+		35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceDeletionPlanner.swift; sourceTree = "<group>"; };
+		3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalAutosuggestStore.swift; sourceTree = "<group>"; };
+		3FA357898E8C15A804056128 /* TextCompositionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextCompositionController.swift; sourceTree = "<group>"; };
+		4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceRepeatPolicy.swift; sourceTree = "<group>"; };
+		4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardRowView.swift; sourceTree = "<group>"; };
+		61724397185A8DA236054BCD /* KeyboardKeyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyButton.swift; sourceTree = "<group>"; };
+		62363696E04B4D208F1866B8 /* ObadhModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ObadhModels; path = Resources/ObadhModels; sourceTree = SOURCE_ROOT; };
+		63A0E44B2BF4ECEBD1F200FA /* KeyboardTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTheme.swift; sourceTree = "<group>"; };
+		6C197034282DB0D01EF59071 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceRepeatController.swift; sourceTree = "<group>"; };
+		7534AA815E56B808B60E8904 /* SetupViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupViewController.swift; sourceTree = "<group>"; };
+		78C9F77251F3803865E9E7A5 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
+		7E7A08BDE93B4142634C087E /* ObadhApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhApp.swift; sourceTree = "<group>"; };
+		823506CDCE3CC47B4525E0AC /* KeyboardComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardComposer.swift; sourceTree = "<group>"; };
+		85E848AE01B636BE2F743371 /* KeyboardKeyPreviewCallout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyPreviewCallout.swift; sourceTree = "<group>"; };
+		86492A9D653BD7ADC7768E20 /* KeyboardFeedbackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardFeedbackController.swift; sourceTree = "<group>"; };
+		9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ObadhKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		9D65EFAF37CE3C5028ECCF93 /* SuggestionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionBarView.swift; sourceTree = "<group>"; };
+		A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ObadhBridge.xcframework; path = Frameworks/ObadhBridge.xcframework; sourceTree = "<group>"; };
+		A861B35EEA4DB2BBF06DA7ED /* EmojiDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiDataStore.swift; sourceTree = "<group>"; };
+		B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayoutGeometry.swift; sourceTree = "<group>"; };
+		DD3D9DEAF628AF8E00AFA3DA /* KeyboardPunctuationBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardPunctuationBuffer.swift; sourceTree = "<group>"; };
+		E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardPreferences.swift; sourceTree = "<group>"; };
+		EF6A112F2B098CDC6A3EDB88 /* KeyboardGeometryProbeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardGeometryProbeView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		3CD5F35171FC4D4868736B2A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				30E0C1068BE02C5E421C3E6C /* ObadhBridge.xcframework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0EE7460F3AA0D40D799BB36B /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				EF6A112F2B098CDC6A3EDB88 /* KeyboardGeometryProbeView.swift */,
+				7E7A08BDE93B4142634C087E /* ObadhApp.swift */,
+				7534AA815E56B808B60E8904 /* SetupViewController.swift */,
+			);
+			name = Sources;
+			path = ObadhApp/Sources;
+			sourceTree = "<group>";
+		};
+		0F9B30524392F763ABF911CF /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				6C197034282DB0D01EF59071 /* Signing.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		516EB0363F32D1F8265CA89D /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */,
+				4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */,
+				823506CDCE3CC47B4525E0AC /* KeyboardComposer.swift */,
+				DD3D9DEAF628AF8E00AFA3DA /* KeyboardPunctuationBuffer.swift */,
+				27E6F87259C943124981B64B /* ObadhBridgeClient.swift */,
+				3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */,
+				3FA357898E8C15A804056128 /* TextCompositionController.swift */,
+			);
+			name = Engine;
+			path = Shared/Sources/Engine;
+			sourceTree = "<group>";
+		};
+		97B039451A7E908CA3D03125 /* Emoji */ = {
+			isa = PBXGroup;
+			children = (
+				A861B35EEA4DB2BBF06DA7ED /* EmojiDataStore.swift */,
+				2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */,
+				1A590DD924D6A20FFDF0681E /* EmojiRecentStore.swift */,
+				256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */,
+			);
+			path = Emoji;
+			sourceTree = "<group>";
+		};
+		99D613CBBA4E66199AE543A5 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */,
+			);
+			name = Settings;
+			path = Shared/Sources/Settings;
+			sourceTree = "<group>";
+		};
+		B5B90948593A23AD3BA89D92 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				78C9F77251F3803865E9E7A5 /* KeyboardViewController.swift */,
+			);
+			name = Sources;
+			path = ObadhKeyboard/Sources;
+			sourceTree = "<group>";
+		};
+		BFD2F8EF8CC1D32F3C330470 /* Keyboard */ = {
+			isa = PBXGroup;
+			children = (
+				6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */,
+				86492A9D653BD7ADC7768E20 /* KeyboardFeedbackController.swift */,
+				61724397185A8DA236054BCD /* KeyboardKeyButton.swift */,
+				85E848AE01B636BE2F743371 /* KeyboardKeyPreviewCallout.swift */,
+				22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */,
+				B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */,
+				4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */,
+				9D65EFAF37CE3C5028ECCF93 /* SuggestionBarView.swift */,
+				97B039451A7E908CA3D03125 /* Emoji */,
+			);
+			name = Keyboard;
+			path = Shared/Sources/Keyboard;
+			sourceTree = "<group>";
+		};
+		C0C935C24823058CC3349AF9 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		D1309E50D52C64494C3FBCCC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2DE3855A6D08F626A006C8BF /* Obadh.app */,
+				9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D365981B6C271135EDE46B79 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				63A0E44B2BF4ECEBD1F200FA /* KeyboardTheme.swift */,
+			);
+			name = Design;
+			path = Shared/Sources/Design;
+			sourceTree = "<group>";
+		};
+		E8E77F1FC2BAE45B8E785C87 = {
+			isa = PBXGroup;
+			children = (
+				62363696E04B4D208F1866B8 /* ObadhModels */,
+				0F9B30524392F763ABF911CF /* Config */,
+				D365981B6C271135EDE46B79 /* Design */,
+				516EB0363F32D1F8265CA89D /* Engine */,
+				BFD2F8EF8CC1D32F3C330470 /* Keyboard */,
+				99D613CBBA4E66199AE543A5 /* Settings */,
+				0EE7460F3AA0D40D799BB36B /* Sources */,
+				B5B90948593A23AD3BA89D92 /* Sources */,
+				C0C935C24823058CC3349AF9 /* Frameworks */,
+				D1309E50D52C64494C3FBCCC /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2D8AFC7EE2266176BF87087E /* ObadhKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3CA8E066076A6892447B6536 /* Build configuration list for PBXNativeTarget "ObadhKeyboard" */;
+			buildPhases = (
+				621BE05443A3E6963E617F06 /* Sources */,
+				82ECEAD6B007C691D255F2BF /* Resources */,
+				3CD5F35171FC4D4868736B2A /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ObadhKeyboard;
+			packageProductDependencies = (
+			);
+			productName = ObadhKeyboard;
+			productReference = 9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		FD0E5C81715E672CC7C03AFE /* Obadh */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C3589AE32F6CE02DD52FBD65 /* Build configuration list for PBXNativeTarget "Obadh" */;
+			buildPhases = (
+				D4355BAFAF5EF51E72598EE1 /* Sources */,
+				6670FC004E9E845C5D97E595 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0652E2E84EA7E401ED7AC140 /* PBXTargetDependency */,
+			);
+			name = Obadh;
+			packageProductDependencies = (
+			);
+			productName = Obadh;
+			productReference = 2DE3855A6D08F626A006C8BF /* Obadh.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		24015D786698A122BB7355F3 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					2D8AFC7EE2266176BF87087E = {
+						ProvisioningStyle = Automatic;
+					};
+					FD0E5C81715E672CC7C03AFE = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 6FCDEEB986EB74DE29218D5E /* Build configuration list for PBXProject "Obadh" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E8E77F1FC2BAE45B8E785C87;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D1309E50D52C64494C3FBCCC /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				FD0E5C81715E672CC7C03AFE /* Obadh */,
+				2D8AFC7EE2266176BF87087E /* ObadhKeyboard */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		82ECEAD6B007C691D255F2BF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9249FCD6DDEBECFECE0D6F6F /* ObadhModels in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		621BE05443A3E6963E617F06 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8DEAC1E1856D9FA6655586A2 /* BackspaceDeletionPlanner.swift in Sources */,
+				A596F803163521C139657F2F /* BackspaceRepeatController.swift in Sources */,
+				540C97813BB8F24D92201AD1 /* BackspaceRepeatPolicy.swift in Sources */,
+				C45E64AB6CF6B993F04F9984 /* EmojiDataStore.swift in Sources */,
+				B418D1F63C863DA414DFFFF1 /* EmojiPanelView.swift in Sources */,
+				AD7D82906C1826EC37751A77 /* EmojiRecentStore.swift in Sources */,
+				E8CA44E4569380821431B769 /* EmojiVariantPreferenceStore.swift in Sources */,
+				D238FEEFECD3153F54922E5E /* KeyboardComposer.swift in Sources */,
+				16C7798A088DC4BAE6921D2B /* KeyboardFeedbackController.swift in Sources */,
+				AFBE28DCA5BEE23E22F67060 /* KeyboardKeyButton.swift in Sources */,
+				E8B91E57533EED9A6C92D85C /* KeyboardKeyPreviewCallout.swift in Sources */,
+				8E471953129D5F47A9ACAF9A /* KeyboardLayout.swift in Sources */,
+				F51F3E0D32EE3727F80AE2E8 /* KeyboardLayoutGeometry.swift in Sources */,
+				14B443384482487193F34C8C /* KeyboardPreferences.swift in Sources */,
+				A26388F66E53BF178986A745 /* KeyboardPunctuationBuffer.swift in Sources */,
+				4DFAA32AC12C80F82CE9685F /* KeyboardRowView.swift in Sources */,
+				00A0F8BFEB55AE4C83370FE3 /* KeyboardTheme.swift in Sources */,
+				CA2CC44F410B4B5AA86BBD7E /* KeyboardViewController.swift in Sources */,
+				D860BD2B5831772819AA47F3 /* ObadhBridgeClient.swift in Sources */,
+				9FEAF3B40EDF24742EB4A431 /* PersonalAutosuggestStore.swift in Sources */,
+				1E29DA45C1A8A352AD8EB170 /* SuggestionBarView.swift in Sources */,
+				389445790B9C5BA874BD5E2C /* TextCompositionController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D4355BAFAF5EF51E72598EE1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7E7505AE67FE8CD5F09DA8AB /* KeyboardGeometryProbeView.swift in Sources */,
+				D772F15083EB0629D19F35B7 /* KeyboardPreferences.swift in Sources */,
+				F83228BAD4E6CD8BA52B592F /* ObadhApp.swift in Sources */,
+				E8A35065D6841D4145B2DF0E /* SetupViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0652E2E84EA7E401ED7AC140 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2D8AFC7EE2266176BF87087E /* ObadhKeyboard */;
+			targetProxy = 6A3B5274D4601ACC78596C97 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		2F9666BE4C2C76B6F1FB9871 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 6C197034282DB0D01EF59071 /* Signing.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Config/ObadhKeyboard.entitlements;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
+				INFOPLIST_FILE = ObadhKeyboard/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh.keyboard;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C03B7FD24C6C756307CABF68 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 6C197034282DB0D01EF59071 /* Signing.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/Obadh.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = ObadhApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		E0D038369CCCC485BE356100 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 6C197034282DB0D01EF59071 /* Signing.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Config/ObadhKeyboard.entitlements;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Frameworks\"",
+				);
+				INFOPLIST_FILE = ObadhKeyboard/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh.keyboard;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F70CD8B60188C3A9A79C5868 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		FA54665C4F151B707B57C2AD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 6C197034282DB0D01EF59071 /* Signing.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/Obadh.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = ObadhApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		FB71D0A569B805329175C4E2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3CA8E066076A6892447B6536 /* Build configuration list for PBXNativeTarget "ObadhKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2F9666BE4C2C76B6F1FB9871 /* Debug */,
+				E0D038369CCCC485BE356100 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6FCDEEB986EB74DE29218D5E /* Build configuration list for PBXProject "Obadh" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FB71D0A569B805329175C4E2 /* Debug */,
+				F70CD8B60188C3A9A79C5868 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C3589AE32F6CE02DD52FBD65 /* Build configuration list for PBXNativeTarget "Obadh" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FA54665C4F151B707B57C2AD /* Debug */,
+				C03B7FD24C6C756307CABF68 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 24015D786698A122BB7355F3 /* Project object */;
+}

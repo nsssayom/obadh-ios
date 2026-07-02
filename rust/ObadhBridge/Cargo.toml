@@ -1,0 +1,13 @@
+[package]
+name = "obadh_ios_bridge"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+obadh_engine = "0.6.0"
+fst = "0.4.7"
+memmap2 = "0.9"
