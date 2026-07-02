@@ -19,7 +19,7 @@ let package = Package(
                 "Keyboard/KeyboardKeyButton.swift",
                 "Keyboard/KeyboardKeyPreviewCallout.swift",
                 "Keyboard/KeyboardRowView.swift",
-                "Keyboard/KeyboardTouchCellControl.swift",
+                "Keyboard/KeyboardTouchSurfaceView.swift",
                 "Keyboard/SuggestionBarView.swift",
                 "Engine/ObadhBridgeClient.swift"
             ]

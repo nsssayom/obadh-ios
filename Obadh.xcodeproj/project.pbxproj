@@ -14,8 +14,8 @@
 		30E0C1068BE02C5E421C3E6C /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
 		389445790B9C5BA874BD5E2C /* TextCompositionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA357898E8C15A804056128 /* TextCompositionController.swift */; };
 		4DFAA32AC12C80F82CE9685F /* KeyboardRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */; };
-		50E20647F9B9495B92D23F9B /* KeyboardTouchCellControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E20646F9B9495B92D23F9B /* KeyboardTouchCellControl.swift */; };
-		50E20649F9B9495B92D23F9B /* KeyboardTouchCellGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E20648F9B9495B92D23F9B /* KeyboardTouchCellGeometry.swift */; };
+		51A2B3C4D5E6F70123456789 /* KeyboardTouchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A2B3C4D5E6F7012345678B /* KeyboardTouchResolver.swift */; };
+		51A2B3C4D5E6F7012345678A /* KeyboardTouchSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A2B3C4D5E6F7012345678C /* KeyboardTouchSurfaceView.swift */; };
 		540C97813BB8F24D92201AD1 /* BackspaceRepeatPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */; };
 		7E7505AE67FE8CD5F09DA8AB /* KeyboardGeometryProbeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A112F2B098CDC6A3EDB88 /* KeyboardGeometryProbeView.swift */; };
 		8DEAC1E1856D9FA6655586A2 /* BackspaceDeletionPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */; };
@@ -76,8 +76,8 @@
 		3FA357898E8C15A804056128 /* TextCompositionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextCompositionController.swift; sourceTree = "<group>"; };
 		4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceRepeatPolicy.swift; sourceTree = "<group>"; };
 		4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardRowView.swift; sourceTree = "<group>"; };
-		50E20646F9B9495B92D23F9B /* KeyboardTouchCellControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchCellControl.swift; sourceTree = "<group>"; };
-		50E20648F9B9495B92D23F9B /* KeyboardTouchCellGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchCellGeometry.swift; sourceTree = "<group>"; };
+		51A2B3C4D5E6F7012345678B /* KeyboardTouchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchResolver.swift; sourceTree = "<group>"; };
+		51A2B3C4D5E6F7012345678C /* KeyboardTouchSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchSurfaceView.swift; sourceTree = "<group>"; };
 		61724397185A8DA236054BCD /* KeyboardKeyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyButton.swift; sourceTree = "<group>"; };
 		62363696E04B4D208F1866B8 /* ObadhModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ObadhModels; path = Resources/ObadhModels; sourceTree = SOURCE_ROOT; };
 		63A0E44B2BF4ECEBD1F200FA /* KeyboardTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTheme.swift; sourceTree = "<group>"; };
@@ -184,8 +184,8 @@
 				22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */,
 				B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */,
 				4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */,
-				50E20646F9B9495B92D23F9B /* KeyboardTouchCellControl.swift */,
-				50E20648F9B9495B92D23F9B /* KeyboardTouchCellGeometry.swift */,
+				51A2B3C4D5E6F7012345678B /* KeyboardTouchResolver.swift */,
+				51A2B3C4D5E6F7012345678C /* KeyboardTouchSurfaceView.swift */,
 				9D65EFAF37CE3C5028ECCF93 /* SuggestionBarView.swift */,
 				97B039451A7E908CA3D03125 /* Emoji */,
 			);
@@ -345,8 +345,8 @@
 				14B443384482487193F34C8C /* KeyboardPreferences.swift in Sources */,
 				A26388F66E53BF178986A745 /* KeyboardPunctuationBuffer.swift in Sources */,
 				4DFAA32AC12C80F82CE9685F /* KeyboardRowView.swift in Sources */,
-				50E20647F9B9495B92D23F9B /* KeyboardTouchCellControl.swift in Sources */,
-				50E20649F9B9495B92D23F9B /* KeyboardTouchCellGeometry.swift in Sources */,
+				51A2B3C4D5E6F70123456789 /* KeyboardTouchResolver.swift in Sources */,
+				51A2B3C4D5E6F7012345678A /* KeyboardTouchSurfaceView.swift in Sources */,
 				00A0F8BFEB55AE4C83370FE3 /* KeyboardTheme.swift in Sources */,
 				CA2CC44F410B4B5AA86BBD7E /* KeyboardViewController.swift in Sources */,
 				D860BD2B5831772819AA47F3 /* ObadhBridgeClient.swift in Sources */,
