@@ -30,7 +30,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var rowHeightConstraints: [NSLayoutConstraint] = []
     private var emojiPanelBottomToSafeAreaConstraint: NSLayoutConstraint?
     private var emojiPanelBottomToKeyboardConstraint: NSLayoutConstraint?
-    private var keyboardHeightConstraint: NSLayoutConstraint?
     private var lastAppliedMetricSize: CGSize = .zero
 
     var enableInputClicksWhenVisible: Bool {
@@ -78,18 +77,24 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         composer.clear()
         compositionController.resetHostState()
         punctuationBuffer.reset()
-        engine.clearAutosuggestSession()
-        suggestionBar.update(suggestions: [])
+    }
+
+    override func textDidChange(_ textInput: UITextInput?) {
+        super.textDidChange(textInput)
+        guard !isUpdatingTextProxy else { return }
+        if !composer.hasActiveInput,
+           (textDocumentProxy.documentContextBeforeInput ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty {
+            engine.clearAutosuggestSession()
+        }
+        refreshSuggestions()
     }
 
     private func configureRootView() {
         view.backgroundColor = .clear
         view.isOpaque = false
         view.clipsToBounds = false
-        let heightConstraint = view.heightAnchor.constraint(equalToConstant: preferredKeyboardHeight)
-        heightConstraint.priority = UILayoutPriority(999)
-        heightConstraint.isActive = true
-        keyboardHeightConstraint = heightConstraint
 
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (controller: KeyboardViewController, _) in
             controller.view.backgroundColor = .clear
@@ -244,11 +249,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             }
 
             let sessionSuggestions = engine
-                .autosuggestSessionSuggestions(limit: 3)
+                .autosuggestSessionSuggestions(limit: 6)
                 .map { KeyboardSuggestion(text: $0, source: .autosuggest) }
-            let suggestions = sessionSuggestions.isEmpty
-                ? composer.contextSuggestions(context: contextBeforeInput, limit: 3)
-                : sessionSuggestions
+            let contextSuggestions = composer.contextSuggestions(context: contextBeforeInput, limit: 6)
+            let suggestions = KeyboardComposer.mergeSuggestions(
+                primary: sessionSuggestions,
+                fallback: contextSuggestions,
+                limit: 3
+            )
             suggestionBar.update(suggestions: suggestions)
         }
     }
@@ -282,9 +290,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     @objc private func handleKeyTouchDown(_ sender: KeyboardKeyButton) {
-        feedbackController.keyTouched(sender.key)
         if sender.key == .backspace {
             beginBackspacePress()
+        } else {
+            feedbackController.keyTouched(sender.key)
         }
     }
 
@@ -309,12 +318,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             refreshCompositionPreview()
         case let .symbol(symbol):
             if symbol.role == .sentenceTerminator {
-                if composer.hasActiveInput {
-                    _ = commitActiveInputIfNeeded()
-                }
-                performTextUpdate {
-                    let inserted = applyPunctuationRawInput(symbol.output)
-                    observeAutosuggestBoundary(inserted)
+                if !commitActiveInputWithSentenceTerminator(symbol.output) {
+                    performTextUpdate {
+                        let inserted = applyPunctuationRawInput(symbol.output)
+                        observeAutosuggestBoundary(inserted)
+                    }
                 }
             } else if !commitActiveInputIfNeeded(trailingText: symbol.output) {
                 punctuationBuffer.reset()
@@ -454,15 +462,20 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private func beginBackspacePress() {
         guard !backspaceRepeater.isActive else { return }
 
-        performBackspace(unit: .character)
+        guard performBackspace(unit: .character) else { return }
+        feedbackController.keyTouched(.backspace)
         backspaceRepeater.begin { [weak self] unit in
             guard let self else { return }
+            guard performBackspace(unit: unit) else {
+                backspaceRepeater.end()
+                return
+            }
             feedbackController.backspaceRepeated(unit: unit)
-            performBackspace(unit: unit)
         }
     }
 
-    private func performBackspace(unit: BackspaceDeletionUnit) {
+    @discardableResult
+    private func performBackspace(unit: BackspaceDeletionUnit) -> Bool {
         punctuationBuffer.reset()
 
         if composer.hasActiveInput {
@@ -470,7 +483,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             case .character:
                 if composer.deleteBackward() {
                     refreshCompositionPreview()
-                    return
+                    return true
                 }
             case .word, .sentence, .availableContext:
                 composer.clear()
@@ -478,12 +491,22 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                     compositionController.clearMarkedText(in: documentEditor)
                 }
                 refreshSuggestions()
-                return
+                return true
             }
         }
 
+        let contextBeforeInput = textDocumentProxy.documentContextBeforeInput
+        guard contextBeforeInput?.isEmpty != true else {
+            refreshSuggestions()
+            return false
+        }
+        guard textDocumentProxy.hasText || contextBeforeInput != nil else {
+            refreshSuggestions()
+            return false
+        }
+
         let deleteCount = BackspaceDeletionPlanner.deleteCount(
-            before: textDocumentProxy.documentContextBeforeInput ?? "",
+            before: contextBeforeInput ?? "",
             unit: unit
         )
         guard deleteCount > 0 else {
@@ -491,7 +514,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 textDocumentProxy.deleteBackward()
             }
             refreshSuggestions()
-            return
+            return true
         }
 
         performTextUpdate {
@@ -501,6 +524,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
         engine.clearAutosuggestSession()
         refreshSuggestions()
+        return true
     }
 
     @discardableResult
@@ -512,6 +536,23 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
         observeCommittedToken(committed)
         observeAutosuggestBoundary(trailingText)
+        return true
+    }
+
+    @discardableResult
+    private func commitActiveInputWithSentenceTerminator(_ rawInput: String) -> Bool {
+        guard composer.hasActiveInput else { return false }
+        guard let committed = composer.commitActiveInput() else { return false }
+        let operation = punctuationBuffer.append(
+            rawInput,
+            contextBeforeInput: committed,
+            engine: engine
+        )
+        performTextUpdate {
+            compositionController.commitText(committed, trailingText: operation.insertion, in: documentEditor)
+        }
+        observeCommittedToken(committed)
+        observeAutosuggestBoundary(operation.insertion)
         return true
     }
 
@@ -603,16 +644,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func applyLayoutMetricsIfNeeded(force: Bool = false) {
         let size = view.bounds.size
-        let preferredHeight = preferredKeyboardHeight
         let shouldReloadRows = force || size != lastAppliedMetricSize
-        guard shouldReloadRows || keyboardHeightConstraint?.constant != preferredHeight else {
+        guard shouldReloadRows else {
             return
         }
         lastAppliedMetricSize = size
 
         let metrics = currentMetrics
         let insets = metrics.keyboardInsets
-        keyboardHeightConstraint?.constant = preferredHeight
         keyboardStack.spacing = metrics.rowSpacing
         keyboardStackLeadingConstraint?.constant = insets.left
         keyboardStackTrailingConstraint?.constant = -insets.right
@@ -712,7 +751,6 @@ extension KeyboardViewController: EmojiPanelViewDelegate {
     }
 
     func emojiPanelViewDidBeginBackspace(_ view: EmojiPanelView) {
-        feedbackController.keyTouched(.backspace)
         beginBackspacePress()
     }
 

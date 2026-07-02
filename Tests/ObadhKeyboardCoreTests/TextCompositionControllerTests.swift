@@ -23,6 +23,21 @@ final class TextCompositionControllerTests: XCTestCase {
         ])
     }
 
+    func testMarkedTextCommitsSentencePunctuationAtomically() {
+        let document = FakeCompositionDocument()
+        let controller = TextCompositionController()
+
+        controller.updateMarkedText("গাই", in: document)
+        controller.commitText("গাই", trailingText: "।", in: document)
+
+        XCTAssertEqual(document.text, "গাই।")
+        XCTAssertEqual(document.operations, [
+            .setMarkedText("গাই"),
+            .setMarkedText("গাই।"),
+            .unmarkText
+        ])
+    }
+
     func testRedundantMarkedTextUpdateIsSkipped() {
         let document = FakeCompositionDocument()
         let controller = TextCompositionController()

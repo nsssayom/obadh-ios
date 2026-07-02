@@ -40,6 +40,30 @@ final class KeyboardComposer {
         compositionSuggestions
     }
 
+    static func mergeSuggestions(
+        primary: [KeyboardSuggestion],
+        fallback: [KeyboardSuggestion],
+        limit: Int
+    ) -> [KeyboardSuggestion] {
+        guard limit > 0 else { return [] }
+
+        var merged: [KeyboardSuggestion] = []
+        merged.reserveCapacity(limit)
+        var seen = Set<String>()
+
+        for suggestion in primary + fallback {
+            guard !suggestion.text.isEmpty, seen.insert(suggestion.text).inserted else {
+                continue
+            }
+            merged.append(suggestion)
+            if merged.count == limit {
+                break
+            }
+        }
+
+        return merged
+    }
+
     func contextSuggestions(context: String, limit: Int) -> [KeyboardSuggestion] {
         guard !context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
         return engine

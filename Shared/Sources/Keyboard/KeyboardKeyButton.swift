@@ -83,7 +83,7 @@ final class KeyboardKeyButton: UIButton {
             keyPreviewText = nil
         case .emoji:
             setTitle(nil, for: .normal)
-            setImage(UIImage(systemName: "face.smiling"), for: .normal)
+            setImage(nativeEmojiGlyph(pointSize: metrics.commandFontSize + 2), for: .normal)
             keyPreviewText = nil
         }
     }
@@ -254,5 +254,55 @@ final class KeyboardKeyButton: UIButton {
                 remove()
             }
         )
+    }
+
+    private func nativeEmojiGlyph(pointSize: CGFloat) -> UIImage {
+        let configuration = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
+        if let nativeImage = UIImage(systemName: "face.smiling.inverse", withConfiguration: configuration) {
+            return nativeImage
+        }
+
+        let side = max(22, ceil(pointSize + 4))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = UIScreen.main.scale
+        format.opaque = false
+
+        let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { context in
+            let faceBounds = CGRect(x: 1.2, y: 1.2, width: side - 2.4, height: side - 2.4)
+            context.cgContext.setBlendMode(.copy)
+            UIColor.black.setFill()
+            UIBezierPath(ovalIn: faceBounds).fill()
+
+            context.cgContext.setBlendMode(.clear)
+
+            let eyeRadius = max(1.25, side * 0.055)
+            let leftEye = CGRect(
+                x: side * 0.34 - eyeRadius,
+                y: side * 0.36 - eyeRadius,
+                width: eyeRadius * 2,
+                height: eyeRadius * 2
+            )
+            let rightEye = CGRect(
+                x: side * 0.66 - eyeRadius,
+                y: side * 0.36 - eyeRadius,
+                width: eyeRadius * 2,
+                height: eyeRadius * 2
+            )
+            context.cgContext.fillEllipse(in: leftEye)
+            context.cgContext.fillEllipse(in: rightEye)
+
+            let mouth = UIBezierPath()
+            mouth.move(to: CGPoint(x: side * 0.34, y: side * 0.56))
+            mouth.addCurve(
+                to: CGPoint(x: side * 0.66, y: side * 0.56),
+                controlPoint1: CGPoint(x: side * 0.39, y: side * 0.74),
+                controlPoint2: CGPoint(x: side * 0.61, y: side * 0.74)
+            )
+            mouth.close()
+            mouth.fill()
+            context.cgContext.setBlendMode(.normal)
+        }
+
+        return image.withRenderingMode(.alwaysTemplate)
     }
 }

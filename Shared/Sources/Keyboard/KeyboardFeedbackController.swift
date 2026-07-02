@@ -3,7 +3,7 @@ import UIKit
 @MainActor
 final class KeyboardFeedbackController {
     private let keyFeedback = UIImpactFeedbackGenerator(style: .light)
-    private let commandKeyFeedback = UIImpactFeedbackGenerator(style: .light)
+    private let commandKeyFeedback = UIImpactFeedbackGenerator(style: .medium)
     private let selectionFeedback = UISelectionFeedbackGenerator()
     private let preferences = KeyboardPreferences()
     private var hapticFeedbackEnabled = true
@@ -23,11 +23,16 @@ final class KeyboardFeedbackController {
         if hapticFeedbackEnabled {
             switch key {
             case .backspace:
-                playCommandImpact(intensity: 0.46)
-            case .modeSwitch, .emoji, .shift:
+                playCommandImpact(intensity: 0.78)
+            case .space, .returnKey:
+                playCommandImpact(intensity: 0.68)
+            case .modeSwitch, .emoji:
+                playCommandImpact(intensity: 0.58)
+            case .shift:
                 playSelection()
+                playKeyImpact(intensity: 0.46)
             default:
-                playKeyImpact(intensity: 0.40)
+                playKeyImpact(intensity: 0.72)
             }
         }
         UIDevice.current.playInputClick()
@@ -48,7 +53,7 @@ final class KeyboardFeedbackController {
 
         switch unit {
         case .character:
-            playCommandImpact(intensity: 0.34)
+            playCommandImpact(intensity: 0.54)
         case .word, .sentence, .availableContext:
             playSelection()
         }

@@ -86,13 +86,35 @@ enum KeyboardLayoutProvider {
         static let edgeCommandKeyWidth = 50.33
         static let edgeBackspaceKeyWidth = 50.33
         static let rowThreeSideGap = 14.67
-        static let widePunctuationKeyWidth = 54.67
-
+        static let punctuationSymbolKeyWidth = 54.53
         static let commandRowWeights = [
             commandKeyWidth,
             commandKeyWidth,
             spaceKeyWidth,
             returnKeyWidth
+        ]
+        static let punctuationCommandRowWeights = [
+            returnKeyWidth,
+            spaceKeyWidth,
+            returnKeyWidth
+        ]
+
+        static let lowerRowWeights = [edgeCommandKeyWidth / standardKeyWidth]
+            + Array(repeating: 1.0, count: 7)
+            + [edgeBackspaceKeyWidth / standardKeyWidth]
+
+        static let lowerRowSpacingAfterKeyIndex = [
+            0: rowThreeSideGap,
+            7: rowThreeSideGap
+        ]
+
+        static let punctuationLowerRowWeights = [edgeCommandKeyWidth]
+            + Array(repeating: punctuationSymbolKeyWidth, count: 5)
+            + [edgeBackspaceKeyWidth]
+
+        static let punctuationLowerRowSpacingAfterKeyIndex = [
+            0: rowThreeSideGap,
+            5: rowThreeSideGap
         ]
     }
 
@@ -108,13 +130,8 @@ enum KeyboardLayoutProvider {
                 ),
                 KeyboardRow(
                     keys: [.shift] + "zxcvbnm".map { .character(String($0)) } + [.backspace],
-                    keyWeights: [NativeGeometry.edgeCommandKeyWidth / NativeGeometry.standardKeyWidth]
-                        + Array(repeating: 1.0, count: 7)
-                        + [NativeGeometry.edgeBackspaceKeyWidth / NativeGeometry.standardKeyWidth],
-                    customSpacingAfterKeyIndex: [
-                        0: NativeGeometry.rowThreeSideGap,
-                        7: NativeGeometry.rowThreeSideGap
-                    ]
+                    keyWeights: NativeGeometry.lowerRowWeights,
+                    customSpacingAfterKeyIndex: NativeGeometry.lowerRowSpacingAfterKeyIndex
                 ),
                 KeyboardRow(
                     keys: [.modeSwitch("123"), .emoji, .space, .returnKey],
@@ -124,51 +141,39 @@ enum KeyboardLayoutProvider {
         case .numbers:
             [
                 KeyboardRow(keys: "1234567890".map { .symbol(.literal(String($0))) }),
-                KeyboardRow(keys: ["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""].map { .symbol(.literal($0)) }),
+                KeyboardRow(
+                    keys: ["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""].map { .symbol(.literal($0)) }
+                ),
                 KeyboardRow(
                     keys: [.modeSwitch("#+=")]
                         + [.symbol(.sentencePeriod)]
                         + [",", "?", "!", "'"].map { .symbol(.literal($0)) }
                         + [.backspace],
-                    keyWeights: [NativeGeometry.edgeCommandKeyWidth / NativeGeometry.standardKeyWidth]
-                        + Array(
-                            repeating: NativeGeometry.widePunctuationKeyWidth / NativeGeometry.standardKeyWidth,
-                            count: 5
-                        )
-                        + [NativeGeometry.edgeBackspaceKeyWidth / NativeGeometry.standardKeyWidth],
-                    customSpacingAfterKeyIndex: [
-                        0: NativeGeometry.rowThreeSideGap,
-                        5: NativeGeometry.rowThreeSideGap
-                    ]
+                    keyWeights: NativeGeometry.punctuationLowerRowWeights,
+                    customSpacingAfterKeyIndex: NativeGeometry.punctuationLowerRowSpacingAfterKeyIndex
                 ),
                 KeyboardRow(
-                    keys: [.modeSwitch("ABC"), .emoji, .space, .returnKey],
-                    keyWeights: NativeGeometry.commandRowWeights
+                    keys: [.modeSwitch("ABC"), .space, .returnKey],
+                    keyWeights: NativeGeometry.punctuationCommandRowWeights
                 )
             ]
         case .symbols:
             [
                 KeyboardRow(keys: ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="].map { .symbol(.literal($0)) }),
-                KeyboardRow(keys: ["_", "\\", "|", "~", "<", ">", "€", "£", "¥", "•"].map { .symbol(.literal($0)) }),
+                KeyboardRow(
+                    keys: ["_", "\\", "|", "~", "<", ">", "€", "£", "¥", "•"].map { .symbol(.literal($0)) }
+                ),
                 KeyboardRow(
                     keys: [.modeSwitch("123")]
                         + [.symbol(.sentencePeriod)]
                         + [",", "?", "!", "'"].map { .symbol(.literal($0)) }
                         + [.backspace],
-                    keyWeights: [NativeGeometry.edgeCommandKeyWidth / NativeGeometry.standardKeyWidth]
-                        + Array(
-                            repeating: NativeGeometry.widePunctuationKeyWidth / NativeGeometry.standardKeyWidth,
-                            count: 5
-                        )
-                        + [NativeGeometry.edgeBackspaceKeyWidth / NativeGeometry.standardKeyWidth],
-                    customSpacingAfterKeyIndex: [
-                        0: NativeGeometry.rowThreeSideGap,
-                        5: NativeGeometry.rowThreeSideGap
-                    ]
+                    keyWeights: NativeGeometry.punctuationLowerRowWeights,
+                    customSpacingAfterKeyIndex: NativeGeometry.punctuationLowerRowSpacingAfterKeyIndex
                 ),
                 KeyboardRow(
-                    keys: [.modeSwitch("ABC"), .emoji, .space, .returnKey],
-                    keyWeights: NativeGeometry.commandRowWeights
+                    keys: [.modeSwitch("ABC"), .space, .returnKey],
+                    keyWeights: NativeGeometry.punctuationCommandRowWeights
                 )
             ]
         }

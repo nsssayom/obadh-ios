@@ -51,6 +51,27 @@ final class KeyboardComposerTests: XCTestCase {
         XCTAssertEqual(composer.activeSuggestions.first?.source, .deterministic)
         XCTAssertEqual(composer.commitActiveInput(), "মাদার")
     }
+
+    func testAutosuggestMergeKeepsSessionFirstAndFallsBackToContext() {
+        let session = [
+            KeyboardSuggestion(text: "আমি", source: .autosuggest),
+            KeyboardSuggestion(text: "আমার", source: .autosuggest)
+        ]
+        let context = [
+            KeyboardSuggestion(text: "আমার", source: .autosuggest),
+            KeyboardSuggestion(text: "সে", source: .autosuggest),
+            KeyboardSuggestion(text: "তুমি", source: .autosuggest)
+        ]
+
+        XCTAssertEqual(
+            KeyboardComposer.mergeSuggestions(primary: session, fallback: context, limit: 3),
+            [
+                KeyboardSuggestion(text: "আমি", source: .autosuggest),
+                KeyboardSuggestion(text: "আমার", source: .autosuggest),
+                KeyboardSuggestion(text: "সে", source: .autosuggest)
+            ]
+        )
+    }
 }
 
 private struct FixtureEngine: BanglaTypingEngine {

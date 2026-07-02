@@ -11,9 +11,26 @@ final class KeyboardLayoutProviderTests: XCTestCase {
             let rows = KeyboardLayoutProvider.rows(for: mode)
 
             XCTAssertEqual(rows.count, 4)
+        }
+    }
+
+    func testLetterModeUsesNativeQwertyRowCounts() {
+        let rows = KeyboardLayoutProvider.rows(for: .letters)
+
+        XCTAssertEqual(rows[0].keys.count, 10)
+        XCTAssertEqual(rows[1].keys.count, 9)
+        XCTAssertEqual(rows[2].keys.count, 9)
+        XCTAssertEqual(rows[3].keys, [.modeSwitch("123"), .emoji, .space, .returnKey])
+    }
+
+    func testPunctuationModesUseMeasuredNativeRowCounts() {
+        for mode in [KeyboardMode.numbers, .symbols] {
+            let rows = KeyboardLayoutProvider.rows(for: mode)
+
             XCTAssertEqual(rows[0].keys.count, 10)
-            XCTAssertEqual(rows[1].keys.count, mode == .letters ? 9 : 10)
-            XCTAssertEqual(rows[3].keys, [.modeSwitch(mode == .letters ? "123" : "ABC"), .emoji, .space, .returnKey])
+            XCTAssertEqual(rows[1].keys.count, 10)
+            XCTAssertEqual(rows[2].keys.count, 7)
+            XCTAssertEqual(rows[3].keys, [.modeSwitch("ABC"), .space, .returnKey])
         }
     }
 
@@ -22,22 +39,21 @@ final class KeyboardLayoutProviderTests: XCTestCase {
         let numberBottom = KeyboardLayoutProvider.rows(for: .numbers)[3]
         let symbolBottom = KeyboardLayoutProvider.rows(for: .symbols)[3]
 
-        XCTAssertEqual(numberBottom.keyWeights, letterBottom.keyWeights)
-        XCTAssertEqual(symbolBottom.keyWeights, letterBottom.keyWeights)
         XCTAssertEqual(letterBottom.keyWeights, [48.0, 48.0, 210.67, 102.33])
+        XCTAssertEqual(numberBottom.keyWeights, [102.33, 210.67, 102.33])
+        XCTAssertEqual(symbolBottom.keyWeights, numberBottom.keyWeights)
     }
 
-    func testNumberAndSymbolModesKeepNativeLikeTopRowGeometry() {
+    func testNumberAndSymbolModesUseMeasuredNativePunctuationGrid() {
         for mode in [KeyboardMode.numbers, .symbols] {
             let rows = KeyboardLayoutProvider.rows(for: mode)
 
-            for rowIndex in 0...1 {
-                XCTAssertNil(rows[rowIndex].keyWeights)
-                XCTAssertTrue(rows[rowIndex].customSpacingAfterKeyIndex.isEmpty)
-                XCTAssertEqual(rows[rowIndex].leadingFlex, 0)
-                XCTAssertEqual(rows[rowIndex].trailingFlex, 0)
-                XCTAssertEqual(rows[rowIndex].keys.count, 10)
-            }
+            XCTAssertNil(rows[0].keyWeights)
+            XCTAssertNil(rows[1].keyWeights)
+            XCTAssertEqual(rows[0].leadingFlex, 0)
+            XCTAssertEqual(rows[1].leadingFlex, 0)
+            XCTAssertEqual(rows[2].customSpacingAfterKeyIndex, [0: 14.67, 5: 14.67])
+            XCTAssertEqual(rows[2].keyWeights, [50.33, 54.53, 54.53, 54.53, 54.53, 54.53, 50.33])
         }
     }
 
@@ -65,20 +81,41 @@ final class KeyboardLayoutProviderTests: XCTestCase {
         XCTAssertEqual(weights[8], 50.33 / 37.33, accuracy: 0.001)
     }
 
-    func testNumberAndSymbolPunctuationRowsReserveNativeSidePadding() throws {
+    func testNumberAndSymbolPunctuationRowsResolveToMeasuredNativeFrames() {
+        let availableWidth = phoneWidth - 2 * sideInset
         for mode in [KeyboardMode.numbers, .symbols] {
             let row = KeyboardLayoutProvider.rows(for: mode)[2]
+            let frames = KeyboardLayoutGeometry.keyFrames(
+                for: row,
+                availableWidth: availableWidth,
+                keySpacing: keySpacing
+            )
 
-            XCTAssertEqual(row.keys.count, 7)
-            XCTAssertEqual(row.keyWeights?.count, row.keys.count)
-            XCTAssertEqual(row.customSpacingAfterKeyIndex[0], 14.67)
-            XCTAssertEqual(row.customSpacingAfterKeyIndex[5], 14.67)
+            XCTAssertEqual(frames.count, 7)
+            XCTAssertEqual(frames[0].width, 50.33, accuracy: 0.05)
+            XCTAssertEqual(frames[1].width, 54.53, accuracy: 0.05)
+            XCTAssertEqual(frames[5].width, 54.53, accuracy: 0.05)
+            XCTAssertEqual(frames[6].width, 50.33, accuracy: 0.05)
+            XCTAssertEqual(frames[1].x - frames[0].x - frames[0].width, 14.67, accuracy: 0.01)
+            XCTAssertEqual(frames[2].x - frames[1].x - frames[1].width, 6.0, accuracy: 0.01)
+            XCTAssertEqual(frames[6].x - frames[5].x - frames[5].width, 14.67, accuracy: 0.01)
+        }
+    }
 
-            let weights = try XCTUnwrap(row.keyWeights)
-            XCTAssertEqual(weights[0], 50.33 / 37.33, accuracy: 0.001)
-            XCTAssertEqual(weights[1], 54.67 / 37.33, accuracy: 0.001)
-            XCTAssertEqual(weights[5], 54.67 / 37.33, accuracy: 0.001)
-            XCTAssertEqual(weights[6], 50.33 / 37.33, accuracy: 0.001)
+    func testNumberAndSymbolSecondRowsResolveToMeasuredTenKeyFrames() {
+        let availableWidth = phoneWidth - 2 * sideInset
+        for mode in [KeyboardMode.numbers, .symbols] {
+            let frames = KeyboardLayoutGeometry.keyFrames(
+                for: KeyboardLayoutProvider.rows(for: mode)[1],
+                availableWidth: availableWidth,
+                keySpacing: keySpacing
+            )
+
+            XCTAssertEqual(frames.count, 10)
+            XCTAssertEqual(frames[0].x + sideInset, 6.67, accuracy: 0.01)
+            XCTAssertEqual(frames[0].width, 37.27, accuracy: 0.02)
+            XCTAssertEqual(frames[9].width, 37.27, accuracy: 0.02)
+            XCTAssertEqual(frames[1].x - frames[0].x - frames[0].width, 6.0, accuracy: 0.01)
         }
     }
 
@@ -123,7 +160,7 @@ final class KeyboardLayoutProviderTests: XCTestCase {
 
     func testCommandRowFramesStayStableAcrossModes() {
         let availableWidth = phoneWidth - 2 * sideInset
-        for mode in [KeyboardMode.letters, .numbers, .symbols] {
+        for mode in [KeyboardMode.letters] {
             let row = KeyboardLayoutProvider.rows(for: mode)[3]
             let frames = KeyboardLayoutGeometry.keyFrames(
                 for: row,
@@ -139,6 +176,24 @@ final class KeyboardLayoutProviderTests: XCTestCase {
             XCTAssertEqual(frames[1].x - frames[0].x - frames[0].width, 6.0, accuracy: 0.01)
             XCTAssertEqual(frames[2].x - frames[1].x - frames[1].width, 6.0, accuracy: 0.01)
             XCTAssertEqual(frames[3].x - frames[2].x - frames[2].width, 6.0, accuracy: 0.01)
+        }
+    }
+
+    func testPunctuationCommandRowsResolveToMeasuredNativeFrames() {
+        let availableWidth = phoneWidth - 2 * sideInset
+        for mode in [KeyboardMode.numbers, .symbols] {
+            let frames = KeyboardLayoutGeometry.keyFrames(
+                for: KeyboardLayoutProvider.rows(for: mode)[3],
+                availableWidth: availableWidth,
+                keySpacing: keySpacing
+            )
+
+            XCTAssertEqual(frames.count, 3)
+            XCTAssertEqual(frames[0].width, 102.16, accuracy: 0.05)
+            XCTAssertEqual(frames[1].width, 210.33, accuracy: 0.05)
+            XCTAssertEqual(frames[2].width, 102.16, accuracy: 0.05)
+            XCTAssertEqual(frames[1].x - frames[0].x - frames[0].width, 6.0, accuracy: 0.01)
+            XCTAssertEqual(frames[2].x - frames[1].x - frames[1].width, 6.0, accuracy: 0.01)
         }
     }
 }
