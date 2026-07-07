@@ -8,6 +8,7 @@ protocol EmojiPanelViewDelegate: AnyObject {
     func emojiPanelViewDidRequestKeyboard(_ view: EmojiPanelView)
     func emojiPanelViewDidBeginBackspace(_ view: EmojiPanelView)
     func emojiPanelViewDidEndBackspace(_ view: EmojiPanelView)
+    func emojiPanelViewDidToggleSearchLanguage(_ view: EmojiPanelView)
 }
 
 final class EmojiPanelView: UIView {
@@ -42,6 +43,10 @@ final class EmojiPanelView: UIView {
     private let searchLabel = UILabel()
     private let searchCaret = UIView()
     private let searchClearButton = UIButton(type: .system)
+    // EN⇄BN search language toggle; the Bangla index loads lazily on first use.
+    private let searchLanguageButton = UIButton(type: .system)
+    private lazy var banglaSearchStore = BanglaEmojiSearchStore(bundle: Bundle(for: EmojiPanelView.self))
+    private var searchLanguage: EmojiSearchLanguage = .english
     private let collectionView: UICollectionView
     private let categoryStack = UIStackView()
     private var categoryButtons: [EmojiCategory: EmojiCategoryButton] = [:]
@@ -62,6 +67,7 @@ final class EmojiPanelView: UIView {
     private var sectionCategories: [EmojiCategory] = []
     private var sectionItems: [[EmojiItem]] = []
     private var variantPopover: EmojiVariantPopoverView?
+    private var recentsSnapshotNeedsRefresh = false
 
     override init(frame: CGRect) {
         let layout = UICollectionViewFlowLayout()
@@ -82,6 +88,7 @@ final class EmojiPanelView: UIView {
     func configure(dataStore: EmojiDataStore, recentEmojis: [String]) {
         self.dataStore = dataStore
         self.recentEmojis = recentEmojis
+        recentsSnapshotNeedsRefresh = false
         if selectedCategory == .recents && recentEmojis.isEmpty {
             selectedCategory = .smileys
         }
@@ -89,36 +96,34 @@ final class EmojiPanelView: UIView {
     }
 
     func recordRecentEmoji(_ emoji: String) {
-        let hadRecents = !recentEmojis.isEmpty
         recentEmojis.removeAll { $0 == emoji }
         recentEmojis.insert(emoji, at: 0)
         if recentEmojis.count > 64 {
             recentEmojis.removeLast(recentEmojis.count - 64)
         }
-
-        if isSearchActive {
-            if searchQuery.isEmpty {
-                reloadItems()
-            }
-            return
-        }
-
-        if !hadRecents || selectedCategory == .recents || sectionCategories.isEmpty {
-            reloadItems()
-            return
-        }
-
-        guard let recentsSection = sectionCategories.firstIndex(of: .recents) else {
-            reloadItems()
-            return
-        }
-        sectionItems[recentsSection] = dataStore.items(for: recentEmojis)
-        collectionView.reloadSections(IndexSet(integer: recentsSection))
+        recentsSnapshotNeedsRefresh = true
     }
 
-    func setSearchQuery(_ query: String) {
+    func setSearchQuery(_ query: String, language: EmojiSearchLanguage? = nil) {
         searchQuery = query
+        if let language, language != searchLanguage {
+            searchLanguage = language
+            searchLanguageButton.setTitle(language.shortLabel, for: .normal)
+        }
         reloadItems()
+    }
+
+    private func searchResults() -> [EmojiItem] {
+        if searchLanguage == .bangla {
+            // Bangla index maps to emoji strings; look up the display items in the
+            // (already-loaded) English store, which owns all EmojiItems.
+            return dataStore.items(for: banglaSearchStore.search(searchQuery, limit: 240))
+        }
+        return dataStore.search(searchQuery, limit: 240)
+    }
+
+    @objc private func handleSearchLanguageToggle() {
+        delegate?.emojiPanelViewDidToggleSearchLanguage(self)
     }
 
     func setSearchActive(_ active: Bool) {
@@ -206,6 +211,14 @@ final class EmojiPanelView: UIView {
         searchClearButton.addTarget(self, action: #selector(handleClearSearchTap), for: .touchUpInside)
         searchChrome.addSubview(searchClearButton)
 
+        searchLanguageButton.translatesAutoresizingMaskIntoConstraints = false
+        searchLanguageButton.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+        searchLanguageButton.setTitle(searchLanguage.shortLabel, for: .normal)
+        searchLanguageButton.layer.cornerRadius = 11
+        searchLanguageButton.layer.cornerCurve = .continuous
+        searchLanguageButton.addTarget(self, action: #selector(handleSearchLanguageToggle), for: .touchUpInside)
+        searchChrome.addSubview(searchLanguageButton)
+
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         collectionView.backgroundColor = .clear
         collectionView.alwaysBounceHorizontal = true
@@ -274,13 +287,18 @@ final class EmojiPanelView: UIView {
                 constant: Metrics.searchTextSpacing
             ),
             searchTextStack.trailingAnchor.constraint(
-                lessThanOrEqualTo: searchClearButton.leadingAnchor,
+                lessThanOrEqualTo: searchLanguageButton.leadingAnchor,
                 constant: -6
             ),
             searchTextStack.centerYAnchor.constraint(equalTo: searchChrome.centerYAnchor),
 
             searchCaret.widthAnchor.constraint(equalToConstant: 2),
             searchCaret.heightAnchor.constraint(equalToConstant: 24),
+
+            searchLanguageButton.trailingAnchor.constraint(equalTo: searchClearButton.leadingAnchor, constant: -6),
+            searchLanguageButton.centerYAnchor.constraint(equalTo: searchChrome.centerYAnchor),
+            searchLanguageButton.heightAnchor.constraint(equalToConstant: 22),
+            searchLanguageButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 36),
 
             searchClearButton.trailingAnchor.constraint(
                 equalTo: searchChrome.trailingAnchor,
@@ -357,6 +375,8 @@ final class EmojiPanelView: UIView {
         searchIcon.tintColor = KeyboardTheme.emojiPlaceholderColor(for: traitCollection)
         searchCaret.backgroundColor = KeyboardTheme.textColor(for: traitCollection)
         searchClearButton.tintColor = KeyboardTheme.emojiPlaceholderColor(for: traitCollection)
+        searchLanguageButton.setTitleColor(KeyboardTheme.textColor(for: traitCollection), for: .normal)
+        searchLanguageButton.backgroundColor = KeyboardTheme.emojiCategorySelectedBackgroundColor(for: traitCollection)
         let inactiveTint = KeyboardTheme.emojiCategoryTintColor(selected: false, traitCollection: traitCollection)
         keyboardButton.setTitleColor(inactiveTint, for: .normal)
         backspaceButton.tintColor = KeyboardTheme.emojiCategoryTintColor(selected: false, traitCollection: traitCollection)
@@ -386,7 +406,11 @@ final class EmojiPanelView: UIView {
     }
 
     private func selectCategory(_ category: EmojiCategory, animated: Bool = true) {
-        if isSearchActive || sectionCategories.isEmpty {
+        if category == .recents, recentsSnapshotNeedsRefresh || !sectionCategories.contains(.recents) {
+            rebuildBrowsingSections()
+            recentsSnapshotNeedsRefresh = false
+            collectionView.reloadData()
+        } else if isSearchActive || sectionCategories.isEmpty {
             rebuildBrowsingSections()
         }
         guard sectionCategories.contains(category) else { return }
@@ -407,11 +431,14 @@ final class EmojiPanelView: UIView {
     }
     private func reloadItems() {
         dismissVariantPopover(animated: false)
+        if isSearchActive || selectedCategory == .recents {
+            recentsSnapshotNeedsRefresh = false
+        }
         switch selectedCategory {
         case _ where isSearchActive:
             searchItems = searchQuery.isEmpty
                 ? searchIdleItems()
-                : applyVariantPreferences(to: dataStore.search(searchQuery, limit: 240))
+                : applyVariantPreferences(to: searchResults())
             searchLabel.text = searchQuery
         case .recents:
             rebuildBrowsingSections()
@@ -535,6 +562,7 @@ final class EmojiPanelView: UIView {
         let showsClearButton = isSearchActive && !searchQuery.isEmpty
         searchClearButton.isHidden = !showsClearButton
         searchClearButton.isEnabled = showsClearButton
+        searchLanguageButton.isHidden = !isSearchActive
         searchCaret.isHidden = !isSearchActive
 
         guard isSearchActive else {
@@ -790,99 +818,6 @@ private final class EmojiCategoryButton: UIButton {
         selectedBackgroundView.backgroundColor = .clear
         addSubview(selectedBackgroundView)
         sendSubviewToBack(selectedBackgroundView)
-    }
-}
-
-private final class EmojiVariantPopoverView: UIView {
-    private let options: [EmojiItem]
-    private let stackView = UIStackView()
-    private var optionLabels: [UILabel] = []
-    private(set) var selectedIndex = 0
-
-    var selectedItem: EmojiItem {
-        options[selectedIndex]
-    }
-
-    var preferredSize: CGSize {
-        CGSize(width: CGFloat(options.count) * 44 + 14, height: 54)
-    }
-
-    init(options: [EmojiItem]) {
-        self.options = options
-        super.init(frame: .zero)
-        configure()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    func updateTheme(traitCollection: UITraitCollection) {
-        backgroundColor = KeyboardTheme.keyboardBackgroundColor(for: traitCollection).withAlphaComponent(0.96)
-        layer.borderColor = KeyboardTheme.separatorColor(for: traitCollection).cgColor
-        for label in optionLabels {
-            label.textColor = KeyboardTheme.textColor(for: traitCollection)
-        }
-        updateSelectionHighlight(traitCollection: traitCollection)
-    }
-
-    func updateSelection(at pointInSuperview: CGPoint) {
-        guard let superview else { return }
-        let localPoint = convert(pointInSuperview, from: superview)
-        for (index, label) in optionLabels.enumerated() {
-            if label.frame.insetBy(dx: -5, dy: -8).contains(localPoint) {
-                selectedIndex = index
-                updateSelectionHighlight(traitCollection: traitCollection)
-                return
-            }
-        }
-    }
-
-    private func configure() {
-        layer.cornerRadius = 18
-        layer.cornerCurve = .continuous
-        layer.borderWidth = 1 / UIScreen.main.scale
-        layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.25
-        layer.shadowRadius = 12
-        layer.shadowOffset = CGSize(width: 0, height: 4)
-        clipsToBounds = false
-
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        stackView.axis = .horizontal
-        stackView.alignment = .center
-        stackView.distribution = .fillEqually
-        stackView.spacing = 0
-        addSubview(stackView)
-
-        for item in options {
-            let label = UILabel()
-            label.text = item.emoji
-            label.textAlignment = .center
-            label.font = .systemFont(ofSize: 31)
-            label.layer.cornerRadius = 16
-            label.layer.cornerCurve = .continuous
-            label.clipsToBounds = true
-            label.accessibilityLabel = item.name
-            optionLabels.append(label)
-            stackView.addArrangedSubview(label)
-        }
-
-        NSLayoutConstraint.activate([
-            stackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 7),
-            stackView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -7),
-            stackView.topAnchor.constraint(equalTo: topAnchor, constant: 5),
-            stackView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -5)
-        ])
-    }
-
-    private func updateSelectionHighlight(traitCollection: UITraitCollection) {
-        for (index, label) in optionLabels.enumerated() {
-            label.backgroundColor = index == selectedIndex
-                ? KeyboardTheme.emojiCellHighlightColor(for: traitCollection)
-                : .clear
-        }
     }
 }
 

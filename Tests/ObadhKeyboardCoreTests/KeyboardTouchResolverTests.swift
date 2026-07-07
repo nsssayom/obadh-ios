@@ -21,6 +21,77 @@ final class KeyboardTouchResolverTests: XCTestCase {
         XCTAssertEqual(resolve(CGPoint(x: lFrame.maxX + 8, y: lFrame.midY), rows: rows), .character("l"))
     }
 
+    func testReportedLetterModeDeadZonesResolveToNearestKeys() throws {
+        let rows = makeRows(for: .letters)
+        let homeRow = rows[1]
+        let lowerRow = rows[2]
+        let aFrame = try XCTUnwrap(frame(for: .character("a"), in: homeRow))
+        let lFrame = try XCTUnwrap(frame(for: .character("l"), in: homeRow))
+        let shiftFrame = try XCTUnwrap(frame(for: .shift, in: lowerRow))
+        let zFrame = try XCTUnwrap(frame(for: .character("z"), in: lowerRow))
+        let mFrame = try XCTUnwrap(frame(for: .character("m"), in: lowerRow))
+        let backspaceFrame = try XCTUnwrap(frame(for: .backspace, in: lowerRow))
+
+        XCTAssertEqual(resolve(CGPoint(x: aFrame.minX / 2, y: aFrame.midY), rows: rows), .character("a"))
+        XCTAssertEqual(
+            resolve(CGPoint(x: lFrame.maxX + (keyboardWidth - lFrame.maxX) / 2, y: lFrame.midY), rows: rows),
+            .character("l")
+        )
+
+        let shiftZGapMidX = (shiftFrame.maxX + zFrame.minX) / 2
+        XCTAssertEqual(resolve(CGPoint(x: shiftZGapMidX - 0.5, y: zFrame.midY), rows: rows), .shift)
+        XCTAssertEqual(resolve(CGPoint(x: shiftZGapMidX + 0.5, y: zFrame.midY), rows: rows), .character("z"))
+
+        let mBackspaceGapMidX = (mFrame.maxX + backspaceFrame.minX) / 2
+        XCTAssertEqual(resolve(CGPoint(x: mBackspaceGapMidX - 0.5, y: mFrame.midY), rows: rows), .character("m"))
+        XCTAssertEqual(resolve(CGPoint(x: mBackspaceGapMidX + 0.5, y: mFrame.midY), rows: rows), .backspace)
+    }
+
+    func testEveryPointInEveryRowResolvesToSomeKey() {
+        // Sweeps every integer x across every row (including all indents/gaps:
+        // left-of-A, right-of-L, shift|z, m|backspace) and asserts the resolver
+        // never returns nil — proving there are no interior dead zones.
+        for mode in [KeyboardMode.letters, .numbers, .symbols] {
+            let rows = makeRows(for: mode)
+            let rowYs = rows.map { $0.first?.visualFrame.midY ?? 0 }
+            for (rowIndex, y) in rowYs.enumerated() {
+                var x: CGFloat = 0
+                while x <= keyboardWidth {
+                    let key = resolve(CGPoint(x: x, y: y), rows: rows)
+                    XCTAssertNotNil(key, "nil at mode=\(mode) row=\(rowIndex) x=\(x) y=\(y)")
+                    x += 1
+                }
+            }
+        }
+    }
+
+    func testBelowBottomCommandRowResolvesToNearestCommandKey() throws {
+        // The touch surface's frame extends below the visible command row to the
+        // view edge; the resolver clamps taps that land there up to the last row
+        // so space/return stay reachable instead of being dead.
+        let rows = makeRows(for: .letters)
+        let commandRow = rows[3]
+        let space = try XCTUnwrap(frame(for: .space, in: commandRow))
+        let returnKey = try XCTUnwrap(frame(for: .returnKey, in: commandRow))
+        let modeSwitch = try XCTUnwrap(frame(for: .modeSwitch("123"), in: commandRow))
+        let belowGrid = rowHeight * 4 + rowSpacing * 3 + 40
+
+        XCTAssertEqual(resolve(CGPoint(x: modeSwitch.midX, y: belowGrid), rows: rows), .modeSwitch("123"))
+        XCTAssertEqual(resolve(CGPoint(x: space.midX, y: belowGrid), rows: rows), .space)
+        XCTAssertEqual(resolve(CGPoint(x: returnKey.midX, y: belowGrid), rows: rows), .returnKey)
+    }
+
+    func testAboveTopRowResolvesToNearestTopRowKey() throws {
+        let rows = makeRows(for: .letters)
+        let topRow = rows[0]
+        let q = try XCTUnwrap(frame(for: .character("q"), in: topRow))
+        let p = try XCTUnwrap(frame(for: .character("p"), in: topRow))
+        let aboveGrid: CGFloat = -30
+
+        XCTAssertEqual(resolve(CGPoint(x: q.midX, y: aboveGrid), rows: rows), .character("q"))
+        XCTAssertEqual(resolve(CGPoint(x: p.midX, y: aboveGrid), rows: rows), .character("p"))
+    }
+
     func testLowerRowLargeGapsSplitAtNearestKeyBoundary() throws {
         let rows = makeRows(for: .letters)
         let lowerRow = rows[2]
@@ -52,11 +123,11 @@ final class KeyboardTouchResolverTests: XCTestCase {
         let rows = makeRows(for: .numbers)
         let lowerRow = rows[2]
         let modeSwitch = try XCTUnwrap(frame(for: .modeSwitch("#+="), in: lowerRow))
-        let period = try XCTUnwrap(frame(for: .symbol(.sentencePeriod), in: lowerRow))
-        let boundary = (modeSwitch.maxX + period.minX) / 2
+        let danda = try XCTUnwrap(frame(for: .symbol(.danda), in: lowerRow))
+        let boundary = (modeSwitch.maxX + danda.minX) / 2
 
-        XCTAssertEqual(resolve(CGPoint(x: boundary - 0.5, y: period.midY), rows: rows), .modeSwitch("#+="))
-        XCTAssertEqual(resolve(CGPoint(x: boundary + 0.5, y: period.midY), rows: rows), .symbol(.sentencePeriod))
+        XCTAssertEqual(resolve(CGPoint(x: boundary - 0.5, y: danda.midY), rows: rows), .modeSwitch("#+="))
+        XCTAssertEqual(resolve(CGPoint(x: boundary + 0.5, y: danda.midY), rows: rows), .symbol(.danda))
     }
 
     private func makeRows(for mode: KeyboardMode) -> [[KeyboardTouchKeyRegion]] {

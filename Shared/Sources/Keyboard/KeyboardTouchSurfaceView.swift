@@ -17,6 +17,12 @@ final class KeyboardTouchSurfaceView: UIView {
         }
     }
 
+    /// Touches with y above this (the suggestion bar) are passed through so the
+    /// suggestion bar beneath receives them. Below it, the surface resolves keys.
+    /// Lets the surface be full-bleed (uniform, no rectangle) while only owning
+    /// the key area.
+    var keyAreaTop: CGFloat = 0
+
     private weak var activeTouch: UITouch?
     private var activeRegion: KeyboardTouchResolvedRegion?
 
@@ -68,9 +74,33 @@ final class KeyboardTouchSurfaceView: UIView {
         delegate?.keyboardTouchSurfaceDidCancel(self)
     }
 
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard isUserInteractionEnabled, !isHidden, alpha > 0.01, !keyRows.isEmpty else {
+            return false
+        }
+        return point.y >= keyAreaTop && bounds.contains(point)
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard isUserInteractionEnabled, !isHidden, alpha > 0.01, !keyRows.isEmpty else {
+            return nil
+        }
+        return (point.y >= keyAreaTop && bounds.contains(point)) ? self : nil
+    }
+
     private func configure() {
-        backgroundColor = .clear
+        // CRITICAL: a custom keyboard EXTENSION drops touches over regions where
+        // the touch-receiving view renders fully transparent (verified on-device
+        // + on-sim; the system keyboard is exempt because it isn't an extension).
+        // A visual-effect glass backdrop behind does NOT count — only a plain,
+        // non-transparent background on THIS view makes the inter-key gaps
+        // touchable. ~1/255 alpha: the system registers the color so touches
+        // land, but it is genuinely imperceptible (0.02 was ~5x too high and
+        // read as a tint). Do NOT set to `.clear`.
+        // Ref: https://developer.apple.com/forums/thread/702798
+        backgroundColor = UIColor.white.withAlphaComponent(0.004)
         isOpaque = false
+        isUserInteractionEnabled = true
         isMultipleTouchEnabled = false
         translatesAutoresizingMaskIntoConstraints = false
         accessibilityViewIsModal = false

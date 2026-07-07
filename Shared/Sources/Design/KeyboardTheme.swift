@@ -1,5 +1,25 @@
 import UIKit
 
+/// How keys are filled. The native iOS 26 keyboard reads as a flat translucent
+/// material WITHOUT a prominent specular rim; `UIGlassEffect(.regular)` adds a
+/// raised white edge highlight that the native keys lack, so `.translucent`
+/// (a plain semi-transparent fill) is the shipped default. DEBUG builds can flip
+/// this at runtime via the debug channel to dial the material in on real
+/// hardware (the simulator cannot render Liquid Glass faithfully); Release is
+/// fixed to the shipped value.
+enum KeyboardGlassStyle: String {
+    case regular      // UIGlassEffect(.regular) — Liquid Glass with specular rim
+    case clear        // UIGlassEffect(.clear) — flatter/clearer glass
+    case translucent  // plain semi-transparent fill, no rim (native-like)
+    case solid        // opaque fill (pre-iOS 26 fallback look)
+
+    #if DEBUG
+    @MainActor static var current: KeyboardGlassStyle = .translucent
+    #else
+    static var current: KeyboardGlassStyle { .translucent }
+    #endif
+}
+
 struct KeyboardMetrics {
     let keyCornerRadius: CGFloat
     let keyShadowOpacity: Float
@@ -292,6 +312,18 @@ enum KeyboardTheme {
 
     static func highlightedUtilityKeyColor(for traitCollection: UITraitCollection) -> UIColor {
         highlightedPrimaryKeyColor(for: traitCollection)
+    }
+
+    /// Translucent tint layered over a Liquid Glass key (iOS 26+) so the colored
+    /// backdrop refracts through — the rest state is faint, the pressed state
+    /// brightens (mirroring the native key's touch-down lift). Unified for
+    /// character and utility keys to match the current design, where
+    /// `utilityKeyColor == primaryKeyColor`.
+    static func glassKeyTint(for traitCollection: UITraitCollection, highlighted: Bool) -> UIColor {
+        if traitCollection.userInterfaceStyle == .dark {
+            return UIColor.white.withAlphaComponent(highlighted ? 0.28 : 0.10)
+        }
+        return UIColor.white.withAlphaComponent(highlighted ? 0.85 : 0.55)
     }
 
     static func keyPreviewColor(for traitCollection: UITraitCollection) -> UIColor {

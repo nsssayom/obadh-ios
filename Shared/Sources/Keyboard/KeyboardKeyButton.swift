@@ -7,6 +7,11 @@ final class KeyboardKeyButton: UIButton {
     private var currentMetrics = KeyboardTheme.defaultMetrics
     private var spaceLanguageTrailingConstraint: NSLayoutConstraint?
     private var spaceLanguageBottomConstraint: NSLayoutConstraint?
+    /// iOS 26+ Liquid Glass backing (a backmost, non-interactive glass view).
+    /// nil below iOS 26, where the solid `backgroundColor` fill is used instead.
+    /// Touches are owned entirely by `KeyboardTouchSurfaceView`, so this is purely
+    /// visual (`isInteractive = false`).
+    private var glassEffectView: UIVisualEffectView?
 
     init(key: KeyboardKey) {
         self.key = key
@@ -24,13 +29,16 @@ final class KeyboardKeyButton: UIButton {
         traitCollection: UITraitCollection,
         metrics: KeyboardMetrics,
         showsSpaceIntro: Bool = false,
-        spaceIntroText: String = "Bangla (Obadh)",
+        spaceIntroText: String = "বাংলা (অবাধ)",
         spaceCaption: String = "বাংলা"
     ) {
         currentMetrics = metrics
         layer.cornerRadius = metrics.keyCornerRadius
         layer.shadowRadius = metrics.keyShadowRadius
         layer.shadowOffset = metrics.keyShadowOffset
+        if #available(iOS 26.0, *) {
+            glassEffectView?.cornerConfiguration = .uniformCorners(radius: .fixed(metrics.keyCornerRadius))
+        }
         spaceLanguageLabel.font = .systemFont(ofSize: metrics.spaceLanguageFontSize, weight: .regular)
         spaceLanguageTrailingConstraint?.constant = -max(8, metrics.keySpacing + 5)
         spaceLanguageBottomConstraint?.constant = -max(5, metrics.keyboardInsets.bottom + 3)
@@ -102,6 +110,36 @@ final class KeyboardKeyButton: UIButton {
         contentHorizontalAlignment = .center
         contentVerticalAlignment = .center
 
+        // Only the `.regular`/`.clear` styles use a Liquid Glass effect view (its
+        // specular rim is what the product owner flagged as "raised"); the
+        // default `.translucent` and `.solid` use a plain fill in
+        // applyPressedState instead. The touch surface owns hit-testing, so the
+        // glass is non-interactive; the button's own layer keeps the shadow
+        // (a clipped effect view can't cast an outer shadow).
+        if #available(iOS 26.0, *) {
+            let glassStyle: UIGlassEffect.Style?
+            switch KeyboardGlassStyle.current {
+            case .regular: glassStyle = .regular
+            case .clear: glassStyle = .clear
+            case .translucent, .solid: glassStyle = nil
+            }
+            if let glassStyle {
+                let effect = UIGlassEffect(style: glassStyle)
+                effect.isInteractive = false
+                let effectView = UIVisualEffectView(effect: effect)
+                effectView.isUserInteractionEnabled = false
+                effectView.frame = bounds
+                effectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                effectView.cornerConfiguration = .uniformCorners(
+                    radius: .fixed(KeyboardTheme.defaultMetrics.keyCornerRadius)
+                )
+                effectView.layer.cornerCurve = .continuous
+                effectView.clipsToBounds = true
+                insertSubview(effectView, at: 0)
+                glassEffectView = effectView
+            }
+        }
+
         spaceLanguageLabel.translatesAutoresizingMaskIntoConstraints = false
         spaceLanguageLabel.font = .systemFont(
             ofSize: KeyboardTheme.defaultMetrics.spaceLanguageFontSize,
@@ -145,10 +183,29 @@ final class KeyboardKeyButton: UIButton {
 
     private func applyPressedState(animated: Bool) {
         let updates = {
-            self.backgroundColor = self.backgroundColor(
-                for: self.traitCollection,
-                highlighted: self.isHighlighted
-            )
+            if #available(iOS 26.0, *), let effectView = self.glassEffectView,
+               let effect = effectView.effect as? UIGlassEffect {
+                // Glass path (.regular/.clear): the fill is the glass view; tint
+                // it (brighter when pressed) instead of swapping a solid color.
+                self.backgroundColor = .clear
+                effect.tintColor = KeyboardTheme.glassKeyTint(
+                    for: self.traitCollection,
+                    highlighted: self.isHighlighted
+                )
+                effectView.effect = effect
+            } else if KeyboardGlassStyle.current == .translucent {
+                // Flat translucent fill: native-like "simple transparency" with
+                // no specular rim / raised edge.
+                self.backgroundColor = KeyboardTheme.glassKeyTint(
+                    for: self.traitCollection,
+                    highlighted: self.isHighlighted
+                )
+            } else {
+                self.backgroundColor = self.backgroundColor(
+                    for: self.traitCollection,
+                    highlighted: self.isHighlighted
+                )
+            }
             self.layer.shadowOpacity = self.isHighlighted
                 ? max(0.25, self.currentMetrics.keyShadowOpacity - 0.12)
                 : self.currentMetrics.keyShadowOpacity
@@ -171,49 +228,56 @@ final class KeyboardKeyButton: UIButton {
 
     private func nativeEmojiGlyph(pointSize: CGFloat) -> UIImage {
         let configuration = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
-        if let nativeImage = UIImage(systemName: "face.smiling.inverse", withConfiguration: configuration) {
+        // Apple's own keyboard emoji key uses the PRIVATE symbol `emoji.face.grinning`
+        // (a thin OUTLINE grinning face). That symbol is unavailable to third parties
+        // (`UIImage(systemName:)` returns nil and private names risk review). The
+        // faithful PUBLIC match is the OUTLINE `face.smiling` — NOT `face.smiling.inverse`,
+        // which is a filled disc and was the visual mismatch vs. native. Rendered as a
+        // template so `tintColor` (the key text color) applies.
+        if let nativeImage = UIImage(systemName: "face.smiling", withConfiguration: configuration) {
             return nativeImage
         }
 
+        // Fallback (dead in practice — face.smiling resolves on iOS 14+): stroke an
+        // OUTLINE face so it stays consistent with the outline glyph above.
         let side = max(22, ceil(pointSize + 4))
         let format = UIGraphicsImageRendererFormat()
-        format.scale = UIScreen.main.scale
         format.opaque = false
 
         let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { context in
-            let faceBounds = CGRect(x: 1.2, y: 1.2, width: side - 2.4, height: side - 2.4)
-            context.cgContext.setBlendMode(.copy)
-            UIColor.black.setFill()
-            UIBezierPath(ovalIn: faceBounds).fill()
+            let lineWidth = max(1, side * 0.05)
+            UIColor.black.setStroke()
 
-            context.cgContext.setBlendMode(.clear)
+            let ring = UIBezierPath(ovalIn: CGRect(
+                x: lineWidth,
+                y: lineWidth,
+                width: side - lineWidth * 2,
+                height: side - lineWidth * 2
+            ))
+            ring.lineWidth = lineWidth
+            ring.stroke()
 
-            let eyeRadius = max(1.25, side * 0.055)
-            let leftEye = CGRect(
-                x: side * 0.34 - eyeRadius,
-                y: side * 0.36 - eyeRadius,
-                width: eyeRadius * 2,
-                height: eyeRadius * 2
-            )
-            let rightEye = CGRect(
-                x: side * 0.66 - eyeRadius,
-                y: side * 0.36 - eyeRadius,
-                width: eyeRadius * 2,
-                height: eyeRadius * 2
-            )
-            context.cgContext.fillEllipse(in: leftEye)
-            context.cgContext.fillEllipse(in: rightEye)
+            let eyeRadius = max(1, side * 0.05)
+            for eyeCenterX in [side * 0.34, side * 0.66] {
+                let eye = UIBezierPath(ovalIn: CGRect(
+                    x: eyeCenterX - eyeRadius,
+                    y: side * 0.38 - eyeRadius,
+                    width: eyeRadius * 2,
+                    height: eyeRadius * 2
+                ))
+                UIColor.black.setFill()
+                eye.fill()
+            }
 
             let mouth = UIBezierPath()
-            mouth.move(to: CGPoint(x: side * 0.34, y: side * 0.56))
-            mouth.addCurve(
-                to: CGPoint(x: side * 0.66, y: side * 0.56),
-                controlPoint1: CGPoint(x: side * 0.39, y: side * 0.74),
-                controlPoint2: CGPoint(x: side * 0.61, y: side * 0.74)
+            mouth.move(to: CGPoint(x: side * 0.33, y: side * 0.58))
+            mouth.addQuadCurve(
+                to: CGPoint(x: side * 0.67, y: side * 0.58),
+                controlPoint: CGPoint(x: side * 0.50, y: side * 0.72)
             )
-            mouth.close()
-            mouth.fill()
-            context.cgContext.setBlendMode(.normal)
+            mouth.lineWidth = lineWidth
+            mouth.lineCapStyle = .round
+            mouth.stroke()
         }
 
         return image.withRenderingMode(.alwaysTemplate)

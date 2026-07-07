@@ -46,7 +46,14 @@ struct KeyboardSymbol: Equatable {
         Self(label: value, output: output ?? value, role: .literal)
     }
 
-    static let sentencePeriod = Self(label: ".", output: ".", role: .sentenceTerminator)
+    /// A sentence-ending symbol: it commits any active composition and marks an
+    /// autosuggest boundary. Used for দাঁড়ি `।`, `?`, and `!`.
+    static func terminator(_ value: String, output: String? = nil) -> Self {
+        Self(label: value, output: output ?? value, role: .sentenceTerminator)
+    }
+
+    /// দাঁড়ি — the Bangla full stop.
+    static let danda = Self.terminator("\u{0964}")
 }
 
 struct KeyboardRow: Equatable {
@@ -140,14 +147,14 @@ enum KeyboardLayoutProvider {
             ]
         case .numbers:
             [
-                KeyboardRow(keys: "1234567890".map { .symbol(.literal(String($0))) }),
+                KeyboardRow(keys: ["১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯", "০"].map { .symbol(.literal($0)) }),
                 KeyboardRow(
-                    keys: ["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""].map { .symbol(.literal($0)) }
+                    keys: ["-", "/", ":", ";", "(", ")", "৳", "'", "@", "\""].map { .symbol(.literal($0)) }
                 ),
                 KeyboardRow(
                     keys: [.modeSwitch("#+=")]
-                        + [.symbol(.sentencePeriod)]
-                        + [",", "?", "!", "'"].map { .symbol(.literal($0)) }
+                        + [.symbol(.danda), .symbol(.literal(".")), .symbol(.literal(","))]
+                        + [.symbol(.terminator("?")), .symbol(.terminator("!"))]
                         + [.backspace],
                     keyWeights: NativeGeometry.punctuationLowerRowWeights,
                     customSpacingAfterKeyIndex: NativeGeometry.punctuationLowerRowSpacingAfterKeyIndex
@@ -161,12 +168,12 @@ enum KeyboardLayoutProvider {
             [
                 KeyboardRow(keys: ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="].map { .symbol(.literal($0)) }),
                 KeyboardRow(
-                    keys: ["_", "\\", "|", "~", "<", ">", "€", "£", "¥", "•"].map { .symbol(.literal($0)) }
+                    keys: ["_", "\\", "|", "~", "<", ">", "&", "$", "€", "£"].map { .symbol(.literal($0)) }
                 ),
                 KeyboardRow(
                     keys: [.modeSwitch("123")]
-                        + [.symbol(.sentencePeriod)]
-                        + [",", "?", "!", "'"].map { .symbol(.literal($0)) }
+                        + [.symbol(.danda), .symbol(.literal(".")), .symbol(.literal(","))]
+                        + [.symbol(.terminator("?")), .symbol(.terminator("!"))]
                         + [.backspace],
                     keyWeights: NativeGeometry.punctuationLowerRowWeights,
                     customSpacingAfterKeyIndex: NativeGeometry.punctuationLowerRowSpacingAfterKeyIndex

@@ -10,3 +10,6 @@ build/
 Frameworks/ObadhBridge.xcframework
 rust/ObadhBridge/target/
 Config/Signing.local.xcconfig
+Config/BuildInfo.xcconfig
+__pycache__/
+*.pyc

@@ -6,6 +6,10 @@ DERIVED_DATA_DIR="$ROOT_DIR/build/DerivedData"
 DEVICE_ID="${DEVICE_ID:-}"
 DEVICE_WAIT_SECONDS="${DEVICE_WAIT_SECONDS:-45}"
 BUNDLE_ID="com.nsssayom.obadh"
+# The physical iPhone runs the RELEASE build by default: it excludes all
+# #if DEBUG tooling (e.g. KeyboardDebugChannel) so nothing debug-only ships to
+# the phone. Override with CONFIG=Debug only when explicitly needed.
+CONFIG="${CONFIG:-Release}"
 
 if ! command -v xcodegen >/dev/null 2>&1; then
   echo "xcodegen is required. Install with: brew install xcodegen" >&2
@@ -100,17 +104,19 @@ while true; do
   sleep 2
 done
 
+"$ROOT_DIR/scripts/stamp-build.sh"
 xcodegen generate --spec "$ROOT_DIR/project.yml"
 
 xcodebuild \
   -project "$ROOT_DIR/Obadh.xcodeproj" \
   -scheme Obadh \
+  -configuration "$CONFIG" \
   -destination "generic/platform=iOS" \
   -derivedDataPath "$DERIVED_DATA_DIR" \
   -allowProvisioningUpdates \
   build
 
-app_path="$DERIVED_DATA_DIR/Build/Products/Debug-iphoneos/Obadh.app"
+app_path="$DERIVED_DATA_DIR/Build/Products/$CONFIG-iphoneos/Obadh.app"
 xcrun devicectl device install app --device "$DEVICE_ID" "$app_path"
 if ! launch_output="$(
   xcrun devicectl device process launch --device "$DEVICE_ID" --terminate-existing "$BUNDLE_ID" 2>&1
