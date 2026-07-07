@@ -20,6 +20,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>OBADHGitRevision</key>
+	<string>$(OBADH_GIT_SHA)</string>
+	<key>OBADHBuildTime</key>
+	<string>$(OBADH_BUILD_TIME)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

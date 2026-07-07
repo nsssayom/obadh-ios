@@ -1,5 +1,16 @@
 CODE_SIGN_STYLE = Automatic
 
+// Build identity — fallbacks for un-stamped builds (e.g. a plain Xcode GUI build
+// with no prior `scripts/stamp-build.sh` run). The generated BuildInfo.xcconfig,
+// included last, overrides these with the real git-derived values.
+CURRENT_PROJECT_VERSION = 1
+OBADH_GIT_SHA = local
+OBADH_BUILD_TIME = unstamped
+
 // Local device signing lives outside Git. Create Config/Signing.local.xcconfig
 // with DEVELOPMENT_TEAM when running on a real iPhone/iPad.
 #include? "Signing.local.xcconfig"
+
+// Auto-generated per build by scripts/stamp-build.sh (gitignored). Included last
+// so its CURRENT_PROJECT_VERSION / OBADH_GIT_SHA / OBADH_BUILD_TIME win.
+#include? "BuildInfo.xcconfig"

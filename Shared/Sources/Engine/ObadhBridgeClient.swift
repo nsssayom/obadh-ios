@@ -138,84 +138,70 @@ struct ObadhBridgeClient: BanglaTypingEngine, Sendable {
         }
     }
 
+    /// Words and suggestion lists are short, so a stack scratch buffer usually
+    /// satisfies the whole call in a single crossing with zero heap allocation.
+    private static let scratchCapacity = 1024
+
     private func callBridge(
         _ input: String,
-        _ function: @Sendable (UnsafePointer<UInt8>?, Int, UnsafeMutablePointer<UInt8>?, Int) -> Int
+        _ function: (UnsafePointer<UInt8>?, Int, UnsafeMutablePointer<UInt8>?, Int) -> Int
     ) -> String {
-        let inputBytes = Array(input.utf8)
-        let requiredLength = inputBytes.withUnsafeBufferPointer { inputBuffer in
-            function(inputBuffer.baseAddress, inputBuffer.count, nil, 0)
-        }
-        guard requiredLength > 0 else {
-            return ""
-        }
-
-        var output = Array(repeating: UInt8(0), count: requiredLength)
-        let written = inputBytes.withUnsafeBufferPointer { inputBuffer in
-            output.withUnsafeMutableBufferPointer { outputBuffer in
-                function(inputBuffer.baseAddress, inputBuffer.count, outputBuffer.baseAddress, outputBuffer.count)
+        var input = input
+        return input.withUTF8 { inputBuffer in
+            readUTF8 { outputPtr, outputCapacity in
+                function(inputBuffer.baseAddress, inputBuffer.count, outputPtr, outputCapacity)
             }
         }
-        guard written == requiredLength else {
-            return ""
-        }
-        return String(decoding: output, as: UTF8.self)
     }
 
     private func callBridgeList(
         _ input: String,
         limit: Int,
-        _ function: @Sendable (UnsafePointer<UInt8>?, Int, Int, UnsafeMutablePointer<UInt8>?, Int) -> Int
+        _ function: (UnsafePointer<UInt8>?, Int, Int, UnsafeMutablePointer<UInt8>?, Int) -> Int
     ) -> [String] {
-        let inputBytes = Array(input.utf8)
         let boundedLimit = max(0, limit)
-        let requiredLength = inputBytes.withUnsafeBufferPointer { inputBuffer in
-            function(inputBuffer.baseAddress, inputBuffer.count, boundedLimit, nil, 0)
-        }
-        guard requiredLength > 0 else {
-            return []
-        }
-
-        var output = Array(repeating: UInt8(0), count: requiredLength)
-        let written = inputBytes.withUnsafeBufferPointer { inputBuffer in
-            output.withUnsafeMutableBufferPointer { outputBuffer in
-                function(
-                    inputBuffer.baseAddress,
-                    inputBuffer.count,
-                    boundedLimit,
-                    outputBuffer.baseAddress,
-                    outputBuffer.count
-                )
+        var input = input
+        let joined = input.withUTF8 { inputBuffer in
+            readUTF8 { outputPtr, outputCapacity in
+                function(inputBuffer.baseAddress, inputBuffer.count, boundedLimit, outputPtr, outputCapacity)
             }
         }
-        guard written == requiredLength else {
-            return []
-        }
-
-        return String(decoding: output, as: UTF8.self)
-            .split(separator: "\n", omittingEmptySubsequences: true)
-            .map(String.init)
+        return splitList(joined)
     }
 
     private func callBridgeListWithoutInput(
         limit: Int,
-        _ function: @Sendable (Int, UnsafeMutablePointer<UInt8>?, Int) -> Int
+        _ function: (Int, UnsafeMutablePointer<UInt8>?, Int) -> Int
     ) -> [String] {
         let boundedLimit = max(0, limit)
-        let requiredLength = function(boundedLimit, nil, 0)
-        guard requiredLength > 0 else {
-            return []
+        let joined = readUTF8 { outputPtr, outputCapacity in
+            function(boundedLimit, outputPtr, outputCapacity)
         }
+        return splitList(joined)
+    }
 
-        var output = Array(repeating: UInt8(0), count: requiredLength)
-        let written = output.withUnsafeMutableBufferPointer { outputBuffer in
-            function(boundedLimit, outputBuffer.baseAddress, outputBuffer.count)
+    /// Invokes a size-reporting C writer into a stack buffer, growing once only
+    /// if the output does not fit. The Rust side returns the required length and
+    /// copies only when capacity is sufficient, so this is a single crossing in
+    /// the common case.
+    private func readUTF8(_ write: (UnsafeMutablePointer<UInt8>?, Int) -> Int) -> String {
+        withUnsafeTemporaryAllocation(of: UInt8.self, capacity: Self.scratchCapacity) { scratch -> String in
+            let required = write(scratch.baseAddress, scratch.count)
+            guard required > 0 else { return "" }
+            if required <= scratch.count {
+                return String(decoding: UnsafeBufferPointer(start: scratch.baseAddress, count: required), as: UTF8.self)
+            }
+            return withUnsafeTemporaryAllocation(of: UInt8.self, capacity: required) { large -> String in
+                let written = write(large.baseAddress, large.count)
+                guard written == required else { return "" }
+                return String(decoding: UnsafeBufferPointer(start: large.baseAddress, count: written), as: UTF8.self)
+            }
         }
-        guard written == requiredLength else {
-            return []
-        }
+    }
 
-        return String(decoding: output, as: UTF8.self)
+    private func splitList(_ joined: String) -> [String] {
+        guard !joined.isEmpty else { return [] }
+        return joined
             .split(separator: "\n", omittingEmptySubsequences: true)
             .map(String.init)
     }

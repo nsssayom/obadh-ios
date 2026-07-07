@@ -2,31 +2,31 @@
 
 Native iOS/iPadOS keyboard for Obadh Bangla transliteration.
 
-The first product target is intentionally narrow: a fast Bangla-only custom
-keyboard that feels close to Apple’s own keyboard and uses the published
-`obadh_engine` Rust SDK through a thin native bridge. Swipe typing, voice input,
-emoji prediction, and neural suggestion models are later platform layers.
+Obadh is a Bangla-only custom keyboard that aims to feel like Apple's own: you
+type roman, it composes Bangla live, and the whole thing runs on device. It uses
+the published `obadh_engine` Rust SDK through a thin native bridge for
+transliteration, autocorrect, and autosuggest, and adds an iOS-native layer for
+touch, layout, haptics, punctuation, and emoji.
 
-## Project Shape
+## Project shape
 
-- `Obadh`: small containing app with setup status, permission guidance, and the
-  public app-settings link.
-- `ObadhKeyboard`: `UIInputViewController` keyboard extension.
-- `Shared/Sources`: UIKit keyboard UI, composer state, design tokens.
-- `rust/ObadhBridge`: static Rust bridge depending on `obadh_engine = "0.6.0"`.
-- `Resources/ObadhModels`: compact autocorrect and autosuggest artifacts copied
-  into the keyboard extension bundle.
-- `Frameworks/ObadhBridge.xcframework`: generated native bridge, ignored by Git.
+- `Obadh` — the containing app: setup checklist, permission guidance, a few
+  settings (haptics, emoji-search language), and a test field.
+- `ObadhKeyboard` — the `UIInputViewController` keyboard extension.
+- `Shared/Sources` — the UIKit keyboard UI, composer state, design tokens, and
+  the emoji stores. The parts with no UIKit dependency also build as the
+  `ObadhKeyboardCore` SwiftPM library so they can be unit-tested off-device.
+- `rust/ObadhBridge` — a static Rust bridge over `obadh_engine`.
+- `Resources/ObadhModels` — the compact binary artifacts bundled into the
+  extension: autocorrect/autosuggest models, the emoji catalog, and the Bangla
+  emoji suggestion + search indexes.
+- `Frameworks/ObadhBridge.xcframework` — the generated native bridge (git-ignored).
 
-The keyboard extension requests iOS “Allow Full Access” so UIKit haptics can
-work inside the custom keyboard extension. Obadh still performs
-transliteration, autocorrect, autosuggest, and personal learning locally; this
-build does not use network services.
-
-The bridge intentionally stays thin: Swift owns UIKit, touch routing, bundle
-resource discovery, and text proxy mutation. Rust owns transliteration,
-autocorrect ranking, autosuggest lookup, and artifact parsing. The C ABI only
-moves UTF-8 buffers across the boundary.
+The bridge stays deliberately thin. Rust owns transliteration, autocorrect
+ranking, autosuggest lookup, and model parsing; Swift owns UIKit, touch routing,
+bundle resource discovery, and text-proxy mutation. The C ABI only moves UTF-8
+buffers across the boundary. Everything is local — no network, no telemetry. Full
+Access is requested only because iOS gates keyboard-extension haptics behind it.
 
 ## Setup
 
@@ -36,7 +36,7 @@ cd obadh-ios
 open Obadh.xcodeproj
 ```
 
-If `xcodebuild` still points at Command Line Tools, run:
+If `xcodebuild` still points at Command Line Tools:
 
 ```bash
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
@@ -44,124 +44,125 @@ sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
 Then rerun `./scripts/bootstrap.sh`.
 
-## Real Device Install
+## Real device install
 
-The real iPhone/iPad path is meant to be stable. Signing is stored in
-`Config/Signing.local.xcconfig`, which is ignored by Git and included by the
-generated Xcode project.
-
-```bash
-./scripts/install-device.sh
-```
-
-The script:
-
-- infers `DEVELOPMENT_TEAM` from the local Apple Development certificate when
-  `Config/Signing.local.xcconfig` does not exist;
-- regenerates the Xcode project;
-- builds with automatic provisioning updates;
-- installs the signed app on the connected iPhone/iPad;
-- launches `Obadh`.
-
-After install, the app shows a setup checklist. The only public deep link Apple
-allows here opens Obadh’s app settings. For keyboard-specific switches, follow
-the paths shown in the app:
-
-- Settings > General > Keyboard > Keyboards > Add New Keyboard > Obadh
-- Settings > General > Keyboard > Keyboards > Obadh > Allow Full Access
-- Settings > Sounds & Haptics > Keyboard Feedback > Haptic
-- Settings > Accessibility > Touch > Vibration
-
-The containing app also exposes a simple Haptic Feedback toggle. The setting is
-stored in the shared app group and read by the keyboard extension.
-
-To target a specific device:
+Signing lives in `Config/Signing.local.xcconfig` (git-ignored, included by the
+generated project). The install script infers `DEVELOPMENT_TEAM` from your Apple
+Development certificate, git-stamps the build, regenerates the project, builds
+with automatic provisioning, installs, and launches.
 
 ```bash
-DEVICE_ID=00008140-000410243ED3001C ./scripts/install-device.sh
+./scripts/install-device.sh                 # Release (default)
+DEVICE_ID=<udid> ./scripts/install-device.sh
+CONFIG=Debug ./scripts/install-device.sh    # Debug build, only when explicitly needed
 ```
 
-## Build Pieces
+The phone runs **Release** by default — it excludes all `#if DEBUG` tooling.
+After install, the app shows a setup checklist; the paths to enable the keyboard
+and Full Access are listed there.
 
-Generate the project:
+Regenerate the project, or build the Rust bridge, on their own:
 
 ```bash
 xcodegen generate
+./scripts/build-rust-xcframework.sh   # device + simulator slices, rerun after Rust changes
 ```
 
-Build the Rust bridge:
+Every build is stamped with the git commit count, short SHA, and a UTC
+timestamp (`scripts/stamp-build.sh` → `Config/BuildInfo.xcconfig`). The version
+is shown in the app's test screen and logged by the extension on appear, so you
+can confirm the device is running the build you think it is — a keyboard
+extension will otherwise happily keep serving a cached old binary.
 
-```bash
-./scripts/build-rust-xcframework.sh
-```
+## Keyboard behavior
 
-The bridge script builds arm64 device, arm64 simulator, and x86_64 simulator
-slices, then packages them into a local XCFramework.
-Rerun it after changing the Rust bridge or updating `obadh_engine`.
+- Roman QWERTY feeds Obadh transliteration; the active token renders live as
+  Bangla marked text in the focused field. Space keeps the deterministic output.
+- The suggestion ribbon shows the deterministic output first (informational),
+  then autocorrect candidates. After a word commits, it can show next-word
+  suggestions from the bundled n-gram model. Personal autosuggest learns from
+  committed words, persisted to the shared app group and fingerprint-validated
+  on load so stale state is dropped.
+- Numerals and punctuation are handled on the iOS layer: the number pad emits
+  Bangla numerals ০–৯, `৳` (taka) and `।` (danda) sit on the punctuation pages,
+  and Apple-style smart punctuation is applied (`--`→`—`, `...`→`…`, curly
+  quotes, double-space → danda).
+- `qq` (q tapped twice) is a mobile shortcut for `^`, the চন্দ্রবিন্দু marker.
+- Holding backspace follows a native-like curve: immediate delete, fast
+  character repeat, then word and sentence chunks on a sustained hold.
+- The emoji key opens the local Unicode/CLDR emoji panel with categories,
+  recents, and search. Search runs in English by default with an in-bar **EN⇄BN**
+  toggle (default set in the app); skin tones are picked by long-press and
+  remembered.
+- The globe switches to the next keyboard. There is no English typing mode —
+  switch to Apple's English keyboard with the globe when needed.
 
-Run the app or keyboard extension from Xcode on an iPhone/iPad simulator or a
-device. Enable the keyboard in Settings > General > Keyboard > Keyboards.
+## Design notes
 
-If automatic inference fails, create the local signing file manually:
+Most of the interesting decisions were forced by how iOS treats custom
+keyboards, and several of them generalise to any platform.
 
-```bash
-cat > Config/Signing.local.xcconfig <<'EOF'
-DEVELOPMENT_TEAM = YOUR_TEAM_ID
-EOF
-```
+**Touch routing.** iOS *drops* touches over fully-transparent regions of a
+keyboard extension before they reach `hitTest`. The gaps between keys and the
+padding around the outer keys were dead zones, and no amount of hit-test slop
+fixes it — the event never arrives. The fix is a single near-invisible surface
+(one plain view at ~0.004 alpha, so it's non-transparent but imperceptible)
+covering the whole key area; it catches every touch and resolves it to the
+nearest key by midpoint boundaries. The keys themselves are non-interactive. The
+general lesson: a keyboard lives on the edges of its keys, so make the whole
+surface catch input and resolve to intent instead of trusting per-key hit rects.
 
-Then rerun `./scripts/install-device.sh`.
+**Backdrop and key material.** The background is the system's own keyboard
+material via `UIInputView(inputViewStyle: .keyboard)`, not a hand-rolled blur —
+a generic blur reads as a distinct rectangle sitting on the keyboard. On iOS 26
+the keys are Liquid Glass, but a full-strength glass effect adds a raised
+specular rim the native keys don't have; a flat translucent fill matched them.
+(The Simulator doesn't render Liquid Glass faithfully, so that comparison is a
+device-only check.)
 
-## Current Keyboard Behavior
+**Haptics.** Apple's key tap is one crisp, near-uniform tick, not a per-key
+intensity curve. The only public API that controls crispness (sharpness) is Core
+Haptics, so the tap is a single transient tuned by intensity and sharpness, with
+a `.rigid` `UIImpactFeedbackGenerator` as the fallback. Final values were dialed
+in on device (intensity 0.5, sharpness 0.9) — haptics don't fire in the
+Simulator, so this is felt, not measured.
 
-- Roman QWERTY keys feed Obadh transliteration only.
-- The active Roman token is rendered live as Bangla in the focused text field.
-- Press Space to keep the deterministic Obadh output and insert a space.
-- The ribbon shows the deterministic output first, then autocorrect candidates.
-  The deterministic item is informational; tapping an autocorrect item replaces
-  the active token.
-- After a word is committed, the ribbon can show next-word suggestions from the
-  bundled n-gram artifact.
-- Committed words are observed by Obadh’s bounded personal autosuggest layer.
-  The keyboard exports the compact Rust snapshot to the shared app-group
-  Application Support container and imports it again on startup. Snapshot import
-  is validated by the autosuggest vocabulary fingerprint, so stale personal
-  state is discarded.
-- `.` inserts Bengali danda `।`.
-- Key taps use the system input-click path and lightweight UIKit haptics.
-  On device, enable Obadh > Allow Full Access in iOS Keyboard settings, and
-  ensure Settings > Sounds & Haptics > Keyboard Feedback > Haptic plus
-  Settings > Accessibility > Touch > Vibration are enabled.
-- Holding Backspace follows a native-like acceleration curve: immediate delete,
-  fast character repeat, slower word chunks, then larger sentence/context chunks
-  after a sustained hold. The repeat stops on touch-up, cancel, or dragging away
-  from the key.
-- The emoji key opens Obadh’s local Unicode/CLDR-backed emoji panel with
-  categories, recents, and search. Emoji search uses an English key path and
-  returns to Bangla typing when dismissed.
-- The system globe switches to the next enabled keyboard.
-- Shift is deliberate and affects the next Roman key for Obadh case-sensitive
-  rules.
+**Composer boundary.** Keystrokes go to a composer that produces the
+deterministic transliteration synchronously (shown immediately as marked text)
+and merges the expensive autocorrect/FST results asynchronously, generation-
+guarded so out-of-order or stale results are discarded. New capabilities plug in
+at this boundary rather than into the key handling.
 
-No English keyboard mode is included. Users should switch to Apple’s English
-keyboard with the globe key when needed.
+**Emoji, and the data pipeline behind it.** This is the most portable part. When
+you finish a Bangla word, up to three emoji appear in the ribbon, taking over the
+third text slot (the top two text candidates always survive) — matching the
+native keyboard. The data is built offline (`scripts/generate-emoji-data.py`)
+from Unicode CLDR Bengali annotations laid *under* a hand-curated colloquial map,
+because CLDR is descriptive (হার্ট = heart) while people type colloquially
+(ভালোবাসা = love). Candidates are ranked by name-centrality first — an emoji
+whose *primary name* is the word beats one that merely mentions it, so নাক → 👃,
+not 😤 — then by Unicode usage frequency, which is used at build time only and
+never ships. The runtime artifact is a tiny sorted-key binary (word → up to 3
+emoji) answered by exact binary search. Emoji *search* reuses the same pipeline
+as a broader index with prefix and multi-term matching, plus a fuzzy fallback
+(grapheme edit-distance against the closed keyword vocabulary — aggressive is
+safe there because the only candidates are emoji keywords). Skin tones are
+remembered per-emoji in shared preferences. None of this needs iOS: the build
+pipeline, the ranking, and the binary format are directly reusable on Android.
 
-## Design Direction
+**Performance discipline.** The typing path never touches the ~1 MB emoji
+catalog; the suggestion lookup is a memory-mapped binary search over a ~110 KB
+index. The Bangla search index (and its fuzzy fallback) only load when you switch
+the search to Bangla, so the English default pays nothing. Preferences (haptics,
+skin tone, emoji-search language) are plain `UserDefaults` in the shared app
+group — the right tool for small state; no SQLite or Core Data.
 
-The keyboard uses a native UIKit layout rather than a web view or custom engine.
-The visual language follows Apple’s keyboard restraint: system colors, SF
-Symbols, compact controls, minimal settings, and no ornamental UI. Full Access
-is requested only because iOS gates UIKit haptics inside third-party keyboard
-extensions behind that switch; Obadh’s typing engine remains local.
+**Where things live.** The pure logic — composer, emoji stores, resolvers — is in
+the SwiftPM `ObadhKeyboardCore` target so it's unit-tested against the *real*
+generated artifacts off-device. UIKit views and the extension controller stay in
+the extension target. App and extension share preferences and learned state
+through an App Group.
 
-The extension does not force a custom keyboard height. iOS owns the input-view
-container size, and the Obadh rows/suggestion ribbon fit inside that system
-provided keyboard area. This keeps the keyboard aligned with the current device,
-orientation, and Apple keyboard profile instead of relying on a fixed pixel
-constant.
-
-Future layers should plug into the same composer boundary:
-
-- emoji prediction and classic emoticon conversion
-- swipe/voice input
-- native neural autosuggest through Core ML
+Debug builds carry a small file-based control channel and on-device tuning
+controls (haptic sliders, glass-style toggle) for iterating on feel; it is all
+`#if DEBUG`, verified absent from Release binaries, and never ships.

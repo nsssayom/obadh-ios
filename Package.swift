@@ -15,6 +15,8 @@ let package = Package(
             exclude: [
                 "Design",
                 "Keyboard/Emoji/EmojiPanelView.swift",
+                "Keyboard/Emoji/EmojiVariantPopoverView.swift",
+                "Keyboard/KeyboardDebugChannel.swift",
                 "Keyboard/KeyboardFeedbackController.swift",
                 "Keyboard/KeyboardKeyButton.swift",
                 "Keyboard/KeyboardKeyPreviewCallout.swift",

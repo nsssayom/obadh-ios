@@ -1,6 +1,8 @@
 import Foundation
 
-struct PersonalAutosuggestStore {
+/// Immutable configuration over a thread-safe FileManager, so snapshot writes
+/// can be moved off the main thread.
+struct PersonalAutosuggestStore: @unchecked Sendable {
     private let fileManager: FileManager
     private let appGroupIdentifier: String?
     private let fallbackBaseURL: URL?

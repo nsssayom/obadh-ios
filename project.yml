@@ -8,7 +8,9 @@ settings:
     SWIFT_VERSION: "6.0"
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    # CURRENT_PROJECT_VERSION comes from Config/BuildInfo.xcconfig (git-stamped by
+    # scripts/stamp-build.sh), with a fallback in Signing.xcconfig — NOT set here,
+    # or a project-level value would override the xcconfig.
     GENERATE_INFOPLIST_FILE: NO
 targets:
   Obadh:
@@ -17,6 +19,7 @@ targets:
     sources:
       - path: ObadhApp/Sources
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
+      - path: Shared/Sources/Settings/AppBuildInfo.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nsssayom.obadh
@@ -37,6 +40,7 @@ targets:
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
+      - path: Shared/Sources/Settings/AppBuildInfo.swift
       - path: Resources/ObadhModels
         buildPhase: resources
         type: folder
