@@ -1,8 +1,8 @@
 use obadh_engine::{
-    roman_repaired_outputs, AutosuggestLm, AutosuggestOptions, AutosuggestSession, FstLexicon,
-    FstLoanwordMatch, FstRepairedBaseline, FstSuggestOptions, LoanwordLexicon,
-    LoanwordSearchOptions, ObadhEngine, PersonalAutosuggestConfig, RomanRepairOptions,
-    FST_MAX_LEVENSHTEIN_DISTANCE,
+    key_slip_repaired_outputs, roman_repaired_outputs, AutosuggestLm, AutosuggestOptions,
+    AutosuggestSession, FstLexicon, FstLoanwordMatch, FstRepairedBaseline, FstSuggestOptions,
+    LoanwordLexicon, LoanwordSearchOptions, ObadhEngine, PersonalAutosuggestConfig,
+    RomanRepairOptions, FST_MAX_LEVENSHTEIN_DISTANCE,
 };
 use std::fs::File;
 use std::path::Path;
@@ -190,12 +190,24 @@ fn autocorrect_candidates(
     let Some(assets) = AUTOCORRECT.get() else {
         return Vec::new();
     };
-    let repaired_outputs = roman_repaired_outputs(
+    let mut repaired_outputs = roman_repaired_outputs(
         roman_input,
         obadh_output,
         RomanRepairOptions::default(),
         |text| engine().transliterate(text),
     );
+    // QWERTY fat-finger (key-slip) repairs: single adjacent-key rewrites of the
+    // roman input whose transliteration is a real lexicon word. The helper gates
+    // itself to non-word baselines (baseline_frequency == None) and lexicon-
+    // validates each variant internally, so a correctly-typed word is never
+    // second-guessed. Mirrors the engine's reference CLI/WASM wiring.
+    repaired_outputs.extend(key_slip_repaired_outputs(
+        roman_input,
+        obadh_output,
+        assets.lexicon.exact_frequency(obadh_output),
+        |text| engine().transliterate(text),
+        |word| assets.lexicon.exact_frequency(word).is_some(),
+    ));
     let repaired_baselines = repaired_outputs
         .iter()
         .map(|repair| FstRepairedBaseline {
