@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Deliberately empty. Obadh's settings live in the app, not here.
+
+	     This bundle exists only so the app HAS a page in Settings. Obadh requests
+	     no permissions (no camera, location or notifications) and so, on a fresh
+	     install, iOS lists it nowhere in Settings — and UIApplication
+	     .openSettingsURLString then falls back to the Settings root, stranding the
+	     user. The page only appears once the keyboard is added, which is exactly
+	     what we are trying to send them there to do.
+
+	     An empty PreferenceSpecifiers array creates the entry without adding any
+	     rows of our own; iOS supplies the Keyboards row itself. -->
+	<key>PreferenceSpecifiers</key>
+	<array/>
+	<key>StringsTable</key>
+	<string>Root</string>
+</dict>
+</plist>

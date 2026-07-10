@@ -19,6 +19,10 @@ targets:
     sources:
       - path: ObadhApp/Sources
       - path: ObadhApp/Resources/Assets.xcassets
+      # Empty on purpose: it exists so the app has an entry in Settings at all, which
+      # is what openSettingsURLString needs in order to land anywhere but the root.
+      - path: ObadhApp/Resources/Settings.bundle
+        buildPhase: resources
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
       - path: Shared/Sources/Settings/KeyboardInstallState.swift
       - path: Shared/Sources/Settings/AppBuildInfo.swift

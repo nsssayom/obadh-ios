@@ -36,6 +36,7 @@
 		9634DBB4043CE304AF279075 /* AppBuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */; };
 		9FEAF3B40EDF24742EB4A431 /* PersonalAutosuggestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */; };
 		A02B5F9B3F2E94C08578F017 /* ObadhKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A4DF455A569C77774B98E25D /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 2DD1FF9151E1C74445AC2D0C /* Settings.bundle */; };
 		A596F803163521C139657F2F /* BackspaceRepeatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */; };
 		A77F9145A5A4B4447B936400 /* Brand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200997DA7CAB0B7076B91A93 /* Brand.swift */; };
 		AD7D82906C1826EC37751A77 /* EmojiRecentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A590DD924D6A20FFDF0681E /* EmojiRecentStore.swift */; };
@@ -87,6 +88,7 @@
 		22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayout.swift; sourceTree = "<group>"; };
 		256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiVariantPreferenceStore.swift; sourceTree = "<group>"; };
 		27E6F87259C943124981B64B /* ObadhBridgeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhBridgeClient.swift; sourceTree = "<group>"; };
+		2DD1FF9151E1C74445AC2D0C /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = Settings.bundle; sourceTree = "<group>"; };
 		2DE3855A6D08F626A006C8BF /* Obadh.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Obadh.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPanelView.swift; sourceTree = "<group>"; };
 		357A2D2EC4233E419470E4C6 /* BanglaEmojiSearchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanglaEmojiSearchStore.swift; sourceTree = "<group>"; };
@@ -277,6 +279,7 @@
 			isa = PBXGroup;
 			children = (
 				583A8D41964D11C4FEC69A03 /* Assets.xcassets */,
+				2DD1FF9151E1C74445AC2D0C /* Settings.bundle */,
 			);
 			name = Resources;
 			path = ObadhApp/Resources;
@@ -392,6 +395,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8499E19B49429F2060CADAE0 /* Assets.xcassets in Resources */,
+				A4DF455A569C77774B98E25D /* Settings.bundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
