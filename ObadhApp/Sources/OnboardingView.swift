@@ -14,16 +14,42 @@ struct OnboardingView: View {
     let onFinish: () -> Void
 
     @Environment(\.colorScheme) private var scheme
-    @State private var step: Step = .welcome
+    @State private var step: Step
     @State private var isRevealed = false
+
+    init(install: KeyboardInstallState, onFinish: @escaping () -> Void) {
+        self.install = install
+        self.onFinish = onFinish
+        _step = State(initialValue: Self.initialStep)
+    }
+
+    /// Onboarding can't be driven without a mouse, so Debug builds can jump straight to
+    /// a step for screenshots: `--onboarding-step=fullAccess`. Compiled out of Release.
+    private static var initialStep: Step {
+        #if DEBUG
+        let prefix = "--onboarding-step="
+        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) {
+            switch argument.dropFirst(prefix.count) {
+            case "addKeyboard": return .addKeyboard
+            case "fullAccess": return .fullAccess
+            case "done": return .done
+            default: break
+            }
+        }
+        #endif
+        return .welcome
+    }
 
     var body: some View {
         ZStack {
             BrandBackground()
 
             content
-                .frame(maxWidth: .infinity)
+                // Pad first, then fill. The other order expands the content to the full
+                // width and *then* insets the result, pushing text off both edges.
                 .padding(.horizontal, 30)
+                .frame(maxWidth: 460)
+                .frame(maxWidth: .infinity)
                 // Recreating on `step` is what drives the transition below.
                 .id(step)
                 .transition(
@@ -102,8 +128,8 @@ struct OnboardingView: View {
                 if install.isKeyboardInstalled {
                     confirmation("Obadh is added")
                 } else {
-                    Text("Not seeing Keyboards there? Settings › General › Keyboard › Keyboards › Add New Keyboard.")
-                        .font(.footnote)
+                    Text("Or find it in General › Keyboard › Keyboards.")
+                        .font(BrandFont.caption)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
                 }
@@ -119,31 +145,15 @@ struct OnboardingView: View {
             title("Turn on haptics?")
                 .padding(.top, 28)
 
-            Text("Obadh works completely without this.")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            // "Not now" already says this is optional, and the privacy story belongs on
+            // the Privacy screen, not in a permission prompt.
+            message("Full Access lets Obadh vibrate as you type.")
                 .padding(.top, 14)
 
-            Text("Full Access lets the keyboard vibrate as you type, and lets the settings in this app reach it.")
-                .font(.callout)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-                .padding(.top, 10)
-
-            Group {
-                if install.isFullAccessConfirmed {
-                    confirmation("Full Access is on")
-                } else {
-                    Label("Nothing you type ever leaves your device", systemImage: "lock.fill")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(scheme == .dark ? Color.obadhTealLight : Color.obadhDeep)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial, in: Capsule())
-                }
+            if install.isFullAccessConfirmed {
+                confirmation("Full Access is on")
+                    .padding(.top, 24)
             }
-            .padding(.top, 26)
         }
     }
 
@@ -154,10 +164,7 @@ struct OnboardingView: View {
             title("You're all set")
                 .padding(.top, 28)
 
-            Text("Tap the globe key in any app to switch to Obadh.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            message("Tap the globe key to switch to Obadh.")
                 .padding(.top, 14)
         }
     }
@@ -216,8 +223,16 @@ struct OnboardingView: View {
 
     private func title(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 32, weight: .semibold))
-            .tracking(-0.5)
+            .font(BrandFont.title)
+            .tracking(-0.4)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func message(_ text: String) -> some View {
+        Text(text)
+            .font(BrandFont.body)
+            .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -238,18 +253,18 @@ struct OnboardingView: View {
     private func numberedStep(_ number: Int, _ text: String) -> some View {
         HStack(spacing: 14) {
             Text("\(number)")
-                .font(.footnote.weight(.bold).monospacedDigit())
+                .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(.white)
                 .frame(width: 24, height: 24)
                 .background(BrandGradient.action, in: Circle())
             Text(text)
-                .font(.body)
+                .font(BrandFont.body)
         }
     }
 
     private func confirmation(_ text: String) -> some View {
         Label(text, systemImage: "checkmark.circle.fill")
-            .font(.body.weight(.semibold))
+            .font(.system(size: 17, weight: .semibold, design: .rounded))
             .foregroundStyle(.green)
             .transition(.scale.combined(with: .opacity))
     }
@@ -261,7 +276,7 @@ struct OnboardingView: View {
 
     private func secondaryButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(title, action: action)
-            .font(.body)
+            .font(BrandFont.body)
             .foregroundStyle(.secondary)
             .padding(.vertical, 12)
     }

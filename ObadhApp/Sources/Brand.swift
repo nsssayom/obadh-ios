@@ -44,12 +44,17 @@ enum BrandGradient {
     )
 }
 
+/// One scale for the whole first-run flow. Headings are rounded, matching the wordmark
+/// and the curve of the অ in the mark; body stays SF Pro, which rounded reads childish
+/// at.
 enum BrandFont {
-    /// SF Rounded, heavy and slightly tightened. Soft terminals echo the curve of the
-    /// অ in the mark; a serif fought it.
     static func wordmark(_ size: CGFloat) -> Font {
         .system(size: size, weight: .bold, design: .rounded)
     }
+
+    static let title = Font.system(size: 30, weight: .bold, design: .rounded)
+    static let body = Font.system(size: 17, weight: .regular)
+    static let caption = Font.system(size: 14, weight: .regular)
 
     /// Kohinoor Bangla ships with iOS. Only Light/Regular/Semibold exist — asking for
     /// a weight it doesn't have silently returns nil, so fall back to the system face
@@ -250,7 +255,7 @@ extension View {
 struct BrandButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold))
+            .font(.system(size: 17, weight: .semibold, design: .rounded))
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 17)
