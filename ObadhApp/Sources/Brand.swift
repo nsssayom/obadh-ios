@@ -89,30 +89,51 @@ enum BrandFont {
 
 /// Two slow brand glows over a near-black (never pure black) base. Pure #000 reads as
 /// "unstyled" on OLED; the charcoal from the icon reads as a decision.
+///
+/// Everything is sized and positioned as a fraction of the container. Fixed offsets
+/// tuned on a 440pt phone land somewhere else entirely on a 375pt one.
 struct BrandBackground: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var breathing = false
+    @State private var driftA = false
+    @State private var driftB = false
 
     var body: some View {
-        ZStack {
-            base
-            glow(.obadhTeal, opacity: scheme == .dark ? 0.30 : 0.20)
-                .frame(width: 540, height: 540)
-                .offset(x: 40, y: -300)
-                .scaleEffect(breathing ? 1.08 : 0.94)
-            glow(.obadhDeep, opacity: scheme == .dark ? 0.36 : 0.16)
-                .frame(width: 460, height: 460)
-                .offset(x: -150, y: 320)
-                .scaleEffect(breathing ? 0.95 : 1.07)
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = proxy.size.height
+
+            ZStack {
+                base
+
+                glow(primary, opacity: scheme == .dark ? 0.30 : 0.22, diameter: width * 1.35)
+                    .offset(
+                        x: width * 0.06 + width * (driftA ? 0.05 : -0.05),
+                        y: -height * 0.30 + height * (driftA ? 0.025 : -0.025)
+                    )
+                    .scaleEffect(driftA ? 1.06 : 0.95)
+                    .animation(.easeInOut(duration: 9).repeatForever(autoreverses: true), value: driftA)
+
+                glow(secondary, opacity: scheme == .dark ? 0.34 : 0.18, diameter: width * 1.15)
+                    .offset(
+                        x: -width * 0.30 + width * (driftB ? -0.045 : 0.045),
+                        y: height * 0.32 + height * (driftB ? 0.03 : -0.03)
+                    )
+                    .scaleEffect(driftB ? 0.94 : 1.07)
+                    .animation(.easeInOut(duration: 13).repeatForever(autoreverses: true), value: driftB)
+            }
+            .frame(width: width, height: height)
         }
         .ignoresSafeArea()
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 7).repeatForever(autoreverses: true)) {
-                breathing = true
-            }
-        }
+        .onAppear(perform: startDrift)
+    }
+
+    private var primary: Color { .obadhTeal }
+
+    /// On charcoal the deep blue reads as light. Over near-white it reads as a grey
+    /// smudge, so light mode gets a luminous blue-teal instead of the dark brand blue.
+    private var secondary: Color {
+        scheme == .dark ? .obadhDeep : Color(hex: 0x2E9FBF)
     }
 
     private var base: some View {
@@ -125,17 +146,31 @@ struct BrandBackground: View {
         )
     }
 
-    private func glow(_ color: Color, opacity: Double) -> some View {
+    private func glow(_ color: Color, opacity: Double, diameter: CGFloat) -> some View {
         Circle()
             .fill(
                 RadialGradient(
                     colors: [color.opacity(opacity), color.opacity(0)],
                     center: .center,
                     startRadius: 0,
-                    endRadius: 250
+                    endRadius: diameter / 2
                 )
             )
-            .blur(radius: 30)
+            .frame(width: diameter, height: diameter)
+            .blur(radius: diameter * 0.07)
+    }
+
+    /// Two incommensurate periods, so the pair never settles into a visible pulse.
+    ///
+    /// The repeating animation is declared on the views with `.animation(_:value:)`
+    /// rather than wrapped around these assignments. A `withAnimation` issued from
+    /// `onAppear` runs before the view is on screen and SwiftUI discards the
+    /// transaction — the state flips, nothing moves, and the result looks identical to
+    /// working code in a screenshot.
+    private func startDrift() {
+        guard !reduceMotion else { return }
+        driftA = true
+        driftB = true
     }
 }
 
@@ -166,6 +201,7 @@ struct BrandMark: View {
             .shadow(color: .black.opacity(0.45), radius: 18, y: 12)
             .shadow(color: .obadhTeal.opacity(0.30), radius: 28)
             .offset(y: floating ? -4 : 4)
+            .animation(.easeInOut(duration: 3.6).repeatForever(autoreverses: true), value: floating)
             // A pool of light directly behind the mark: without it the charcoal squircle
             // sits on charcoal and reads as a smudge. As a background it overflows freely
             // without inflating the mark's frame — as a ZStack sibling it would drag the
@@ -188,6 +224,7 @@ struct BrandMark: View {
             .blur(radius: 22)
             .scaleEffect(pulsing ? 1.06 : 0.94)
             .opacity(pulsing ? 1 : 0.85)
+            .animation(.easeInOut(duration: 5.2).repeatForever(autoreverses: true), value: pulsing)
     }
 
     /// A narrow specular band, held offscreen between passes so it reads as a glint
@@ -216,14 +253,13 @@ struct BrandMark: View {
         }
     }
 
+    /// Repeating animations are declared on the views, not wrapped around these flips.
+    /// See `BrandBackground.startDrift` — a `withAnimation` from `onAppear` is silently
+    /// discarded, so the icon simply never moves.
     private func startAmbientMotion() {
         guard !reduceMotion else { return }
-        withAnimation(.easeInOut(duration: 3.6).repeatForever(autoreverses: true)) {
-            floating = true
-        }
-        withAnimation(.easeInOut(duration: 5.2).repeatForever(autoreverses: true)) {
-            pulsing = true
-        }
+        floating = true
+        pulsing = true
     }
 }
 
