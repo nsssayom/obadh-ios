@@ -175,21 +175,20 @@ final class EmojiPanelView: UIView {
         reloadCategoryButtons()
     }
 
-    /// The grid scrolls horizontally, so one page is `rowCount` × however many
-    /// columns fit across. Recomputed on rotation and on iPad's resizable heights.
+    /// Recomputed on rotation and on iPad's resizable heights.
     private func updateRecentsPageCapacity(
         layout: UICollectionViewFlowLayout,
         rowCount: CGFloat,
         itemSide: CGFloat
     ) {
-        let availableWidth = max(
-            1,
-            collectionView.bounds.width - layout.sectionInset.left - layout.sectionInset.right
+        let capacity = EmojiGridMetrics.pageCapacity(
+            collectionWidth: collectionView.bounds.width,
+            leadingInset: layout.sectionInset.left,
+            columnSpacing: layout.minimumLineSpacing,
+            itemSide: itemSide,
+            rowCount: Int(rowCount)
         )
-        let columnSpacing = layout.minimumLineSpacing
-        let columnCount = max(1, floor((availableWidth + columnSpacing) / (itemSide + columnSpacing)))
-        let capacity = Int(rowCount * columnCount)
-        guard capacity != recentsPageCapacity else { return }
+        guard capacity > 0, capacity != recentsPageCapacity else { return }
         recentsPageCapacity = capacity
         guard sectionCategories.contains(.recents) else { return }
         rebuildBrowsingSections()
