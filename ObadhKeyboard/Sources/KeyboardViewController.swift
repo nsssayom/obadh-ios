@@ -1340,8 +1340,14 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             KeyboardGlassStyle.current = style
             reloadKeyboardRows()
             refreshKeyboard()
+        case "emoji":
+            switch argument {
+            case "close": hideEmojiPanel()
+            default: showEmojiPanel()
+            }
+            refreshKeyboard()
         case "dump":
-            lifecycleLog.notice("OBADH-DEBUG state build=\(AppBuildInfo.summary, privacy: .public) mode=\(String(describing: self.keyboardMode), privacy: .public) shifted=\(self.shifted) glass=\(KeyboardGlassStyle.current.rawValue, privacy: .public) appearance=\(self.traitCollection.userInterfaceStyle == .dark ? "dark" : "light", privacy: .public) size=\(NSCoder.string(for: self.view.bounds.size), privacy: .public)")
+            lifecycleLog.notice("OBADH-DEBUG state build=\(AppBuildInfo.summary, privacy: .public) mode=\(String(describing: self.keyboardMode), privacy: .public) shifted=\(self.shifted) glass=\(KeyboardGlassStyle.current.rawValue, privacy: .public) appearance=\(self.traitCollection.userInterfaceStyle == .dark ? "dark" : "light", privacy: .public) size=\(NSCoder.string(for: self.view.bounds.size), privacy: .public) emojiPanel=\(self.showsEmojiPanel ? "shown" : "hidden") \(self.emojiPanelView.debugStateSummary, privacy: .public)")
         default:
             lifecycleLog.notice("OBADH-DEBUG unknown command=\(command, privacy: .public)")
         }

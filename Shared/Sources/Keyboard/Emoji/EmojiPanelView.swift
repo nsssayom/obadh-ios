@@ -68,6 +68,9 @@ final class EmojiPanelView: UIView {
     private var sectionItems: [[EmojiItem]] = []
     private var variantPopover: EmojiVariantPopoverView?
     private var recentsSnapshotNeedsRefresh = false
+    /// How many emoji fit on one screenful of the grid. Recents never render past
+    /// it, so the section always ends where the first page does.
+    private var recentsPageCapacity = EmojiRecentStore.defaultLimit
 
     override init(frame: CGRect) {
         let layout = UICollectionViewFlowLayout()
@@ -89,20 +92,32 @@ final class EmojiPanelView: UIView {
         self.dataStore = dataStore
         self.recentEmojis = recentEmojis
         recentsSnapshotNeedsRefresh = false
-        if selectedCategory == .recents && recentEmojis.isEmpty {
-            selectedCategory = .smileys
-        }
+        // Each open lands on Recents, matching the system keyboard. reloadItems()
+        // demotes to .smileys when the section does not materialize — either there
+        // are no recents, or the stored entries are ones the data store no longer
+        // knows about.
+        selectedCategory = .recents
         reloadItems()
     }
 
+    /// Mirrors the tap into the in-memory list so the section is right without a
+    /// round trip to defaults. Trimming here is plain oldest-out; the store's
+    /// score-based eviction is authoritative and re-syncs on the next open.
     func recordRecentEmoji(_ emoji: String) {
         recentEmojis.removeAll { $0 == emoji }
         recentEmojis.insert(emoji, at: 0)
-        if recentEmojis.count > 64 {
-            recentEmojis.removeLast(recentEmojis.count - 64)
+        if recentEmojis.count > EmojiRecentStore.defaultLimit {
+            recentEmojis.removeLast(recentEmojis.count - EmojiRecentStore.defaultLimit)
         }
         recentsSnapshotNeedsRefresh = true
     }
+
+    #if DEBUG
+    /// Panel state for the DEBUG-only control channel. Never compiled into Release.
+    var debugStateSummary: String {
+        "category=\(selectedCategory.rawValue) recents=\(recentEmojis.count) sections=\(sectionCategories.map(\.rawValue).joined(separator: ","))"
+    }
+    #endif
 
     func setSearchQuery(_ query: String, language: EmojiSearchLanguage? = nil) {
         searchQuery = query
@@ -156,7 +171,34 @@ final class EmojiPanelView: UIView {
             layout.invalidateLayout()
         }
         EmojiCell.glyphFontSize = floor(itemSide * Metrics.emojiGlyphScale)
+        updateRecentsPageCapacity(layout: layout, rowCount: rowCount, itemSide: itemSide)
         reloadCategoryButtons()
+    }
+
+    /// Recomputed on rotation and on iPad's resizable heights.
+    private func updateRecentsPageCapacity(
+        layout: UICollectionViewFlowLayout,
+        rowCount: CGFloat,
+        itemSide: CGFloat
+    ) {
+        let capacity = EmojiGridMetrics.pageCapacity(
+            collectionWidth: collectionView.bounds.width,
+            leadingInset: layout.sectionInset.left,
+            columnSpacing: layout.minimumLineSpacing,
+            itemSide: itemSide,
+            rowCount: Int(rowCount)
+        )
+        guard capacity > 0, capacity != recentsPageCapacity else { return }
+        recentsPageCapacity = capacity
+        guard sectionCategories.contains(.recents) else { return }
+        rebuildBrowsingSections()
+        collectionView.reloadData()
+    }
+
+    /// Recents, trimmed to one page. The store already bounds what it keeps; this
+    /// bounds what a narrower or shorter grid shows.
+    private func visibleRecentEmojis() -> [String] {
+        Array(recentEmojis.prefix(recentsPageCapacity))
     }
 
     private func configure() {
@@ -472,7 +514,7 @@ final class EmojiPanelView: UIView {
     private func rebuildBrowsingSections() {
         let pairs: [(EmojiCategory, [EmojiItem])] = navigableCategories().compactMap { category in
             let items = category == .recents
-                ? dataStore.items(for: recentEmojis)
+                ? dataStore.items(for: visibleRecentEmojis())
                 : applyVariantPreferences(to: dataStore.items(in: category))
             return items.isEmpty ? nil : (category, items)
         }
@@ -584,7 +626,7 @@ final class EmojiPanelView: UIView {
     }
 
     private func searchIdleItems() -> [EmojiItem] {
-        let recentItems = dataStore.items(for: recentEmojis)
+        let recentItems = dataStore.items(for: visibleRecentEmojis())
         if !recentItems.isEmpty {
             return recentItems
         }
