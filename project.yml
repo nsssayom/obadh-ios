@@ -18,13 +18,18 @@ targets:
     platform: iOS
     sources:
       - path: ObadhApp/Sources
+      - path: ObadhApp/Resources/Assets.xcassets
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
+      - path: Shared/Sources/Settings/KeyboardInstallState.swift
       - path: Shared/Sources/Settings/AppBuildInfo.swift
+      - path: Shared/Sources/Engine/PersonalAutosuggestStore.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nsssayom.obadh
         INFOPLIST_FILE: ObadhApp/Info.plist
         CODE_SIGN_ENTITLEMENTS: Config/Obadh.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     configFiles:
       Debug: Config/Signing.xcconfig
       Release: Config/Signing.xcconfig

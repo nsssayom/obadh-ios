@@ -15,6 +15,7 @@ struct KeyboardPreferences {
     static let appGroupIdentifier = "group.com.nsssayom.obadh"
     private static let hapticFeedbackEnabledKey = "keyboard.hapticFeedbackEnabled"
     private static let emojiSearchLanguageKey = "keyboard.emojiSearchLanguage"
+    private static let fullAccessConfirmedAtKey = "keyboard.fullAccessConfirmedAt"
 
     private let defaults: UserDefaults
 
@@ -44,6 +45,18 @@ struct KeyboardPreferences {
         nonmutating set {
             defaults.set(newValue.rawValue, forKey: Self.emojiSearchLanguageKey)
         }
+    }
+
+    /// Stamped by the keyboard extension every time it launches with Full Access.
+    ///
+    /// A keyboard without Full Access cannot reach the shared App Group container at
+    /// all, so a value here is proof that access was granted. Its *absence* proves
+    /// nothing — the keyboard may simply never have run. Revoking access likewise
+    /// leaves the last stamp behind, since the extension can no longer write to clear
+    /// it. Treat this as "confirmed" versus "unconfirmed", never as on versus off.
+    var fullAccessConfirmedAt: Date? {
+        get { defaults.object(forKey: Self.fullAccessConfirmedAtKey) as? Date }
+        nonmutating set { defaults.set(newValue, forKey: Self.fullAccessConfirmedAtKey) }
     }
 
     static var sharedDefaults: UserDefaults {

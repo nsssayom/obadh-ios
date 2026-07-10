@@ -1,3 +1,4 @@
+import SwiftUI
 import UIKit
 
 @main
@@ -58,6 +59,9 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     private func makeRootViewController() -> UIViewController {
+        // Measurement and test harnesses reachable only by launch argument, and only
+        // in Debug. Release has no text input anywhere in the app.
+        #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--keyboard-geometry-probe")
             || arguments.contains("--native-keyboard-geometry-probe") {
@@ -67,7 +71,8 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         if arguments.contains("--keyboard-test") {
             return UINavigationController(rootViewController: KeyboardTestViewController())
         }
+        #endif
 
-        return UINavigationController(rootViewController: SetupViewController())
+        return UIHostingController(rootView: RootView())
     }
 }
