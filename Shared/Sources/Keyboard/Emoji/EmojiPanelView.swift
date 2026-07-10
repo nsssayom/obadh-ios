@@ -89,9 +89,11 @@ final class EmojiPanelView: UIView {
         self.dataStore = dataStore
         self.recentEmojis = recentEmojis
         recentsSnapshotNeedsRefresh = false
-        if selectedCategory == .recents && recentEmojis.isEmpty {
-            selectedCategory = .smileys
-        }
+        // Each open lands on Recents, matching the system keyboard. reloadItems()
+        // demotes to .smileys when the section does not materialize — either there
+        // are no recents, or the stored entries are ones the data store no longer
+        // knows about.
+        selectedCategory = .recents
         reloadItems()
     }
 
@@ -103,6 +105,13 @@ final class EmojiPanelView: UIView {
         }
         recentsSnapshotNeedsRefresh = true
     }
+
+    #if DEBUG
+    /// Panel state for the DEBUG-only control channel. Never compiled into Release.
+    var debugStateSummary: String {
+        "category=\(selectedCategory.rawValue) recents=\(recentEmojis.count) sections=\(sectionCategories.map(\.rawValue).joined(separator: ","))"
+    }
+    #endif
 
     func setSearchQuery(_ query: String, language: EmojiSearchLanguage? = nil) {
         searchQuery = query
