@@ -14,7 +14,14 @@
 	     An empty PreferenceSpecifiers array creates the entry without adding any
 	     rows of our own; iOS supplies the Keyboards row itself. -->
 	<key>PreferenceSpecifiers</key>
-	<array/>
+	<array>
+		<dict>
+			<key>Type</key>
+			<string>PSGroupSpecifier</string>
+			<key>FooterText</key>
+			<string>Open the Obadh app to change haptics and emoji search.</string>
+		</dict>
+	</array>
 	<key>StringsTable</key>
 	<string>Root</string>
 </dict>

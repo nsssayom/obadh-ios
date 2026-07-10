@@ -56,6 +56,38 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = makeRootViewController()
         window.makeKeyAndVisible()
         self.window = window
+
+        #if DEBUG
+        // Fires a settings URL without a tap, so where iOS actually lands can be
+        // observed. `--open-url=app|notifications|defaults|<literal url>`.
+        let defaultAppsURL = if #available(iOS 18.3, *) {
+            UIApplication.openDefaultApplicationsSettingsURLString
+        } else {
+            ""
+        }
+        NSLog("OBADH-URLS app=%@ notifications=%@ defaults=%@",
+              UIApplication.openSettingsURLString,
+              UIApplication.openNotificationSettingsURLString,
+              defaultAppsURL)
+
+        let prefix = "--open-url="
+        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) {
+            let raw = String(argument.dropFirst(prefix.count))
+            let target: String
+            switch raw {
+            case "app": target = UIApplication.openSettingsURLString
+            case "notifications": target = UIApplication.openNotificationSettingsURLString
+            case "defaults": target = defaultAppsURL
+            default: target = raw
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                guard let url = URL(string: target) else { return }
+                UIApplication.shared.open(url) { ok in
+                    NSLog("OBADH-URLS opened=%@ success=%@", target, ok ? "yes" : "no")
+                }
+            }
+        }
+        #endif
     }
 
     private func makeRootViewController() -> UIViewController {
