@@ -14,8 +14,8 @@ struct SetupWalkthrough: View {
     private static let script: [(stage: Int, hold: Int)] = [
         (0, 1000),  // the Obadh page, at rest
         (1, 850),   // tap Keyboards
-        (2, 700),   // pushed into Keyboards
-        (3, 900),   // Obadh on
+        (2, 800),   // pushed into Keyboards — only Obadh is listed
+        (3, 1150),  // Obadh on, which is what makes Allow Full Access appear
         (4, 1900)   // Full Access on
     ]
 
@@ -26,6 +26,9 @@ struct SetupWalkthrough: View {
     private var showsKeyboardsPage: Bool { stage >= 2 }
     private var isTapping: Bool { stage == 1 }
     private var isObadhOn: Bool { stage >= 3 }
+    /// iOS only offers the Full Access row once the keyboard itself is enabled, so the
+    /// diagram must not show it before then.
+    private var showsFullAccessRow: Bool { stage >= 3 }
     private var isFullAccessOn: Bool { stage >= 4 }
 
     var body: some View {
@@ -88,20 +91,36 @@ struct SetupWalkthrough: View {
             separator
             row("Keyboards", "keyboard", .gray) { chevron }
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.obadhTeal.opacity(isTapping ? 0.22 : 0))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.obadhTeal.opacity(isTapping ? 0.20 : 0))
+                        .padding(.horizontal, -2)
                 )
-                .overlay(alignment: .trailing) { tapRipple }
+                // Sits in the gap before the chevron, so the touch reads as landing on the
+                // row rather than ringing the arrow like a button.
+                .overlay(alignment: .trailing) { tapRipple.padding(.trailing, 38) }
         }
     }
 
     private var keyboardsPage: some View {
         VStack(spacing: 0) {
             row("Obadh", "keyboard", .gray) { miniToggle(on: isObadhOn) }
-            separator
-            row("Allow Full Access", "hand.tap.fill", .orange) { miniToggle(on: isFullAccessOn) }
+
+            if showsFullAccessRow {
+                VStack(spacing: 0) {
+                    separator
+                    row("Allow Full Access", "hand.tap.fill", .orange) { miniToggle(on: isFullAccessOn) }
+                }
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .offset(y: -10)),
+                        removal: .opacity
+                    )
+                )
+            }
+
             Spacer(minLength: 0)
         }
+        .animation(.smooth(duration: 0.4), value: showsFullAccessRow)
     }
 
     // MARK: - Pieces
@@ -150,18 +169,17 @@ struct SetupWalkthrough: View {
             }
     }
 
-    /// The tap itself: a disc that swells on the Keyboards row and fades.
+    /// The tap itself: a fingertip-sized disc that swells on the row and fades.
     private var tapRipple: some View {
         ZStack {
             Circle()
-                .fill(Color.obadhTeal.opacity(0.30))
+                .fill(Color.obadhTeal.opacity(0.22))
             Circle()
-                .strokeBorder(Color.obadhTeal.opacity(0.9), lineWidth: 1.5)
+                .strokeBorder(Color.obadhTeal.opacity(0.75), lineWidth: 1.5)
         }
-        .frame(width: 26, height: 26)
-        .scaleEffect(isTapping ? 1.15 : 0.55)
+        .frame(width: 30, height: 30)
+        .scaleEffect(isTapping ? 1.1 : 0.5)
         .opacity(isTapping ? 1 : 0)
-        .offset(x: -1)
         .animation(.easeOut(duration: 0.45), value: isTapping)
     }
 

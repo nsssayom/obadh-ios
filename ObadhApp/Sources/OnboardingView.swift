@@ -124,7 +124,9 @@ struct OnboardingView: View {
                 if install.isKeyboardInstalled {
                     confirmation("Obadh is added")
                 }
-                Text("Full Access is optional — it enables haptics.")
+                // Uses Settings' own wording, "Allow Full Access", so the sentence and the
+                // switch the user is looking for read the same.
+                Text("Allow Full Access to enable haptics.")
                     .font(BrandFont.caption)
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
