@@ -68,6 +68,9 @@ final class EmojiPanelView: UIView {
     private var sectionItems: [[EmojiItem]] = []
     private var variantPopover: EmojiVariantPopoverView?
     private var recentsSnapshotNeedsRefresh = false
+    /// How many emoji fit on one screenful of the grid. Recents never render past
+    /// it, so the section always ends where the first page does.
+    private var recentsPageCapacity = EmojiRecentStore.defaultLimit
 
     override init(frame: CGRect) {
         let layout = UICollectionViewFlowLayout()
@@ -97,11 +100,14 @@ final class EmojiPanelView: UIView {
         reloadItems()
     }
 
+    /// Mirrors the tap into the in-memory list so the section is right without a
+    /// round trip to defaults. Trimming here is plain oldest-out; the store's
+    /// score-based eviction is authoritative and re-syncs on the next open.
     func recordRecentEmoji(_ emoji: String) {
         recentEmojis.removeAll { $0 == emoji }
         recentEmojis.insert(emoji, at: 0)
-        if recentEmojis.count > 64 {
-            recentEmojis.removeLast(recentEmojis.count - 64)
+        if recentEmojis.count > EmojiRecentStore.defaultLimit {
+            recentEmojis.removeLast(recentEmojis.count - EmojiRecentStore.defaultLimit)
         }
         recentsSnapshotNeedsRefresh = true
     }
@@ -165,7 +171,35 @@ final class EmojiPanelView: UIView {
             layout.invalidateLayout()
         }
         EmojiCell.glyphFontSize = floor(itemSide * Metrics.emojiGlyphScale)
+        updateRecentsPageCapacity(layout: layout, rowCount: rowCount, itemSide: itemSide)
         reloadCategoryButtons()
+    }
+
+    /// The grid scrolls horizontally, so one page is `rowCount` × however many
+    /// columns fit across. Recomputed on rotation and on iPad's resizable heights.
+    private func updateRecentsPageCapacity(
+        layout: UICollectionViewFlowLayout,
+        rowCount: CGFloat,
+        itemSide: CGFloat
+    ) {
+        let availableWidth = max(
+            1,
+            collectionView.bounds.width - layout.sectionInset.left - layout.sectionInset.right
+        )
+        let columnSpacing = layout.minimumLineSpacing
+        let columnCount = max(1, floor((availableWidth + columnSpacing) / (itemSide + columnSpacing)))
+        let capacity = Int(rowCount * columnCount)
+        guard capacity != recentsPageCapacity else { return }
+        recentsPageCapacity = capacity
+        guard sectionCategories.contains(.recents) else { return }
+        rebuildBrowsingSections()
+        collectionView.reloadData()
+    }
+
+    /// Recents, trimmed to one page. The store already bounds what it keeps; this
+    /// bounds what a narrower or shorter grid shows.
+    private func visibleRecentEmojis() -> [String] {
+        Array(recentEmojis.prefix(recentsPageCapacity))
     }
 
     private func configure() {
@@ -481,7 +515,7 @@ final class EmojiPanelView: UIView {
     private func rebuildBrowsingSections() {
         let pairs: [(EmojiCategory, [EmojiItem])] = navigableCategories().compactMap { category in
             let items = category == .recents
-                ? dataStore.items(for: recentEmojis)
+                ? dataStore.items(for: visibleRecentEmojis())
                 : applyVariantPreferences(to: dataStore.items(in: category))
             return items.isEmpty ? nil : (category, items)
         }
@@ -593,7 +627,7 @@ final class EmojiPanelView: UIView {
     }
 
     private func searchIdleItems() -> [EmojiItem] {
-        let recentItems = dataStore.items(for: recentEmojis)
+        let recentItems = dataStore.items(for: visibleRecentEmojis())
         if !recentItems.isEmpty {
             return recentItems
         }
