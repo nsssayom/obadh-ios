@@ -10,8 +10,10 @@ touch, layout, haptics, punctuation, and emoji.
 
 ## Project shape
 
-- `Obadh` — the containing app: setup checklist, permission guidance, a few
-  settings (haptics, emoji-search language), and a test field.
+- `Obadh` — the containing app, in SwiftUI: a first-run flow that asks its
+  questions once, then a settings screen (haptics, emoji-search language) that
+  asks nothing. Release ships no text input at all; the test field and the
+  geometry probe are `#if DEBUG`.
 - `ObadhKeyboard` — the `UIInputViewController` keyboard extension.
 - `Shared/Sources` — the UIKit keyboard UI, composer state, design tokens, and
   the emoji stores. The parts with no UIKit dependency also build as the
