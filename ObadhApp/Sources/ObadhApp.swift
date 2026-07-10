@@ -1,3 +1,4 @@
+import SwiftUI
 import UIKit
 
 @main
@@ -55,9 +56,44 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = makeRootViewController()
         window.makeKeyAndVisible()
         self.window = window
+
+        #if DEBUG
+        // Fires a settings URL without a tap, so where iOS actually lands can be
+        // observed. `--open-url=app|notifications|defaults|<literal url>`.
+        let defaultAppsURL = if #available(iOS 18.3, *) {
+            UIApplication.openDefaultApplicationsSettingsURLString
+        } else {
+            ""
+        }
+        NSLog("OBADH-URLS app=%@ notifications=%@ defaults=%@",
+              UIApplication.openSettingsURLString,
+              UIApplication.openNotificationSettingsURLString,
+              defaultAppsURL)
+
+        let prefix = "--open-url="
+        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) {
+            let raw = String(argument.dropFirst(prefix.count))
+            let target: String
+            switch raw {
+            case "app": target = UIApplication.openSettingsURLString
+            case "notifications": target = UIApplication.openNotificationSettingsURLString
+            case "defaults": target = defaultAppsURL
+            default: target = raw
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                guard let url = URL(string: target) else { return }
+                UIApplication.shared.open(url) { ok in
+                    NSLog("OBADH-URLS opened=%@ success=%@", target, ok ? "yes" : "no")
+                }
+            }
+        }
+        #endif
     }
 
     private func makeRootViewController() -> UIViewController {
+        // Measurement and test harnesses reachable only by launch argument, and only
+        // in Debug. Release has no text input anywhere in the app.
+        #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--keyboard-geometry-probe")
             || arguments.contains("--native-keyboard-geometry-probe") {
@@ -68,6 +104,21 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
             return UINavigationController(rootViewController: KeyboardTestViewController())
         }
 
-        return UINavigationController(rootViewController: SetupViewController())
+        // Leaf screens sit behind taps, which cannot be scripted. Open them directly for
+        // review: `--screen=about`.
+        let screenPrefix = "--screen="
+        if let argument = arguments.first(where: { $0.hasPrefix(screenPrefix) }) {
+            switch argument.dropFirst(screenPrefix.count) {
+            case "about":
+                return UIHostingController(rootView: NavigationStack { AboutView() })
+            case "privacy":
+                return UIHostingController(rootView: NavigationStack { PrivacyView() })
+            default:
+                break
+            }
+        }
+        #endif
+
+        return UIHostingController(rootView: RootView())
     }
 }

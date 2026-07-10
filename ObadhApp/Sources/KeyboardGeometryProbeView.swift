@@ -1,5 +1,8 @@
 import UIKit
 
+// DEBUG-only measurement harness for scripts/measure-keyboard-geometry.py. It carries
+// a text view to summon the keyboard, so it must not exist in Release.
+#if DEBUG
 final class KeyboardGeometryProbeViewController: UIViewController {
     private let textView: ProbeTextView
 
@@ -60,3 +63,4 @@ private final class ProbeTextView: UITextView {
         fatalError("init(coder:) has not been implemented")
     }
 }
+#endif

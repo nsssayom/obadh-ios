@@ -13,22 +13,34 @@
 		16C7798A088DC4BAE6921D2B /* KeyboardFeedbackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86492A9D653BD7ADC7768E20 /* KeyboardFeedbackController.swift */; };
 		1E29DA45C1A8A352AD8EB170 /* SuggestionBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D65EFAF37CE3C5028ECCF93 /* SuggestionBarView.swift */; };
 		1F7E4C37A232069143660A4B /* AppBuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */; };
+		25F729B7F7D81E02CCB72A55 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75AF0050088171853CB3E184 /* OnboardingView.swift */; };
+		2A00711A40148437E3B9C247 /* EmojiGridMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413422FB16F61F3C4CEE3424 /* EmojiGridMetrics.swift */; };
 		2E19839B4C6301EBEF3AFDFD /* KeyboardTouchSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47007187215709D9F7A376C /* KeyboardTouchSurfaceView.swift */; };
 		30E0C1068BE02C5E421C3E6C /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
 		389445790B9C5BA874BD5E2C /* TextCompositionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA357898E8C15A804056128 /* TextCompositionController.swift */; };
 		497AF49455F39FDEDAAFA47E /* BanglaEmojiSearchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 357A2D2EC4233E419470E4C6 /* BanglaEmojiSearchStore.swift */; };
 		4DFAA32AC12C80F82CE9685F /* KeyboardRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */; };
 		540C97813BB8F24D92201AD1 /* BackspaceRepeatPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */; };
+		559D0ED2E1C5928B2ED01064 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9ADB202376C34EB2B402A81 /* AboutView.swift */; };
 		663F2946392A763E3794E421 /* SmartPunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08118AF11C65C61B57AA1DA /* SmartPunctuation.swift */; };
+		674A3D80E9A858C5E01BBF9A /* PersonalAutosuggestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */; };
+		6C548734A429722399902830 /* KeyboardInstallState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8109D1F633534167E8886D3C /* KeyboardInstallState.swift */; };
 		7E7505AE67FE8CD5F09DA8AB /* KeyboardGeometryProbeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6A112F2B098CDC6A3EDB88 /* KeyboardGeometryProbeView.swift */; };
+		8431FF85CDAC265A57822A13 /* AppSetupState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58131B6EC338178D54A4EEBB /* AppSetupState.swift */; };
+		8499E19B49429F2060CADAE0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 583A8D41964D11C4FEC69A03 /* Assets.xcassets */; };
+		87D1A84F96B30E1DAF83EC89 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B56BEB7F3697DA4E57C7F6 /* SettingsView.swift */; };
 		8DEAC1E1856D9FA6655586A2 /* BackspaceDeletionPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */; };
 		8E471953129D5F47A9ACAF9A /* KeyboardLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */; };
 		9249FCD6DDEBECFECE0D6F6F /* ObadhModels in Resources */ = {isa = PBXBuildFile; fileRef = 62363696E04B4D208F1866B8 /* ObadhModels */; };
+		9549B4CA9D78A51B8E5FDCBF /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1FF20E2656214A31CEB6A9B /* RootView.swift */; };
 		9634DBB4043CE304AF279075 /* AppBuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */; };
 		9FEAF3B40EDF24742EB4A431 /* PersonalAutosuggestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */; };
 		A02B5F9B3F2E94C08578F017 /* ObadhKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A4DF455A569C77774B98E25D /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 2DD1FF9151E1C74445AC2D0C /* Settings.bundle */; };
 		A596F803163521C139657F2F /* BackspaceRepeatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */; };
+		A77F9145A5A4B4447B936400 /* Brand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200997DA7CAB0B7076B91A93 /* Brand.swift */; };
 		AD7D82906C1826EC37751A77 /* EmojiRecentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A590DD924D6A20FFDF0681E /* EmojiRecentStore.swift */; };
+		AF5C07DA637C7FFF9E24DD28 /* PrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1E50431B09FA409A06E116 /* PrivacyView.swift */; };
 		AFBE28DCA5BEE23E22F67060 /* KeyboardKeyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61724397185A8DA236054BCD /* KeyboardKeyButton.swift */; };
 		B418D1F63C863DA414DFFFF1 /* EmojiPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */; };
 		C45E64AB6CF6B993F04F9984 /* EmojiDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A861B35EEA4DB2BBF06DA7ED /* EmojiDataStore.swift */; };
@@ -39,11 +51,12 @@
 		D860BD2B5831772819AA47F3 /* ObadhBridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E6F87259C943124981B64B /* ObadhBridgeClient.swift */; };
 		DA9D6D96EFAEA0A75C0C69E3 /* KeyboardTouchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E33258B90523B2B7A711259 /* KeyboardTouchResolver.swift */; };
 		E069CEACDC6107371D84AEA2 /* KeyboardDebugChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDD5C1AACA44AA367113C3B /* KeyboardDebugChannel.swift */; };
-		E8A35065D6841D4145B2DF0E /* SetupViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7534AA815E56B808B60E8904 /* SetupViewController.swift */; };
 		E8B91E57533EED9A6C92D85C /* KeyboardKeyPreviewCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E848AE01B636BE2F743371 /* KeyboardKeyPreviewCallout.swift */; };
 		E8CA44E4569380821431B769 /* EmojiVariantPreferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */; };
 		F51F3E0D32EE3727F80AE2E8 /* KeyboardLayoutGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */; };
 		F83228BAD4E6CD8BA52B592F /* ObadhApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7A08BDE93B4142634C087E /* ObadhApp.swift */; };
+		FC096C9BCC5AC63BB29CAA72 /* SetupWalkthrough.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D96907C8D5CDAF8E2CAAE32 /* SetupWalkthrough.swift */; };
+		FC795F649BAD1AD0CCD4496A /* KeyboardTestViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,9 +85,11 @@
 
 /* Begin PBXFileReference section */
 		1A590DD924D6A20FFDF0681E /* EmojiRecentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiRecentStore.swift; sourceTree = "<group>"; };
+		200997DA7CAB0B7076B91A93 /* Brand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brand.swift; sourceTree = "<group>"; };
 		22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayout.swift; sourceTree = "<group>"; };
 		256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiVariantPreferenceStore.swift; sourceTree = "<group>"; };
 		27E6F87259C943124981B64B /* ObadhBridgeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhBridgeClient.swift; sourceTree = "<group>"; };
+		2DD1FF9151E1C74445AC2D0C /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = Settings.bundle; sourceTree = "<group>"; };
 		2DE3855A6D08F626A006C8BF /* Obadh.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Obadh.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPanelView.swift; sourceTree = "<group>"; };
 		357A2D2EC4233E419470E4C6 /* BanglaEmojiSearchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanglaEmojiSearchStore.swift; sourceTree = "<group>"; };
@@ -82,20 +97,27 @@
 		3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalAutosuggestStore.swift; sourceTree = "<group>"; };
 		3FA357898E8C15A804056128 /* TextCompositionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextCompositionController.swift; sourceTree = "<group>"; };
 		3FCEAEC18E70D2E206C2073B /* BanglaEmojiSuggestionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanglaEmojiSuggestionStore.swift; sourceTree = "<group>"; };
+		413422FB16F61F3C4CEE3424 /* EmojiGridMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiGridMetrics.swift; sourceTree = "<group>"; };
 		4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceRepeatPolicy.swift; sourceTree = "<group>"; };
 		4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardRowView.swift; sourceTree = "<group>"; };
+		58131B6EC338178D54A4EEBB /* AppSetupState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSetupState.swift; sourceTree = "<group>"; };
+		583A8D41964D11C4FEC69A03 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5D96907C8D5CDAF8E2CAAE32 /* SetupWalkthrough.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWalkthrough.swift; sourceTree = "<group>"; };
 		61724397185A8DA236054BCD /* KeyboardKeyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyButton.swift; sourceTree = "<group>"; };
 		62363696E04B4D208F1866B8 /* ObadhModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ObadhModels; path = Resources/ObadhModels; sourceTree = SOURCE_ROOT; };
 		63A0E44B2BF4ECEBD1F200FA /* KeyboardTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTheme.swift; sourceTree = "<group>"; };
 		6C197034282DB0D01EF59071 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceRepeatController.swift; sourceTree = "<group>"; };
 		6E33258B90523B2B7A711259 /* KeyboardTouchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchResolver.swift; sourceTree = "<group>"; };
-		7534AA815E56B808B60E8904 /* SetupViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupViewController.swift; sourceTree = "<group>"; };
+		75AF0050088171853CB3E184 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		78C9F77251F3803865E9E7A5 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
 		7E7A08BDE93B4142634C087E /* ObadhApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhApp.swift; sourceTree = "<group>"; };
+		8109D1F633534167E8886D3C /* KeyboardInstallState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardInstallState.swift; sourceTree = "<group>"; };
 		823506CDCE3CC47B4525E0AC /* KeyboardComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardComposer.swift; sourceTree = "<group>"; };
 		85E848AE01B636BE2F743371 /* KeyboardKeyPreviewCallout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyPreviewCallout.swift; sourceTree = "<group>"; };
 		86492A9D653BD7ADC7768E20 /* KeyboardFeedbackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardFeedbackController.swift; sourceTree = "<group>"; };
+		8D1E50431B09FA409A06E116 /* PrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyView.swift; sourceTree = "<group>"; };
+		94B56BEB7F3697DA4E57C7F6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ObadhKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9D65EFAF37CE3C5028ECCF93 /* SuggestionBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionBarView.swift; sourceTree = "<group>"; };
 		A08118AF11C65C61B57AA1DA /* SmartPunctuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPunctuation.swift; sourceTree = "<group>"; };
@@ -103,7 +125,10 @@
 		A47007187215709D9F7A376C /* KeyboardTouchSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchSurfaceView.swift; sourceTree = "<group>"; };
 		A861B35EEA4DB2BBF06DA7ED /* EmojiDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiDataStore.swift; sourceTree = "<group>"; };
 		ACDD5C1AACA44AA367113C3B /* KeyboardDebugChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDebugChannel.swift; sourceTree = "<group>"; };
+		AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTestViewController.swift; sourceTree = "<group>"; };
 		B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayoutGeometry.swift; sourceTree = "<group>"; };
+		D9ADB202376C34EB2B402A81 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		E1FF20E2656214A31CEB6A9B /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBuildInfo.swift; sourceTree = "<group>"; };
 		E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardPreferences.swift; sourceTree = "<group>"; };
 		EF6A112F2B098CDC6A3EDB88 /* KeyboardGeometryProbeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardGeometryProbeView.swift; sourceTree = "<group>"; };
@@ -122,12 +147,28 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0427EFBC8CA01DCFDA9287A3 /* Debug */ = {
+			isa = PBXGroup;
+			children = (
+				AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */,
+			);
+			path = Debug;
+			sourceTree = "<group>";
+		};
 		0EE7460F3AA0D40D799BB36B /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				D9ADB202376C34EB2B402A81 /* AboutView.swift */,
+				58131B6EC338178D54A4EEBB /* AppSetupState.swift */,
+				200997DA7CAB0B7076B91A93 /* Brand.swift */,
 				EF6A112F2B098CDC6A3EDB88 /* KeyboardGeometryProbeView.swift */,
 				7E7A08BDE93B4142634C087E /* ObadhApp.swift */,
-				7534AA815E56B808B60E8904 /* SetupViewController.swift */,
+				75AF0050088171853CB3E184 /* OnboardingView.swift */,
+				8D1E50431B09FA409A06E116 /* PrivacyView.swift */,
+				E1FF20E2656214A31CEB6A9B /* RootView.swift */,
+				94B56BEB7F3697DA4E57C7F6 /* SettingsView.swift */,
+				5D96907C8D5CDAF8E2CAAE32 /* SetupWalkthrough.swift */,
+				0427EFBC8CA01DCFDA9287A3 /* Debug */,
 			);
 			name = Sources;
 			path = ObadhApp/Sources;
@@ -162,6 +203,7 @@
 				357A2D2EC4233E419470E4C6 /* BanglaEmojiSearchStore.swift */,
 				3FCEAEC18E70D2E206C2073B /* BanglaEmojiSuggestionStore.swift */,
 				A861B35EEA4DB2BBF06DA7ED /* EmojiDataStore.swift */,
+				413422FB16F61F3C4CEE3424 /* EmojiGridMetrics.swift */,
 				2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */,
 				1A590DD924D6A20FFDF0681E /* EmojiRecentStore.swift */,
 				FF4BAF39BEF094A11C5CC215 /* EmojiVariantPopoverView.swift */,
@@ -174,6 +216,7 @@
 			isa = PBXGroup;
 			children = (
 				E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */,
+				8109D1F633534167E8886D3C /* KeyboardInstallState.swift */,
 				E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */,
 			);
 			name = Settings;
@@ -235,6 +278,16 @@
 			path = Shared/Sources/Design;
 			sourceTree = "<group>";
 		};
+		E4453E948B8E03D6FA53F75F /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				583A8D41964D11C4FEC69A03 /* Assets.xcassets */,
+				2DD1FF9151E1C74445AC2D0C /* Settings.bundle */,
+			);
+			name = Resources;
+			path = ObadhApp/Resources;
+			sourceTree = "<group>";
+		};
 		E8E77F1FC2BAE45B8E785C87 = {
 			isa = PBXGroup;
 			children = (
@@ -243,6 +296,7 @@
 				D365981B6C271135EDE46B79 /* Design */,
 				516EB0363F32D1F8265CA89D /* Engine */,
 				BFD2F8EF8CC1D32F3C330470 /* Keyboard */,
+				E4453E948B8E03D6FA53F75F /* Resources */,
 				99D613CBBA4E66199AE543A5 /* Settings */,
 				0EE7460F3AA0D40D799BB36B /* Sources */,
 				B5B90948593A23AD3BA89D92 /* Sources */,
@@ -278,6 +332,7 @@
 			buildConfigurationList = C3589AE32F6CE02DD52FBD65 /* Build configuration list for PBXNativeTarget "Obadh" */;
 			buildPhases = (
 				D4355BAFAF5EF51E72598EE1 /* Sources */,
+				DE4885E1C7C9E4115EF88E85 /* Resources */,
 				6670FC004E9E845C5D97E595 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -338,6 +393,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DE4885E1C7C9E4115EF88E85 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8499E19B49429F2060CADAE0 /* Assets.xcassets in Resources */,
+				A4DF455A569C77774B98E25D /* Settings.bundle in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -352,6 +416,7 @@
 				497AF49455F39FDEDAAFA47E /* BanglaEmojiSearchStore.swift in Sources */,
 				06E091C5C329FAFEEDB4B67A /* BanglaEmojiSuggestionStore.swift in Sources */,
 				C45E64AB6CF6B993F04F9984 /* EmojiDataStore.swift in Sources */,
+				2A00711A40148437E3B9C247 /* EmojiGridMetrics.swift in Sources */,
 				B418D1F63C863DA414DFFFF1 /* EmojiPanelView.swift in Sources */,
 				AD7D82906C1826EC37751A77 /* EmojiRecentStore.swift in Sources */,
 				D73C2BB4BEA4732A3C1F35BE /* EmojiVariantPopoverView.swift in Sources */,
@@ -381,11 +446,21 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				559D0ED2E1C5928B2ED01064 /* AboutView.swift in Sources */,
 				1F7E4C37A232069143660A4B /* AppBuildInfo.swift in Sources */,
+				8431FF85CDAC265A57822A13 /* AppSetupState.swift in Sources */,
+				A77F9145A5A4B4447B936400 /* Brand.swift in Sources */,
 				7E7505AE67FE8CD5F09DA8AB /* KeyboardGeometryProbeView.swift in Sources */,
+				6C548734A429722399902830 /* KeyboardInstallState.swift in Sources */,
 				D772F15083EB0629D19F35B7 /* KeyboardPreferences.swift in Sources */,
+				FC795F649BAD1AD0CCD4496A /* KeyboardTestViewController.swift in Sources */,
 				F83228BAD4E6CD8BA52B592F /* ObadhApp.swift in Sources */,
-				E8A35065D6841D4145B2DF0E /* SetupViewController.swift in Sources */,
+				25F729B7F7D81E02CCB72A55 /* OnboardingView.swift in Sources */,
+				674A3D80E9A858C5E01BBF9A /* PersonalAutosuggestStore.swift in Sources */,
+				AF5C07DA637C7FFF9E24DD28 /* PrivacyView.swift in Sources */,
+				9549B4CA9D78A51B8E5FDCBF /* RootView.swift in Sources */,
+				87D1A84F96B30E1DAF83EC89 /* SettingsView.swift in Sources */,
+				FC096C9BCC5AC63BB29CAA72 /* SetupWalkthrough.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -427,6 +502,7 @@
 			baseConfigurationReference = 6C197034282DB0D01EF59071 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/Obadh.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_FILE = ObadhApp/Info.plist;
@@ -525,6 +601,7 @@
 			baseConfigurationReference = 6C197034282DB0D01EF59071 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Config/Obadh.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_FILE = ObadhApp/Info.plist;

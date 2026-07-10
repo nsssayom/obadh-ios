@@ -78,6 +78,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     override func viewDidLoad() {
         super.viewDidLoad()
         lifecycleLog.notice("OBADH-LIFECYCLE viewDidLoad — extension loaded, backdrop=\(String(describing: type(of: self.keyboardBackgroundView)), privacy: .public)")
+        recordFullAccessIfGranted()
         configureInputViewShell()
         let configuration = engine.configureModels(in: Bundle(for: KeyboardViewController.self))
         if configuration.autosuggestAvailable {
@@ -89,6 +90,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         configureEmojiPanel()
         reloadKeyboardRows()
         refreshKeyboard()
+    }
+
+    /// Without Full Access this container is unreachable, so the write silently does
+    /// nothing — which is precisely the signal. The containing app reads the stamp to
+    /// learn that Full Access was granted; it has no API of its own to ask.
+    private func recordFullAccessIfGranted() {
+        guard hasFullAccess else { return }
+        keyboardPreferences.fullAccessConfirmedAt = Date()
     }
 
     private func configureInputViewShell() {
