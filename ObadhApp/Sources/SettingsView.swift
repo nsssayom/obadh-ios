@@ -100,18 +100,17 @@ struct SettingsView: View {
     }
 
     private var aboutSection: some View {
-        Section {
+        Section("About") {
             NavigationLink("Privacy") { PrivacyView() }
-            LabeledContent("Version", value: "\(AppBuildInfo.shortVersion) (\(AppBuildInfo.buildNumber))")
-        } header: {
-            Text("About")
-        } footer: {
-            // The build stamp. Keyboard extensions happily serve a cached old binary,
-            // so being able to read the exact revision off the running app is the only
-            // way to know what is actually installed.
-            Text(AppBuildInfo.summary)
-                .font(.caption2.monospaced())
-                .foregroundStyle(.tertiary)
+            // The full build stamp lives behind this row, not under it.
+            NavigationLink {
+                AboutView()
+            } label: {
+                LabeledContent(
+                    "Version",
+                    value: "\(AppBuildInfo.shortVersion) (\(AppBuildInfo.buildNumber))"
+                )
+            }
         }
     }
 

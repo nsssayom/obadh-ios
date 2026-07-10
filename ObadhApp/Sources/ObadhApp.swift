@@ -71,6 +71,20 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         if arguments.contains("--keyboard-test") {
             return UINavigationController(rootViewController: KeyboardTestViewController())
         }
+
+        // Leaf screens sit behind taps, which cannot be scripted. Open them directly for
+        // review: `--screen=about`.
+        let screenPrefix = "--screen="
+        if let argument = arguments.first(where: { $0.hasPrefix(screenPrefix) }) {
+            switch argument.dropFirst(screenPrefix.count) {
+            case "about":
+                return UIHostingController(rootView: NavigationStack { AboutView() })
+            case "privacy":
+                return UIHostingController(rootView: NavigationStack { PrivacyView() })
+            default:
+                break
+            }
+        }
         #endif
 
         return UIHostingController(rootView: RootView())
