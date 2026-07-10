@@ -6,6 +6,19 @@ import UIKit
 /// unreachable from the extension without Full Access anyway.
 enum AppSetupState {
     static let hasCompletedOnboardingKey = "app.hasCompletedOnboarding"
+
+    /// Which onboarding step the user reached.
+    ///
+    /// This has to survive the process. Enabling a keyboard extension makes iOS
+    /// re-register the containing app's plugins, which terminates the app — so the user
+    /// walks to Settings from the setup step and comes back to a cold launch. With the
+    /// step held only in `@State`, that cold launch dropped them at "Get Started" again,
+    /// having already done the work.
+    static let onboardingStepKey = "app.onboardingStep"
+
+    static func clearOnboardingProgress() {
+        UserDefaults.standard.removeObject(forKey: onboardingStepKey)
+    }
 }
 
 extension URL {

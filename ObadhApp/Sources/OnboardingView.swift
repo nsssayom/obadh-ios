@@ -6,7 +6,7 @@ struct OnboardingView: View {
     /// One setup step, not two. `Settings › Obadh › Keyboards` enables the keyboard and
     /// Full Access on the same screen, so splitting them sent the user to the same place
     /// twice.
-    private enum Step {
+    private enum Step: String {
         case welcome
         case setup
         case done
@@ -25,8 +25,11 @@ struct OnboardingView: View {
         _step = State(initialValue: Self.initialStep)
     }
 
-    /// Onboarding can't be driven without a mouse, so Debug builds can jump straight to
-    /// a step for screenshots: `--onboarding-step=fullAccess`. Compiled out of Release.
+    /// Resumes where the user left off. Walking to Settings to enable the keyboard kills
+    /// this process, so a cold launch mid-setup is the normal path, not an edge case.
+    ///
+    /// Debug builds can also jump straight to a step for screenshots, since onboarding
+    /// can't be driven without a mouse: `--onboarding-step=setup`. Compiled out of Release.
     private static var initialStep: Step {
         #if DEBUG
         let prefix = "--onboarding-step="
@@ -38,7 +41,8 @@ struct OnboardingView: View {
             }
         }
         #endif
-        return .welcome
+        let raw = UserDefaults.standard.string(forKey: AppSetupState.onboardingStepKey)
+        return raw.flatMap(Step.init(rawValue:)) ?? .welcome
     }
 
     var body: some View {
@@ -120,16 +124,19 @@ struct OnboardingView: View {
             SetupWalkthrough()
                 .padding(.top, 26)
 
-            VStack(spacing: 12) {
+            Group {
                 if install.isKeyboardInstalled {
+                    // The instructions have done their job. Repeating them next to a green
+                    // check reads as the app arguing with itself.
                     confirmation("Obadh is added")
+                } else {
+                    // Settings' own wording, so the sentence and the switch the user is
+                    // hunting for read the same.
+                    Text("Allow Full Access to enable haptics.")
+                        .font(BrandFont.caption)
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
                 }
-                // Uses Settings' own wording, "Allow Full Access", so the sentence and the
-                // switch the user is looking for read the same.
-                Text("Allow Full Access to enable haptics.")
-                    .font(BrandFont.caption)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
             }
             .padding(.top, 20)
         }
@@ -179,6 +186,9 @@ struct OnboardingView: View {
     }
 
     private func advance(to next: Step) {
+        // Persist before animating: the very next thing the user does on the setup step
+        // is leave for Settings, which may not return to this process.
+        UserDefaults.standard.set(next.rawValue, forKey: AppSetupState.onboardingStepKey)
         withAnimation(.smooth(duration: 0.45)) { step = next }
     }
 

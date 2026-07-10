@@ -26,14 +26,14 @@ struct KeyboardInstallStateReader {
     static let keyboardBundleIdentifier = "com.nsssayom.obadh.keyboard"
     private static let appleKeyboardsKey = "AppleKeyboards"
 
-    private let globalDefaults: UserDefaults
+    private let enabledKeyboardIdentifiers: () -> [String]
     private let preferences: KeyboardPreferences
 
     init(
-        globalDefaults: UserDefaults = .standard,
+        enabledKeyboardIdentifiers: @escaping () -> [String] = KeyboardInstallStateReader.systemEnabledKeyboardIdentifiers,
         sharedDefaults: UserDefaults = KeyboardPreferences.sharedDefaults
     ) {
-        self.globalDefaults = globalDefaults
+        self.enabledKeyboardIdentifiers = enabledKeyboardIdentifiers
         self.preferences = KeyboardPreferences(defaults: sharedDefaults)
     }
 
@@ -44,8 +44,31 @@ struct KeyboardInstallStateReader {
         )
     }
 
-    private func enabledKeyboardIdentifiers() -> [String] {
-        globalDefaults.array(forKey: Self.appleKeyboardsKey) as? [String] ?? []
+    /// Read through CoreFoundation rather than `UserDefaults.standard`.
+    ///
+    /// Settings edits this list in another process while we are suspended, and
+    /// `UserDefaults`' in-process cache can hand back the value from launch — so the app
+    /// comes back to the foreground still believing the keyboard is missing. The explicit
+    /// synchronize forces the global domain to be re-read from `cfprefsd`.
+    static func systemEnabledKeyboardIdentifiers() -> [String] {
+        let viaDefaults = UserDefaults.standard.array(forKey: appleKeyboardsKey) as? [String] ?? []
+        let viaCoreFoundation = coreFoundationEnabledKeyboardIdentifiers()
+        // Union: each source keeps its own in-process cache and either may be the stale
+        // one after Settings edits the list behind our back.
+        return Array(Set(viaDefaults).union(viaCoreFoundation))
+    }
+
+    private static func coreFoundationEnabledKeyboardIdentifiers() -> [String] {
+        CFPreferencesSynchronize(kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        let anyHost = CFPreferencesCopyValue(
+            appleKeyboardsKey as CFString,
+            kCFPreferencesAnyApplication,
+            kCFPreferencesCurrentUser,
+            kCFPreferencesAnyHost
+        ) as? [String]
+        if let anyHost, !anyHost.isEmpty { return anyHost }
+        CFPreferencesAppSynchronize(kCFPreferencesAnyApplication)
+        return CFPreferencesCopyAppValue(appleKeyboardsKey as CFString, kCFPreferencesAnyApplication) as? [String] ?? []
     }
 
     /// System keyboards carry a suffix (`en_US@sw=QWERTY;hw=Automatic`) while custom

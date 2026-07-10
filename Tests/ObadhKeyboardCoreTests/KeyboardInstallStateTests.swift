@@ -3,40 +3,36 @@ import XCTest
 @testable import ObadhKeyboardCore
 
 final class KeyboardInstallStateTests: XCTestCase {
-    private var globalSuite: String!
     private var sharedSuite: String!
-    private var globalDefaults: UserDefaults!
     private var sharedDefaults: UserDefaults!
+    private var enabledKeyboards: [String] = []
 
     private let obadh = KeyboardInstallStateReader.keyboardBundleIdentifier
 
     override func setUp() {
         super.setUp()
-        globalSuite = "KeyboardInstallStateTests.global.\(UUID().uuidString)"
         sharedSuite = "KeyboardInstallStateTests.shared.\(UUID().uuidString)"
-        globalDefaults = UserDefaults(suiteName: globalSuite)
         sharedDefaults = UserDefaults(suiteName: sharedSuite)
-        globalDefaults.removePersistentDomain(forName: globalSuite)
         sharedDefaults.removePersistentDomain(forName: sharedSuite)
+        enabledKeyboards = []
     }
 
     override func tearDown() {
-        globalDefaults.removePersistentDomain(forName: globalSuite)
         sharedDefaults.removePersistentDomain(forName: sharedSuite)
-        globalDefaults = nil
         sharedDefaults = nil
+        enabledKeyboards = []
         super.tearDown()
     }
 
     private func read() -> KeyboardInstallState {
         KeyboardInstallStateReader(
-            globalDefaults: globalDefaults,
+            enabledKeyboardIdentifiers: { [enabledKeyboards] in enabledKeyboards },
             sharedDefaults: sharedDefaults
         ).read()
     }
 
     private func setEnabledKeyboards(_ values: [String]) {
-        globalDefaults.set(values, forKey: "AppleKeyboards")
+        enabledKeyboards = values
     }
 
     /// The shape iOS actually writes, captured from a live device's global domain.
@@ -57,7 +53,7 @@ final class KeyboardInstallStateTests: XCTestCase {
         XCTAssertFalse(read().isKeyboardInstalled)
     }
 
-    /// A missing key must read as "not installed", not crash or report installed.
+    /// An empty/absent list must read as "not installed", not crash or report installed.
     func testMissingKeyboardListReadsAsNotInstalled() {
         XCTAssertFalse(read().isKeyboardInstalled)
     }
