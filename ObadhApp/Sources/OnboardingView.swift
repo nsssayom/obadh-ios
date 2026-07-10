@@ -3,10 +3,12 @@ import SwiftUI
 /// First-run setup. Three questions, asked once: do you want it, is it added, do you
 /// want haptics. Nothing here is ever shown again.
 struct OnboardingView: View {
+    /// One setup step, not two. `Settings › Obadh › Keyboards` enables the keyboard and
+    /// Full Access on the same screen, so splitting them sent the user to the same place
+    /// twice.
     private enum Step {
         case welcome
-        case addKeyboard
-        case fullAccess
+        case setup
         case done
     }
 
@@ -30,8 +32,7 @@ struct OnboardingView: View {
         let prefix = "--onboarding-step="
         if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) {
             switch argument.dropFirst(prefix.count) {
-            case "addKeyboard": return .addKeyboard
-            case "fullAccess": return .fullAccess
+            case "setup": return .setup
             case "done": return .done
             default: break
             }
@@ -69,10 +70,10 @@ struct OnboardingView: View {
         .onChange(of: install) { _, state in
             // The user just came back from Settings having added it. Let the check mark
             // land before moving on, so the confirmation is seen rather than inferred.
-            guard step == .addKeyboard, state.isKeyboardInstalled else { return }
+            guard step == .setup, state.isKeyboardInstalled else { return }
             Task {
                 try? await Task.sleep(for: .milliseconds(800))
-                advance(to: .fullAccess)
+                advance(to: .done)
             }
         }
     }
@@ -83,8 +84,7 @@ struct OnboardingView: View {
     private var content: some View {
         switch step {
         case .welcome: welcome
-        case .addKeyboard: addKeyboard
-        case .fullAccess: fullAccess
+        case .setup: setup
         case .done: done
         }
     }
@@ -110,62 +110,44 @@ struct OnboardingView: View {
         }
     }
 
-    private var addKeyboard: some View {
+    /// The numbered rows mirror what `Settings › Obadh` actually shows once the button
+    /// opens it: a Keyboards row, and behind it both switches.
+    private var setup: some View {
         VStack(spacing: 0) {
-            halo("keyboard")
-
             title("Add Obadh to\nyour keyboards")
-                .padding(.top, 28)
 
-            card {
-                numberedStep(1, "Open Settings")
-                numberedStep(2, "Tap Keyboards")
-                numberedStep(3, "Turn on Obadh")
-            }
-            .padding(.top, 28)
+            // The diagram carries the instructions, so the numbered list is gone.
+            SetupWalkthrough()
+                .padding(.top, 26)
 
-            Group {
+            VStack(spacing: 12) {
                 if install.isKeyboardInstalled {
                     confirmation("Obadh is added")
-                } else {
-                    Text("Or find it in General › Keyboard › Keyboards.")
-                        .font(BrandFont.caption)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
                 }
+                Text("Full Access is optional — it enables haptics.")
+                    .font(BrandFont.caption)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
             }
-            .padding(.top, 22)
-        }
-    }
-
-    private var fullAccess: some View {
-        VStack(spacing: 0) {
-            halo("hand.tap.fill")
-
-            title("Turn on haptics?")
-                .padding(.top, 28)
-
-            // "Not now" already says this is optional, and the privacy story belongs on
-            // the Privacy screen, not in a permission prompt.
-            message("Full Access lets Obadh vibrate as you type.")
-                .padding(.top, 14)
-
-            if install.isFullAccessConfirmed {
-                confirmation("Full Access is on")
-                    .padding(.top, 24)
-            }
+            .padding(.top, 20)
         }
     }
 
     private var done: some View {
         VStack(spacing: 0) {
-            halo("checkmark.seal.fill", tint: .green)
-
-            title("You're all set")
-                .padding(.top, 28)
-
-            message("Tap the globe key to switch to Obadh.")
-                .padding(.top, 14)
+            if install.isKeyboardInstalled {
+                halo("checkmark.seal.fill", tint: .green)
+                title("You're all set")
+                    .padding(.top, 28)
+                message("Tap the globe key to switch to Obadh.")
+                    .padding(.top, 14)
+            } else {
+                halo("keyboard")
+                title("Ready when you are")
+                    .padding(.top, 28)
+                message("Turn Obadh on any time in Settings › Keyboards.")
+                    .padding(.top, 14)
+            }
         }
     }
 
@@ -176,22 +158,15 @@ struct OnboardingView: View {
         VStack(spacing: 6) {
             switch step {
             case .welcome:
-                primaryButton("Get Started") {
-                    advance(to: install.isKeyboardInstalled ? .fullAccess : .addKeyboard)
-                }
+                primaryButton("Get Started") { advance(to: .setup) }
 
-            case .addKeyboard:
+            case .setup:
                 if install.isKeyboardInstalled {
-                    primaryButton("Continue") { advance(to: .fullAccess) }
-                } else {
-                    primaryButton("Open Settings", action: openSystemSettings)
-                }
-
-            case .fullAccess:
-                if install.isFullAccessConfirmed {
                     primaryButton("Continue") { advance(to: .done) }
                 } else {
                     primaryButton("Open Settings", action: openSystemSettings)
+                    // Without this the step is a trap: a user who cannot add the keyboard
+                    // right now has no way forward.
                     secondaryButton("Not now") { advance(to: .done) }
                 }
 
@@ -235,31 +210,6 @@ struct OnboardingView: View {
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func card(@ViewBuilder rows: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            rows()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.obadhTeal.opacity(0.18), lineWidth: 1)
-        )
-    }
-
-    private func numberedStep(_ number: Int, _ text: String) -> some View {
-        HStack(spacing: 14) {
-            Text("\(number)")
-                .font(.system(size: 13, weight: .bold, design: .rounded).monospacedDigit())
-                .foregroundStyle(.white)
-                .frame(width: 24, height: 24)
-                .background(BrandGradient.action, in: Circle())
-            Text(text)
-                .font(BrandFont.body)
-        }
     }
 
     private func confirmation(_ text: String) -> some View {

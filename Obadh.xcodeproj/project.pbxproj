@@ -55,6 +55,7 @@
 		E8CA44E4569380821431B769 /* EmojiVariantPreferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */; };
 		F51F3E0D32EE3727F80AE2E8 /* KeyboardLayoutGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */; };
 		F83228BAD4E6CD8BA52B592F /* ObadhApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7A08BDE93B4142634C087E /* ObadhApp.swift */; };
+		FC096C9BCC5AC63BB29CAA72 /* SetupWalkthrough.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D96907C8D5CDAF8E2CAAE32 /* SetupWalkthrough.swift */; };
 		FC795F649BAD1AD0CCD4496A /* KeyboardTestViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */; };
 /* End PBXBuildFile section */
 
@@ -101,6 +102,7 @@
 		4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardRowView.swift; sourceTree = "<group>"; };
 		58131B6EC338178D54A4EEBB /* AppSetupState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSetupState.swift; sourceTree = "<group>"; };
 		583A8D41964D11C4FEC69A03 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5D96907C8D5CDAF8E2CAAE32 /* SetupWalkthrough.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWalkthrough.swift; sourceTree = "<group>"; };
 		61724397185A8DA236054BCD /* KeyboardKeyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyButton.swift; sourceTree = "<group>"; };
 		62363696E04B4D208F1866B8 /* ObadhModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ObadhModels; path = Resources/ObadhModels; sourceTree = SOURCE_ROOT; };
 		63A0E44B2BF4ECEBD1F200FA /* KeyboardTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTheme.swift; sourceTree = "<group>"; };
@@ -165,6 +167,7 @@
 				8D1E50431B09FA409A06E116 /* PrivacyView.swift */,
 				E1FF20E2656214A31CEB6A9B /* RootView.swift */,
 				94B56BEB7F3697DA4E57C7F6 /* SettingsView.swift */,
+				5D96907C8D5CDAF8E2CAAE32 /* SetupWalkthrough.swift */,
 				0427EFBC8CA01DCFDA9287A3 /* Debug */,
 			);
 			name = Sources;
@@ -457,6 +460,7 @@
 				AF5C07DA637C7FFF9E24DD28 /* PrivacyView.swift in Sources */,
 				9549B4CA9D78A51B8E5FDCBF /* RootView.swift in Sources */,
 				87D1A84F96B30E1DAF83EC89 /* SettingsView.swift in Sources */,
+				FC096C9BCC5AC63BB29CAA72 /* SetupWalkthrough.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

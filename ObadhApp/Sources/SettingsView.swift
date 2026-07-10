@@ -72,12 +72,13 @@ struct SettingsView: View {
         } header: {
             Text("Keyboard")
         } footer: {
-            // Shown only while unconfirmed. Once the keyboard has run with Full Access
-            // this never comes back — and we never claim Full Access is *off*, because
-            // absence of the stamp does not prove that.
+            // Shown only while unconfirmed. The stamp is written by the extension, which
+            // runs only when the user actually types — so granting Full Access and coming
+            // straight back here leaves it unconfirmed, and saying "Obadh doesn't have it"
+            // would be a claim we cannot make. Say what is true instead: it clears itself.
             if !install.isFullAccessConfirmed {
                 Button(action: openSystemSettings) {
-                    Text("Haptics need Full Access, which Obadh doesn't have yet. Turn it on in Settings › Keyboards.")
+                    Text("Haptics need Full Access, granted in Settings › Keyboards. This clears once you've typed with Obadh.")
                         .font(.footnote)
                         .multilineTextAlignment(.leading)
                 }
