@@ -53,6 +53,11 @@ size_t obadh_autocorrect_suggestions_utf8(
     size_t output_capacity
 );
 
+size_t obadh_is_lexicon_word_utf8(
+    const uint8_t *_Nullable word_ptr,
+    size_t word_len
+);
+
 size_t obadh_autosuggest_suggestions_utf8(
     const uint8_t *_Nullable context_ptr,
     size_t context_len,

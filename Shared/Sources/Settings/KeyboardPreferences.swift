@@ -16,6 +16,7 @@ struct KeyboardPreferences {
     private static let hapticFeedbackEnabledKey = "keyboard.hapticFeedbackEnabled"
     private static let emojiSearchLanguageKey = "keyboard.emojiSearchLanguage"
     private static let fullAccessConfirmedAtKey = "keyboard.fullAccessConfirmedAt"
+    private static let autoInsertTopCorrectionKey = "keyboard.autoInsertTopCorrection"
 
     private let defaults: UserDefaults
 
@@ -45,6 +46,14 @@ struct KeyboardPreferences {
         nonmutating set {
             defaults.set(newValue.rawValue, forKey: Self.emojiSearchLanguageKey)
         }
+    }
+
+    /// Opt-in, off by default: when a typed word isn't a real word and a confident
+    /// correction exists, space/return commit the correction and the shown word is
+    /// offered in quotes to keep instead. Off, typing commits exactly what is shown.
+    var autoInsertTopCorrection: Bool {
+        get { defaults.bool(forKey: Self.autoInsertTopCorrectionKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.autoInsertTopCorrectionKey) }
     }
 
     /// Stamped by the keyboard extension every time it launches with Full Access.

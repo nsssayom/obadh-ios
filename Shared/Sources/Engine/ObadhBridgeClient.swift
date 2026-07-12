@@ -32,6 +32,15 @@ struct ObadhBridgeClient: BanglaTypingEngine, Sendable {
         callBridgeList(romanInput, limit: limit, obadh_composition_suggestions_utf8)
     }
 
+    /// Whether `word` is an exact entry in the autocorrect lexicon (`bn.fst`). The gate
+    /// for auto-applying a correction: a real word is never second-guessed.
+    func isLexiconWord(_ word: String) -> Bool {
+        var word = word
+        return word.withUTF8 { buffer in
+            obadh_is_lexicon_word_utf8(buffer.baseAddress, buffer.count) == 1
+        }
+    }
+
     func autosuggestSuggestions(for context: String, limit: Int) -> [String] {
         callBridgeList(context, limit: limit, obadh_autosuggest_suggestions_utf8)
     }
