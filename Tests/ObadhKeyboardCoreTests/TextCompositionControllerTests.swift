@@ -4,80 +4,198 @@ import XCTest
 
 @MainActor
 final class TextCompositionControllerTests: XCTestCase {
-    func testMarkedTextUpdatesAndCommitsWithSingleTrailingSpace() {
+    // MARK: - Diff mechanics (Latin: grapheme == scalar, so ops are exact)
+
+    /// Appending re-derives the word but writes only the new suffix — the shared prefix
+    /// is left in place, no delete.
+    func testAppendWritesOnlyTheNewSuffix() {
         let document = FakeCompositionDocument()
         let controller = TextCompositionController()
 
-        controller.updateMarkedText("ক", in: document)
-        controller.updateMarkedText("কা", in: document)
-        controller.updateMarkedText("কান", in: document)
-        controller.commitText("কান", trailingText: " ", in: document)
+        controller.setComposition("cat", in: document)
+        controller.setComposition("cats", in: document)
 
-        XCTAssertEqual(document.text, "কান ")
+        XCTAssertEqual(document.text, "cats")
         XCTAssertEqual(document.operations, [
-            .setMarkedText("ক"),
-            .setMarkedText("কা"),
-            .setMarkedText("কান"),
-            .setMarkedText("কান "),
-            .unmarkText
+            .insertText("cat"),
+            .insertText("s")
         ])
     }
 
-    func testMarkedTextCommitsSentencePunctuationAtomically() {
+    /// A change in the tail deletes only past the common prefix, then inserts the new
+    /// tail — not a full delete-and-reinsert.
+    func testDivergentTailDeletesOnlyPastTheCommonPrefix() {
         let document = FakeCompositionDocument()
         let controller = TextCompositionController()
 
-        controller.updateMarkedText("গাই", in: document)
-        controller.commitText("গাই", trailingText: "।", in: document)
+        controller.setComposition("cart", in: document)
+        controller.setComposition("care", in: document) // last char differs
+
+        XCTAssertEqual(document.text, "care")
+        XCTAssertEqual(document.operations, [
+            .insertText("cart"),
+            .deleteBackward,          // drop 't'
+            .insertText("e")          // add 'e'
+        ])
+    }
+
+    // MARK: - Typing rewrites the word in place (Bangla: assert the result)
+
+    /// Typing a word whose rendering only grows is all appends, no deletes — even when
+    /// each new sign joins the previous grapheme cluster. That is the flicker-free path.
+    func testTypingBanglaWordIsPureAppends() {
+        let document = FakeCompositionDocument()
+        let controller = TextCompositionController()
+
+        controller.setComposition("বা", in: document)
+        controller.setComposition("বাং", in: document)
+        controller.setComposition("বাংল", in: document)
+        controller.setComposition("বাংলা", in: document)
+
+        XCTAssertEqual(document.text, "বাংলা")
+        XCTAssertEqual(controller.composedText, "বাংলা")
+        XCTAssertFalse(
+            document.operations.contains(.deleteBackward),
+            "a growing word should never delete, got \(document.operations)"
+        )
+    }
+
+    func testVowelSignReshapeLandsTheCorrectWord() {
+        let document = FakeCompositionDocument()
+        let controller = TextCompositionController()
+
+        controller.setComposition("কি", in: document)
+        controller.setComposition("কী", in: document)
+
+        XCTAssertEqual(document.text, "কী")
+    }
+
+    func testBackspaceShortensTheWord() {
+        let document = FakeCompositionDocument()
+        let controller = TextCompositionController()
+
+        controller.setComposition("বাংলা", in: document)
+        controller.setComposition("বাংল", in: document)
+
+        XCTAssertEqual(document.text, "বাংল")
+        XCTAssertEqual(controller.composedText, "বাংল")
+    }
+
+    func testClearCompositionDeletesTheWholeWord() {
+        let document = FakeCompositionDocument(initialText: "আমি ")
+        let controller = TextCompositionController()
+
+        controller.setComposition("কান", in: document)
+        controller.clearComposition(in: document)
+
+        // The word is gone; the text that preceded it is untouched.
+        XCTAssertEqual(document.text, "আমি ")
+        XCTAssertFalse(controller.hasActiveComposition)
+    }
+
+    // MARK: - Committing
+
+    func testCommitWithTrailingSpaceKeepsTheWord() {
+        let document = FakeCompositionDocument()
+        let controller = TextCompositionController()
+
+        controller.setComposition("কান", in: document)
+        controller.commit(finalText: "কান", trailingText: " ", in: document)
+
+        XCTAssertEqual(document.text, "কান ")
+        XCTAssertFalse(controller.hasActiveComposition)
+        // The word is already correct; commit only appends the space.
+        XCTAssertEqual(document.operations, [
+            .insertText("কান"),
+            .insertText(" ")
+        ])
+    }
+
+    /// The autocorrect path: space commits a different word than what is shown, replacing
+    /// it in place, then the space.
+    func testCommitReplacesWithCorrectionThenTrailingSpace() {
+        let document = FakeCompositionDocument()
+        let controller = TextCompositionController()
+
+        controller.setComposition("বানহ্লা", in: document)
+        controller.commit(finalText: "বাংলা", trailingText: " ", in: document)
+
+        XCTAssertEqual(document.text, "বাংলা ")
+        XCTAssertFalse(controller.hasActiveComposition)
+    }
+
+    func testCommitSentencePunctuationKeepsTheWord() {
+        let document = FakeCompositionDocument()
+        let controller = TextCompositionController()
+
+        controller.setComposition("গাই", in: document)
+        controller.commit(finalText: "গাই", trailingText: "।", in: document)
 
         XCTAssertEqual(document.text, "গাই।")
         XCTAssertEqual(document.operations, [
-            .setMarkedText("গাই"),
-            .setMarkedText("গাই।"),
-            .unmarkText
+            .insertText("গাই"),
+            .insertText("।")
         ])
     }
 
-    func testRedundantMarkedTextUpdateIsSkipped() {
+    func testTappedSuggestionReplacesTheWordWithoutTrailingSpace() {
         let document = FakeCompositionDocument()
         let controller = TextCompositionController()
 
-        controller.updateMarkedText("কান", in: document)
-        controller.updateMarkedText("কান", in: document)
-
-        XCTAssertEqual(document.text, "কান")
-        XCTAssertEqual(document.operations, [.setMarkedText("কান")])
-    }
-
-    func testBackspaceToEmptyClearsMarkedText() {
-        let document = FakeCompositionDocument()
-        let controller = TextCompositionController()
-
-        controller.updateMarkedText("কা", in: document)
-        controller.updateMarkedText("", in: document)
-
-        XCTAssertEqual(document.text, "")
-        XCTAssertEqual(document.operations, [
-            .setMarkedText("কা"),
-            .setMarkedText(""),
-            .unmarkText
-        ])
-    }
-
-    func testSuggestionReplacesActiveMarkedTextWithoutTrailingSpace() {
-        let document = FakeCompositionDocument()
-        let controller = TextCompositionController()
-
-        controller.updateMarkedText("সুশিল", in: document)
+        controller.setComposition("সুশিল", in: document)
         controller.commitSuggestion("সুশীল", in: document)
 
         XCTAssertEqual(document.text, "সুশীল")
-        XCTAssertEqual(document.operations, [
-            .setMarkedText("সুশিল"),
-            .setMarkedText("সুশীল"),
-            .unmarkText
-        ])
+        XCTAssertFalse(controller.hasActiveComposition)
     }
+
+    // MARK: - Cursor moves / external edits never corrupt text
+
+    /// The heart of the fix: moving the cursor away just drops tracking. The word stays,
+    /// the document is untouched, and there is no marked region to trap the cursor.
+    func testResetHostStateKeepsTextAndTouchesNothing() {
+        let document = FakeCompositionDocument()
+        let controller = TextCompositionController()
+
+        controller.setComposition("নিউ", in: document)
+        controller.resetHostState()
+
+        XCTAssertEqual(document.text, "নিউ")
+        XCTAssertFalse(controller.hasActiveComposition)
+        XCTAssertEqual(document.operations, [.insertText("নিউ")])
+    }
+
+    /// After the cursor moves, a fresh word is inserted at the new location without
+    /// disturbing the earlier one.
+    func testCompositionAfterCursorMoveStartsFresh() {
+        let document = FakeCompositionDocument(initialText: "আমি ")
+        let controller = TextCompositionController()
+
+        controller.setComposition("বাংলা", in: document)
+        controller.resetHostState() // cursor moved away
+        controller.setComposition("ক", in: document)
+
+        XCTAssertEqual(document.text, "আমি বাংলাক")
+    }
+
+    /// Guard: if our tracked word is no longer at the cursor (a move we never observed),
+    /// we must NOT delete whatever is now there — we insert fresh instead.
+    func testStaleTrackingDoesNotDeleteForeignText() {
+        let document = FakeCompositionDocument()
+        let controller = TextCompositionController()
+
+        controller.setComposition("বাংলা", in: document)
+        // Simulate the host/user changing the surrounding text out from under us without
+        // a callback: the tracked "বাংলা" is no longer the suffix at the cursor.
+        document.insertText(" আমার")
+
+        controller.setComposition("ক", in: document)
+
+        // "বাংলা আমার" is preserved; only the new letter is appended.
+        XCTAssertEqual(document.text, "বাংলা আমারক")
+    }
+
+    // MARK: - Boundaries (unchanged behaviour)
 
     func testNextWordSuggestionInsertsReadableBoundary() {
         let document = FakeCompositionDocument(initialText: "আমি")

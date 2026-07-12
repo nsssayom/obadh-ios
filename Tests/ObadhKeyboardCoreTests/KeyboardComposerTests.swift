@@ -4,36 +4,37 @@ import XCTest
 
 @MainActor
 final class KeyboardComposerTests: XCTestCase {
-    func testActiveInputFeedsMarkedTextAndCommitsOnce() {
+    func testActiveInputRendersAsTextAndCommitsOnce() {
         let composer = KeyboardComposer(engine: FixtureEngine())
         let document = FakeCompositionDocument()
         let compositionController = TextCompositionController()
 
         composer.append("k")
-        compositionController.updateMarkedText(composer.preview, in: document)
+        compositionController.setComposition(composer.preview, in: document)
         composer.append("a")
-        compositionController.updateMarkedText(composer.preview, in: document)
+        compositionController.setComposition(composer.preview, in: document)
         composer.append("n")
-        compositionController.updateMarkedText(composer.preview, in: document)
+        compositionController.setComposition(composer.preview, in: document)
 
         XCTAssertEqual(document.text, "কান")
+        // Each keystroke appends only the changed suffix — the word is ordinary text.
         XCTAssertEqual(document.operations, [
-            .setMarkedText("ক"),
-            .setMarkedText("কা"),
-            .setMarkedText("কান")
+            .insertText("ক"),
+            .insertText("া"),
+            .insertText("ন")
         ])
 
         let committed = composer.commitActiveInput()
         XCTAssertEqual(committed, "কান")
-        compositionController.commitText(committed ?? "", trailingText: " ", in: document)
+        compositionController.commit(finalText: committed ?? "", trailingText: " ", in: document)
 
         XCTAssertEqual(document.text, "কান ")
+        // The word is already real; commit only appends the space.
         XCTAssertEqual(document.operations, [
-            .setMarkedText("ক"),
-            .setMarkedText("কা"),
-            .setMarkedText("কান"),
-            .setMarkedText("কান "),
-            .unmarkText
+            .insertText("ক"),
+            .insertText("া"),
+            .insertText("ন"),
+            .insertText(" ")
         ])
     }
 

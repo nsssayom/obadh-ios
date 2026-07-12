@@ -1,52 +1,35 @@
 import Foundation
 @testable import ObadhKeyboardCore
 
+/// A minimal in-memory stand-in for the host text field: text with a cursor at the end,
+/// recording every edit so tests can assert the exact op sequence.
 @MainActor
 final class FakeCompositionDocument: TextDocumentEditing {
     enum Operation: Equatable {
         case insertText(String)
-        case setMarkedText(String)
-        case unmarkText
+        case deleteBackward
     }
 
     private(set) var text = ""
-    private var markedRange: Range<String.Index>?
     private(set) var operations: [Operation] = []
-
-    var contextBeforeInput: String? {
-        text
-    }
 
     init(initialText: String = "") {
         text = initialText
     }
 
+    var contextBeforeInput: String? {
+        text
+    }
+
     func insertText(_ text: String) {
-        replaceMarkedTextIfNeeded(with: "")
         self.text.append(text)
         operations.append(.insertText(text))
     }
 
-    func setMarkedText(_ text: String, selectedRange: NSRange) {
-        replaceMarkedTextIfNeeded(with: text)
-        operations.append(.setMarkedText(text))
-    }
-
-    func unmarkText() {
-        markedRange = nil
-        operations.append(.unmarkText)
-    }
-
-    private func replaceMarkedTextIfNeeded(with replacement: String) {
-        if let markedRange {
-            text.replaceSubrange(markedRange, with: replacement)
-        } else {
-            text.append(replacement)
+    func deleteBackward() {
+        if !text.isEmpty {
+            text.removeLast()
         }
-        if replacement.isEmpty {
-            markedRange = nil
-        } else {
-            markedRange = text.index(text.endIndex, offsetBy: -replacement.count)..<text.endIndex
-        }
+        operations.append(.deleteBackward)
     }
 }
