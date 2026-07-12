@@ -55,6 +55,7 @@
 		E069CEACDC6107371D84AEA2 /* KeyboardDebugChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDD5C1AACA44AA367113C3B /* KeyboardDebugChannel.swift */; };
 		E8B91E57533EED9A6C92D85C /* KeyboardKeyPreviewCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E848AE01B636BE2F743371 /* KeyboardKeyPreviewCallout.swift */; };
 		E8CA44E4569380821431B769 /* EmojiVariantPreferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */; };
+		F4BB4142503FBA7B4715B1E7 /* CursorWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4540941392FAC03316773EE5 /* CursorWordDetector.swift */; };
 		F51F3E0D32EE3727F80AE2E8 /* KeyboardLayoutGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */; };
 		F83228BAD4E6CD8BA52B592F /* ObadhApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7A08BDE93B4142634C087E /* ObadhApp.swift */; };
 		FC096C9BCC5AC63BB29CAA72 /* SetupWalkthrough.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D96907C8D5CDAF8E2CAAE32 /* SetupWalkthrough.swift */; };
@@ -100,6 +101,7 @@
 		3FA357898E8C15A804056128 /* TextCompositionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextCompositionController.swift; sourceTree = "<group>"; };
 		3FCEAEC18E70D2E206C2073B /* BanglaEmojiSuggestionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanglaEmojiSuggestionStore.swift; sourceTree = "<group>"; };
 		413422FB16F61F3C4CEE3424 /* EmojiGridMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiGridMetrics.swift; sourceTree = "<group>"; };
+		4540941392FAC03316773EE5 /* CursorWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorWordDetector.swift; sourceTree = "<group>"; };
 		4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceRepeatPolicy.swift; sourceTree = "<group>"; };
 		4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardRowView.swift; sourceTree = "<group>"; };
 		58131B6EC338178D54A4EEBB /* AppSetupState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSetupState.swift; sourceTree = "<group>"; };
@@ -190,6 +192,7 @@
 			children = (
 				35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */,
 				4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */,
+				4540941392FAC03316773EE5 /* CursorWordDetector.swift */,
 				823506CDCE3CC47B4525E0AC /* KeyboardComposer.swift */,
 				27E6F87259C943124981B64B /* ObadhBridgeClient.swift */,
 				3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */,
@@ -419,6 +422,7 @@
 				540C97813BB8F24D92201AD1 /* BackspaceRepeatPolicy.swift in Sources */,
 				497AF49455F39FDEDAAFA47E /* BanglaEmojiSearchStore.swift in Sources */,
 				06E091C5C329FAFEEDB4B67A /* BanglaEmojiSuggestionStore.swift in Sources */,
+				F4BB4142503FBA7B4715B1E7 /* CursorWordDetector.swift in Sources */,
 				C45E64AB6CF6B993F04F9984 /* EmojiDataStore.swift in Sources */,
 				2A00711A40148437E3B9C247 /* EmojiGridMetrics.swift in Sources */,
 				B418D1F63C863DA414DFFFF1 /* EmojiPanelView.swift in Sources */,

@@ -43,7 +43,7 @@ final class SmartPunctuationTests: XCTestCase {
         XCTAssertEqual(SmartPunctuation.literalSubstitution(for: ",", contextBefore: "কথা"), .insert(","))
     }
 
-    func testDoubleSpaceAfterWordBecomesDanda() {
+    func testDoubleSpaceAfterWordBecomesDari() {
         let result = SmartPunctuation.doubleSpaceSubstitution(contextBefore: "আমি ")
         XCTAssertEqual(result, SmartPunctuationResult(deleteBefore: 1, insertion: "। "))
     }

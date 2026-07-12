@@ -86,6 +86,11 @@ extension will otherwise happily keep serving a cached old binary.
   suggestions from the bundled n-gram model. Personal autosuggest learns from
   committed words, persisted to the shared app group and fingerprint-validated
   on load so stale state is dropped.
+- The ribbon follows the cursor. Sitting inside an already-committed word offers
+  corrections for that word (tap to swap it in place); sitting at a word boundary
+  offers next-word suggestions from the text before the cursor. The rule is the
+  character just before the cursor — a letter means "editing this word", a space
+  means "at a boundary".
 - Numerals and punctuation are handled on the iOS layer: the number pad emits
   Bangla numerals ০–৯, `৳` (taka) and `।` (danda) sit on the punctuation pages,
   and Apple-style smart punctuation is applied (`--`→`—`, `...`→`…`, curly

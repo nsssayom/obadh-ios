@@ -53,7 +53,7 @@ struct KeyboardSymbol: Equatable {
     }
 
     /// দাঁড়ি — the Bangla full stop.
-    static let danda = Self.terminator("\u{0964}")
+    static let dari = Self.terminator("\u{0964}")
 }
 
 struct KeyboardRow: Equatable {
@@ -153,7 +153,7 @@ enum KeyboardLayoutProvider {
                 ),
                 KeyboardRow(
                     keys: [.modeSwitch("#+=")]
-                        + [.symbol(.danda), .symbol(.literal(".")), .symbol(.literal(","))]
+                        + [.symbol(.dari), .symbol(.literal(".")), .symbol(.literal(","))]
                         + [.symbol(.terminator("?")), .symbol(.terminator("!"))]
                         + [.backspace],
                     keyWeights: NativeGeometry.punctuationLowerRowWeights,
@@ -172,7 +172,7 @@ enum KeyboardLayoutProvider {
                 ),
                 KeyboardRow(
                     keys: [.modeSwitch("123")]
-                        + [.symbol(.danda), .symbol(.literal(".")), .symbol(.literal(","))]
+                        + [.symbol(.dari), .symbol(.literal(".")), .symbol(.literal(","))]
                         + [.symbol(.terminator("?")), .symbol(.terminator("!"))]
                         + [.backspace],
                     keyWeights: NativeGeometry.punctuationLowerRowWeights,

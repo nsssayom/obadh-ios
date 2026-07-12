@@ -95,7 +95,7 @@ final class TextCompositionController {
 
     /// Finalize the current word, optionally replacing it with `finalText` (an
     /// autocorrect pick differing from what is shown), then append `trailingText` (a
-    /// space, a danda, a newline). The word is already real text, so with no replacement
+    /// space, a dari, a newline). The word is already real text, so with no replacement
     /// and no trailing text this is just dropping our tracking.
     @discardableResult
     func commit(finalText: String, trailingText: String = "", in document: TextDocumentEditing) -> Bool {
@@ -137,5 +137,25 @@ final class TextCompositionController {
     /// Delete the current word from the document (e.g. word-unit backspace mid-compose).
     func clearComposition(in document: TextDocumentEditing) {
         setComposition("", in: document)
+    }
+
+    /// Replace `word` — which must be the text immediately before the cursor — with
+    /// `replacement`. Used to re-edit an already-committed word the cursor sits in, once
+    /// the caller has moved the cursor to the word's end. Deletes against the live
+    /// document (by scalar length) so it's robust to how the host chunks deleteBackward,
+    /// the same way setComposition's replacement path is.
+    func replaceWordBeforeCursor(_ word: String, with replacement: String, in document: TextDocumentEditing) {
+        guard !word.isEmpty else { return }
+        let context = document.contextBeforeInput ?? ""
+        guard context.hasSuffix(word) else { return }
+        let targetScalars = context.unicodeScalars.count - word.unicodeScalars.count
+        var budget = word.unicodeScalars.count + 8
+        while budget > 0, (document.contextBeforeInput?.unicodeScalars.count ?? 0) > targetScalars {
+            document.deleteBackward()
+            budget -= 1
+        }
+        if !replacement.isEmpty {
+            document.insertText(replacement)
+        }
     }
 }

@@ -41,6 +41,12 @@ struct ObadhBridgeClient: BanglaTypingEngine, Sendable {
         }
     }
 
+    /// Lexicon alternatives for an already-committed Bangla word under the cursor
+    /// (edit/prefix neighbors from `bn.fst`, best first).
+    func wordAlternatives(for banglaWord: String, limit: Int) -> [String] {
+        callBridgeList(banglaWord, limit: limit, obadh_word_alternatives_utf8)
+    }
+
     func autosuggestSuggestions(for context: String, limit: Int) -> [String] {
         callBridgeList(context, limit: limit, obadh_autosuggest_suggestions_utf8)
     }

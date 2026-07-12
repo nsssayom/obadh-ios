@@ -16,7 +16,7 @@ final class BackspaceDeletionPlannerTests: XCTestCase {
         )
     }
 
-    func testWordDeletionStopsAtBanglaDanda() {
+    func testWordDeletionStopsAtBanglaDari() {
         XCTAssertEqual(
             BackspaceDeletionPlanner.deleteCount(before: "আমি ভালো। এখন", unit: .word),
             "এখন".count
