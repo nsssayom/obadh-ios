@@ -111,6 +111,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         viewWillAppearWasCalled = true
         view.setNeedsUpdateConstraints()
         feedbackController.prepare()
+        // Obadh may be returning to a field another keyboard has edited since we last
+        // saw it. Any composition we remember is stale; start from whatever the
+        // document is now.
+        resetCompositionBookkeeping()
     }
 
     override func updateViewConstraints() {
@@ -122,6 +126,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         super.viewDidAppear(animated)
         lifecycleLog.notice("OBADH-LIFECYCLE viewDidAppear — keyboard visible, build=\(AppBuildInfo.summary, privacy: .public) style=\(self.traitCollection.userInterfaceStyle == .dark ? "dark" : "light", privacy: .public) size=\(NSCoder.string(for: self.view.bounds.size), privacy: .public)")
         showSpaceLanguageIntro()
+        // Reflect the current cursor context (e.g. next-word suggestions) now that we
+        // are back, rather than showing whatever was in the bar when we left.
+        refreshSuggestions()
         #if DEBUG
         debugChannel.start()
         #endif
@@ -129,6 +136,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        // Switching to another keyboard (or dismissing): the word in progress is already
+        // ordinary text, so we only stop tracking it. Nothing is lost or stranded.
+        resetCompositionBookkeeping()
         #if DEBUG
         debugChannel.stop()
         #endif
@@ -143,9 +153,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     override func textWillChange(_ textInput: UITextInput?) {
         super.textWillChange(textInput)
         guard !isUpdatingTextProxy else { return }
-        composer.clear()
-        compositionController.resetHostState()
-        previousKeyWasSpace = false
+        // The host is about to change the text out from under us (a send button
+        // clearing the field, a paste, another edit). Drop composition bookkeeping;
+        // whatever was marked is the host's now.
+        resetCompositionBookkeeping()
     }
 
     override func textDidChange(_ textInput: UITextInput?) {
@@ -157,6 +168,29 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 .isEmpty {
             engine.clearAutosuggestSession()
         }
+        refreshSuggestions()
+    }
+
+    // Moving the insertion point — a tap, an arrow key, a selection — is a *selection*
+    // change, not a *text* change, so it never reaches textWillChange/textDidChange.
+    // Observing it lets us stop tracking the word being composed the moment the cursor
+    // leaves it. Because the word is ordinary text (not a marked IME region), stopping
+    // tracking is all that's needed: the word stays, and the cursor moves freely — there
+    // is nothing to confirm and nothing to strand.
+    override func selectionWillChange(_ textInput: UITextInput?) {
+        super.selectionWillChange(textInput)
+        // Same guard the text callbacks use: our own proxy edits deliver their selection
+        // callbacks synchronously inside performTextUpdate, where the flag is set, so
+        // this fires only for genuine external moves.
+        guard !isUpdatingTextProxy else { return }
+        resetCompositionBookkeeping()
+    }
+
+    override func selectionDidChange(_ textInput: UITextInput?) {
+        super.selectionDidChange(textInput)
+        guard !isUpdatingTextProxy else { return }
+        // Backstop for hosts that deliver only one of the two callbacks; idempotent.
+        resetCompositionBookkeeping()
         refreshSuggestions()
     }
 
@@ -684,10 +718,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
         guard performBackspace(unit: .character, requiresTextEvidence: true) else { return }
         feedbackController.keyTouched(.backspace)
-        backspaceRepeater.begin { [weak self] _ in
+        backspaceRepeater.begin { [weak self] unit in
             guard let self else { return }
-            performBackspace(unit: .character, requiresTextEvidence: false)
-            feedbackController.backspaceRepeated(unit: .character)
+            // Honour the escalation the policy hands us: a sustained hold graduates
+            // from characters to whole words, native-style. Previously this arm threw
+            // the unit away and always deleted one character, so clearing several
+            // words meant holding backspace forever.
+            performBackspace(unit: unit, requiresTextEvidence: false)
+            feedbackController.backspaceRepeated(unit: unit)
         }
     }
 
@@ -710,7 +748,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             case .word, .sentence, .availableContext:
                 composer.clear()
                 performTextUpdate {
-                    compositionController.clearMarkedText(in: documentEditor)
+                    compositionController.clearComposition(in: documentEditor)
                 }
                 refreshSuggestions()
                 return true
@@ -759,7 +797,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         guard composer.hasActiveInput else { return false }
         guard let committed = composer.commitActiveInput() else { return false }
         performTextUpdate {
-            compositionController.commitText(committed, trailingText: trailingText, in: documentEditor)
+            compositionController.commit(finalText: committed, trailingText: trailingText, in: documentEditor)
         }
         observeCommittedToken(committed)
         observeAutosuggestBoundary(trailingText)
@@ -819,8 +857,19 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func refreshCompositionPreview() {
         performTextUpdate {
-            compositionController.updateMarkedText(composer.preview, in: documentEditor)
+            compositionController.setComposition(composer.preview, in: documentEditor)
         }
+    }
+
+    /// Stop tracking the word in progress. The word is ordinary document text, so this
+    /// touches nothing — it just means the next keystroke starts a fresh word. Call it
+    /// whenever the composition is no longer ours to rewrite: the cursor moved, the
+    /// keyboard is switching away, or the host changed the field. Because there is no
+    /// marked region, there is nothing to strand and the cursor is never trapped.
+    private func resetCompositionBookkeeping() {
+        composer.clear()
+        compositionController.resetHostState()
+        previousKeyWasSpace = false
     }
 
     private func commitMarkedSuggestion(_ text: String) {
@@ -829,6 +878,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
     }
 
+    /// Marks proxy edits so our own text/selection callbacks are ignored. The edit and
+    /// the callbacks it triggers are synchronous, so the flag need only span this call —
+    /// the same contract the text-change delegates already rely on.
     private func performTextUpdate(_ update: () -> Void) {
         isUpdatingTextProxy = true
         defer { isUpdatingTextProxy = false }
@@ -1313,12 +1365,8 @@ private struct DocumentProxyEditor: TextDocumentEditing {
         proxy.insertText(text)
     }
 
-    func setMarkedText(_ text: String, selectedRange: NSRange) {
-        proxy.setMarkedText(text, selectedRange: selectedRange)
-    }
-
-    func unmarkText() {
-        proxy.unmarkText()
+    func deleteBackward() {
+        proxy.deleteBackward()
     }
 }
 

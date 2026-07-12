@@ -21,6 +21,9 @@ struct BackspaceRepeatPolicy {
     func stage(elapsed: TimeInterval) -> BackspaceRepeatStage? {
         guard elapsed >= initialDelay else { return nil }
 
+        // A brief hold accelerates character-by-character, so short corrections stay
+        // precise. A sustained hold graduates to whole-word deletion, the way the
+        // system keyboard does, so clearing a phrase doesn't take forever.
         if elapsed < mediumRepeatStart {
             return BackspaceRepeatStage(unit: .character, interval: 0.055)
         }
@@ -28,8 +31,8 @@ struct BackspaceRepeatPolicy {
             return BackspaceRepeatStage(unit: .character, interval: 0.044)
         }
         if elapsed < fastestRepeatStart {
-            return BackspaceRepeatStage(unit: .character, interval: 0.035)
+            return BackspaceRepeatStage(unit: .word, interval: 0.12)
         }
-        return BackspaceRepeatStage(unit: .character, interval: 0.028)
+        return BackspaceRepeatStage(unit: .word, interval: 0.09)
     }
 }

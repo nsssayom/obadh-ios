@@ -78,8 +78,9 @@ extension will otherwise happily keep serving a cached old binary.
 
 ## Keyboard behavior
 
-- Roman QWERTY feeds Obadh transliteration; the active token renders live as
-  Bangla marked text in the focused field. Space keeps the deterministic output.
+- Roman QWERTY feeds Obadh transliteration; the active word renders live as
+  ordinary Bangla text in the focused field — text you can move through and edit
+  like any other. Space keeps the deterministic output.
 - The suggestion ribbon shows the deterministic output first (informational),
   then autocorrect candidates. After a word commits, it can show next-word
   suggestions from the bundled n-gram model. Personal autosuggest learns from
@@ -129,11 +130,29 @@ a `.rigid` `UIImpactFeedbackGenerator` as the fallback. Final values were dialed
 in on device (intensity 0.5, sharpness 0.9) — haptics don't fire in the
 Simulator, so this is felt, not measured.
 
+**Composing in the document, not in a marked region.** The word you are typing
+is ordinary text in the field, re-derived in place on each keystroke — not iOS
+*marked text*. Marked text is the obvious choice and the wrong one here: it is an
+IME composition that binds the insertion point to itself until committed, so the
+cursor cannot leave a half-typed word, and freeing it depends on each host app
+delivering selection callbacks, which many do not. A transliteration keyboard is
+not assembling one glyph from phonetic parts (where marked text earns its keep) —
+it produces words that should behave like any other text. So Obadh inserts the
+Bangla directly and rewrites the current word as letters arrive: append just the
+new sign when the rendering grows (no flicker), delete whole grapheme clusters
+past the shared prefix when it reshapes. The cursor then moves freely everywhere,
+mid-text editing is a plain edit, and switching keyboards mid-word keeps the
+word. The discipline this demands: track the exact string you inserted and
+confirm it is still at the cursor before rewriting, so a move you did not observe
+never deletes text you do not own. The lesson generalises — reach for marked text
+only when you are truly composing a glyph; for word-level input, real text keeps
+the cursor free.
+
 **Composer boundary.** Keystrokes go to a composer that produces the
-deterministic transliteration synchronously (shown immediately as marked text)
-and merges the expensive autocorrect/FST results asynchronously, generation-
-guarded so out-of-order or stale results are discarded. New capabilities plug in
-at this boundary rather than into the key handling.
+deterministic transliteration synchronously (rendered inline at once) and merges
+the expensive autocorrect/FST results asynchronously, generation-guarded so
+out-of-order or stale results are discarded. New capabilities plug in at this
+boundary rather than into the key handling.
 
 **Emoji, and the data pipeline behind it.** This is the most portable part. When
 you finish a Bangla word, up to three emoji appear in the ribbon, taking over the
