@@ -201,6 +201,49 @@ pub extern "C" fn obadh_is_lexicon_word_utf8(word_ptr: *const u8, word_len: usiz
     }
 }
 
+/// Lexicon alternatives for an already-committed Bangla `word` — for re-editing a word
+/// under the cursor, where there is no Roman input or repair context, only the Bangla
+/// word itself. Returns edit-distance/prefix neighbors from `bn.fst`, best first.
+#[no_mangle]
+pub extern "C" fn obadh_word_alternatives_utf8(
+    word_ptr: *const u8,
+    word_len: usize,
+    limit: usize,
+    output_ptr: *mut u8,
+    output_capacity: usize,
+) -> usize {
+    let Some(word) = utf8_input(word_ptr, word_len) else {
+        return 0;
+    };
+    if word.trim().is_empty() {
+        return 0;
+    }
+    let Some(assets) = AUTOCORRECT.get() else {
+        return 0;
+    };
+    let response_limit = limit.clamp(1, AUTOCORRECT_RESPONSE_LIMIT);
+    let options = FstSuggestOptions {
+        max_distance: FST_MAX_LEVENSHTEIN_DISTANCE,
+        max_candidates: AUTOCORRECT_POOL_LIMIT,
+        response_candidates: response_limit,
+        max_prefix_candidates: response_limit,
+        ..FstSuggestOptions::default()
+    };
+    let Ok(result) = assets.lexicon.suggest_with_repaired_baselines_and_loanwords(
+        word,
+        &[],
+        &[],
+        options,
+    ) else {
+        return 0;
+    };
+    write_joined(
+        result.candidates.into_iter().map(|candidate| candidate.text).take(response_limit),
+        output_ptr,
+        output_capacity,
+    )
+}
+
 fn autocorrect_candidates(
     roman_input: &str,
     obadh_output: &str,

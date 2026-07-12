@@ -54,6 +54,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var previousKeyWasSpace = false
     private var suggestionGeneration = 0
     private var isUpdatingTextProxy = false
+    /// Set while the suggestion bar is showing corrections for an already-committed word
+    /// the cursor sits in, so a tap replaces that word rather than inserting a next word.
+    private var activeCursorWord: CursorWord?
     private var showsSpaceLanguageIntro = false
     private var showsEmojiPanel = false
     private var isEmojiSearchActive = false
@@ -442,6 +445,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         suggestionGeneration &+= 1
         let generation = suggestionGeneration
         let engine = self.engine
+        activeCursorWord = nil
 
         if composer.hasActiveInput {
             // The deterministic preview is already known synchronously; show it
@@ -477,6 +481,25 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let contextBeforeInput = textDocumentProxy.documentContextBeforeInput ?? ""
         guard contextBeforeInput.contains(where: { !$0.isWhitespace }) else {
             suggestionBar.update(suggestions: [])
+            return
+        }
+
+        // Cursor sitting inside an already-committed word (a word character immediately
+        // precedes it): offer corrections for that word, not next-word suggestions.
+        let contextAfterInput = textDocumentProxy.documentContextAfterInput ?? ""
+        if let cursorWord = CursorWordDetector.wordAtCursor(before: contextBeforeInput, after: contextAfterInput) {
+            activeCursorWord = cursorWord
+            engineQueue.async { [weak self] in
+                let alternatives = engine
+                    .wordAlternatives(for: cursorWord.word, limit: 4)
+                    .filter { !$0.isEmpty && $0 != cursorWord.word }
+                    .prefix(3)
+                    .map { KeyboardSuggestion(text: $0, source: .autocorrect) }
+                Task { @MainActor in
+                    guard let self, self.suggestionGeneration == generation else { return }
+                    self.suggestionBar.update(suggestions: alternatives)
+                }
+            }
             return
         }
 
@@ -1329,6 +1352,10 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
             commitMarkedSuggestion(suggestion.text)
             composer.clear()
             observeCommittedToken(suggestion.text, keep: isQuotedLiteral)
+        } else if let cursorWord = activeCursorWord {
+            // A correction for the word the cursor sits in: replace that word in place.
+            replaceCursorWord(cursorWord, with: suggestion.text)
+            observeCommittedToken(suggestion.text)
         } else {
             performTextUpdate {
                 compositionController.commitNextWordSuggestion(suggestion.text, in: documentEditor)
@@ -1337,6 +1364,18 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
             observeAutosuggestBoundary(" ")
         }
         refreshKeyboard()
+    }
+
+    /// Replace the already-committed word the cursor is in with a chosen alternative.
+    /// Move the cursor to the word's end so the whole word is behind it, then swap it.
+    private func replaceCursorWord(_ cursorWord: CursorWord, with replacement: String) {
+        activeCursorWord = nil
+        performTextUpdate {
+            if !cursorWord.after.isEmpty {
+                textDocumentProxy.adjustTextPosition(byCharacterOffset: cursorWord.after.utf16.count)
+            }
+            compositionController.replaceWordBeforeCursor(cursorWord.word, with: replacement, in: documentEditor)
+        }
     }
 
     /// Tapping the inline emoji finalizes the word being composed and appends the

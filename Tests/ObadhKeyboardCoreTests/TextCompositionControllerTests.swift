@@ -174,6 +174,38 @@ final class TextCompositionControllerTests: XCTestCase {
         XCTAssertEqual(document.text, "কী")
     }
 
+    /// Re-editing a committed word the cursor sits in: the word before the cursor is
+    /// swapped for the chosen alternative, and surrounding text is untouched.
+    func testReplaceWordBeforeCursorSwapsInPlace() {
+        // Cursor already moved to the word's end: "আমার বলার কি|" with " চিলোনা" after.
+        let document = FakeCompositionDocument(initialText: "আমার বলার কি")
+        let controller = TextCompositionController()
+
+        controller.replaceWordBeforeCursor("কি", with: "কী", in: document)
+
+        XCTAssertEqual(document.text, "আমার বলার কী")
+    }
+
+    /// Same, on a host that deletes by scalar — the granularity that broke corrections.
+    func testReplaceWordBeforeCursorSurvivesScalarGranularDeletion() {
+        let document = ScalarDeletingDocument(initialText: "আমি বানহ্লা")
+        let controller = TextCompositionController()
+
+        controller.replaceWordBeforeCursor("বানহ্লা", with: "বাংলা", in: document)
+
+        XCTAssertEqual(document.text, "আমি বাংলা")
+    }
+
+    /// Safety: if the word isn't actually before the cursor (stale), do nothing.
+    func testReplaceWordBeforeCursorNoOpsWhenWordNotAtCursor() {
+        let document = FakeCompositionDocument(initialText: "আমার বলার")
+        let controller = TextCompositionController()
+
+        controller.replaceWordBeforeCursor("কি", with: "কী", in: document)
+
+        XCTAssertEqual(document.text, "আমার বলার")
+    }
+
     func testTappedSuggestionReplacesTheWordWithoutTrailingSpace() {
         let document = FakeCompositionDocument()
         let controller = TextCompositionController()
