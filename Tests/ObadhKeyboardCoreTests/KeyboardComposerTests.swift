@@ -201,6 +201,92 @@ private struct FixtureEngine: BanglaTypingEngine {
     }
 }
 
+extension KeyboardComposerTests {
+    /// Builds a composer at a word with a deterministic + one autocorrect candidate.
+    private func composerWithCorrection() -> KeyboardComposer {
+        let composer = KeyboardComposer(engine: BanhlaFixtureEngine())
+        for scalar in "banhla" { composer.append(String(scalar)) }
+        composer.mergeAutocorrectCandidates(
+            ["বাংলা", "বনিহালা"], generation: composer.generation
+        )
+        return composer
+    }
+
+    /// Feature off: no target, so space commits exactly what is shown.
+    func testNoAutocorrectTargetWhenFeatureOff() {
+        let composer = composerWithCorrection()
+        composer.resolveAutocorrectTarget(
+            autoInsertEnabled: false,
+            deterministicIsLexiconWord: false,
+            isProtectedWord: { _ in false }
+        )
+        XCTAssertNil(composer.autocorrectTarget)
+        XCTAssertEqual(composer.commitText, composer.preview) // the deterministic
+    }
+
+    /// Feature on, typed word isn't real, a correction exists: space commits the
+    /// correction, and the shown deterministic word is what gets quoted.
+    func testAutocorrectTargetIsTheTopCorrectionForAnUnknownWord() {
+        let composer = composerWithCorrection()
+        composer.resolveAutocorrectTarget(
+            autoInsertEnabled: true,
+            deterministicIsLexiconWord: false,
+            isProtectedWord: { _ in false }
+        )
+        XCTAssertEqual(composer.autocorrectTarget, "বাংলা")
+        XCTAssertEqual(composer.commitText, "বাংলা")
+    }
+
+    /// The typed word is already a real word: never second-guessed, even with the
+    /// feature on.
+    func testNoTargetWhenShownWordIsALexiconWord() {
+        let composer = composerWithCorrection()
+        composer.resolveAutocorrectTarget(
+            autoInsertEnabled: true,
+            deterministicIsLexiconWord: true,
+            isProtectedWord: { _ in false }
+        )
+        XCTAssertNil(composer.autocorrectTarget)
+    }
+
+    /// A word the user has established is protected: no correction.
+    func testNoTargetWhenShownWordIsProtected() {
+        let composer = composerWithCorrection()
+        composer.resolveAutocorrectTarget(
+            autoInsertEnabled: true,
+            deterministicIsLexiconWord: false,
+            isProtectedWord: { $0 == composer.preview }
+        )
+        XCTAssertNil(composer.autocorrectTarget)
+    }
+
+    /// A keystroke invalidates a resolved target until fresh candidates re-resolve it.
+    func testTargetClearsWhenTheBufferChanges() {
+        let composer = composerWithCorrection()
+        composer.resolveAutocorrectTarget(
+            autoInsertEnabled: true,
+            deterministicIsLexiconWord: false,
+            isProtectedWord: { _ in false }
+        )
+        XCTAssertNotNil(composer.autocorrectTarget)
+
+        composer.append("x")
+        XCTAssertNil(composer.autocorrectTarget)
+    }
+}
+
+private struct BanhlaFixtureEngine: BanglaTypingEngine {
+    func transliterate(_ input: String) -> String {
+        input == "banhla" ? "বানহ্লা" : (input.isEmpty ? "" : "বানহ্লা")
+    }
+
+    func compositionSuggestions(for romanInput: String, limit: Int) -> [String] {
+        romanInput == "banhla" ? ["বাংলা", "বনিহালা"] : []
+    }
+
+    func autosuggestSuggestions(for context: String, limit: Int) -> [String] { [] }
+}
+
 private struct AutocorrectFirstFixtureEngine: BanglaTypingEngine {
     func transliterate(_ input: String) -> String {
         input == "madar" ? "মাদার" : ""

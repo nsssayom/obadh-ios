@@ -19,7 +19,9 @@
 		30E0C1068BE02C5E421C3E6C /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
 		389445790B9C5BA874BD5E2C /* TextCompositionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA357898E8C15A804056128 /* TextCompositionController.swift */; };
 		497AF49455F39FDEDAAFA47E /* BanglaEmojiSearchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 357A2D2EC4233E419470E4C6 /* BanglaEmojiSearchStore.swift */; };
+		4D1233218307DF3CA79F70A2 /* LearnedWordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */; };
 		4DFAA32AC12C80F82CE9685F /* KeyboardRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */; };
+		4E738FFD5303B413000562DA /* LearnedWordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */; };
 		540C97813BB8F24D92201AD1 /* BackspaceRepeatPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */; };
 		559D0ED2E1C5928B2ED01064 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9ADB202376C34EB2B402A81 /* AboutView.swift */; };
 		663F2946392A763E3794E421 /* SmartPunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08118AF11C65C61B57AA1DA /* SmartPunctuation.swift */; };
@@ -128,6 +130,7 @@
 		AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTestViewController.swift; sourceTree = "<group>"; };
 		B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayoutGeometry.swift; sourceTree = "<group>"; };
 		D9ADB202376C34EB2B402A81 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearnedWordStore.swift; sourceTree = "<group>"; };
 		E1FF20E2656214A31CEB6A9B /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBuildInfo.swift; sourceTree = "<group>"; };
 		E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardPreferences.swift; sourceTree = "<group>"; };
@@ -218,6 +221,7 @@
 				E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */,
 				8109D1F633534167E8886D3C /* KeyboardInstallState.swift */,
 				E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */,
+				DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */,
 			);
 			name = Settings;
 			path = Shared/Sources/Settings;
@@ -434,6 +438,7 @@
 				DA9D6D96EFAEA0A75C0C69E3 /* KeyboardTouchResolver.swift in Sources */,
 				2E19839B4C6301EBEF3AFDFD /* KeyboardTouchSurfaceView.swift in Sources */,
 				CA2CC44F410B4B5AA86BBD7E /* KeyboardViewController.swift in Sources */,
+				4E738FFD5303B413000562DA /* LearnedWordStore.swift in Sources */,
 				D860BD2B5831772819AA47F3 /* ObadhBridgeClient.swift in Sources */,
 				9FEAF3B40EDF24742EB4A431 /* PersonalAutosuggestStore.swift in Sources */,
 				663F2946392A763E3794E421 /* SmartPunctuation.swift in Sources */,
@@ -454,6 +459,7 @@
 				6C548734A429722399902830 /* KeyboardInstallState.swift in Sources */,
 				D772F15083EB0629D19F35B7 /* KeyboardPreferences.swift in Sources */,
 				FC795F649BAD1AD0CCD4496A /* KeyboardTestViewController.swift in Sources */,
+				4D1233218307DF3CA79F70A2 /* LearnedWordStore.swift in Sources */,
 				F83228BAD4E6CD8BA52B592F /* ObadhApp.swift in Sources */,
 				25F729B7F7D81E02CCB72A55 /* OnboardingView.swift in Sources */,
 				674A3D80E9A858C5E01BBF9A /* PersonalAutosuggestStore.swift in Sources */,

@@ -33,3 +33,24 @@ final class FakeCompositionDocument: TextDocumentEditing {
         operations.append(.deleteBackward)
     }
 }
+
+/// A host whose `deleteBackward` removes one Unicode *scalar*, not one grapheme cluster —
+/// modelling text engines that split Bangla conjuncts differently than Swift counts them.
+/// Composition rewrites must land the right text here too, or a correction leaves residue.
+@MainActor
+final class ScalarDeletingDocument: TextDocumentEditing {
+    private(set) var text = ""
+
+    init(initialText: String = "") { text = initialText }
+
+    var contextBeforeInput: String? { text }
+
+    func insertText(_ text: String) { self.text.append(text) }
+
+    func deleteBackward() {
+        guard !text.unicodeScalars.isEmpty else { return }
+        var scalars = text.unicodeScalars
+        scalars.removeLast()
+        text = String(scalars)
+    }
+}

@@ -11,12 +11,14 @@ struct SettingsView: View {
 
     @State private var hapticFeedbackEnabled: Bool
     @State private var emojiSearchLanguage: EmojiSearchLanguage
+    @State private var autoInsertTopCorrection: Bool
 
     init(install: KeyboardInstallState) {
         self.install = install
         let preferences = KeyboardPreferences()
         _hapticFeedbackEnabled = State(initialValue: preferences.hapticFeedbackEnabled)
         _emojiSearchLanguage = State(initialValue: preferences.defaultEmojiSearchLanguage)
+        _autoInsertTopCorrection = State(initialValue: preferences.autoInsertTopCorrection)
     }
 
     var body: some View {
@@ -26,6 +28,7 @@ struct SettingsView: View {
                     keyboardMissingSection
                 }
                 keyboardSection
+                autocorrectSection
                 emojiSection
                 aboutSection
                 #if DEBUG
@@ -85,6 +88,19 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private var autocorrectSection: some View {
+        Section {
+            Toggle("Auto-Insert Corrections", isOn: $autoInsertTopCorrection)
+                .onChange(of: autoInsertTopCorrection) { _, enabled in
+                    preferences.autoInsertTopCorrection = enabled
+                }
+        } header: {
+            Text("Autocorrect")
+        } footer: {
+            Text("Space inserts a likely correction for unrecognized words. Tap your spelling to keep it.")
         }
     }
 

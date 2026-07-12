@@ -5,6 +5,7 @@ struct PrivacyView: View {
     @State private var didClear = false
 
     private let personalAutosuggestStore = PersonalAutosuggestStore()
+    private let learnedWordStore = LearnedWordStore()
 
     var body: some View {
         Form {
@@ -42,6 +43,7 @@ struct PrivacyView: View {
         ) {
             Button("Clear", role: .destructive) {
                 personalAutosuggestStore.removeSnapshot()
+                learnedWordStore.clear()
                 withAnimation { didClear = true }
             }
             Button("Cancel", role: .cancel) {}

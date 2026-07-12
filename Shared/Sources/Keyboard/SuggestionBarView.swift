@@ -23,6 +23,7 @@ final class SuggestionBarView: UIView {
 
     private var suggestions: [KeyboardSuggestion] = []
     private var emojis: [EmojiSuggestion] = []
+    private var quotedText: String?
     private let stackView = UIStackView()
     private let firstSeparator = UIView()
     private let secondSeparator = UIView()
@@ -47,9 +48,16 @@ final class SuggestionBarView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func update(suggestions: [KeyboardSuggestion], emojis: [EmojiSuggestion] = []) {
+    /// `quotedText`, when set, is the shown word that auto-insert will replace on space:
+    /// it renders in quotes and becomes tappable, the "keep my spelling" affordance.
+    func update(
+        suggestions: [KeyboardSuggestion],
+        emojis: [EmojiSuggestion] = [],
+        quotedText: String? = nil
+    ) {
         self.suggestions = suggestions
         self.emojis = Array(emojis.prefix(3))
+        self.quotedText = quotedText
         let visibleSuggestions = Array(suggestions.prefix(3))
         let hasEmoji = !self.emojis.isEmpty
         let startIndex = (!hasEmoji && visibleSuggestions.count == 1) ? 1 : 0
@@ -67,6 +75,7 @@ final class SuggestionBarView: UIView {
             slotControl.tag = suggestionIndex
             slotControl.update(
                 suggestion: suggestion,
+                isQuoted: quotedText != nil && suggestion?.text == quotedText,
                 showsChrome: showsChrome,
                 traitCollection: traitCollection,
                 metrics: metrics
@@ -92,7 +101,7 @@ final class SuggestionBarView: UIView {
         contentBottomConstraint?.constant = -metrics.suggestionContentBottomInset
         firstSeparatorCenterYConstraint?.constant = contentVerticalOffset(for: metrics)
         secondSeparatorCenterYConstraint?.constant = contentVerticalOffset(for: metrics)
-        update(suggestions: suggestions, emojis: emojis)
+        update(suggestions: suggestions, emojis: emojis, quotedText: quotedText)
     }
 
     private func configure() {
@@ -179,7 +188,7 @@ final class SuggestionBarView: UIView {
         ])
 
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: SuggestionBarView, _) in
-            view.update(suggestions: view.suggestions, emojis: view.emojis)
+            view.update(suggestions: view.suggestions, emojis: view.emojis, quotedText: view.quotedText)
         }
 
         update(suggestions: [])
@@ -282,15 +291,18 @@ private final class SuggestionSlotControl: UIControl {
 
     func update(
         suggestion: KeyboardSuggestion?,
+        isQuoted: Bool = false,
         showsChrome: Bool,
         traitCollection: UITraitCollection,
         metrics: KeyboardMetrics
     ) {
-        label.text = suggestion?.text
+        label.text = suggestion.map { isQuoted ? "\u{201C}\($0.text)\u{201D}" : $0.text }
         label.textColor = suggestion == nil ? .clear : KeyboardTheme.secondaryTextColor(for: traitCollection)
         label.font = font(for: suggestion, metrics: metrics)
         label.transform = CGAffineTransform(translationX: 0, y: -min(7, max(4, metrics.suggestionHeight * 0.20)))
-        isSelectableSuggestion = suggestion.map { $0.source != .deterministic } ?? false
+        // The deterministic word is normally informational (not tappable). When it's
+        // quoted, it becomes the "keep my spelling" button.
+        isSelectableSuggestion = suggestion.map { $0.source != .deterministic || isQuoted } ?? false
         isEnabled = isSelectableSuggestion
         accessibilityLabel = suggestion?.text
         accessibilityTraits = isSelectableSuggestion ? .button : .staticText

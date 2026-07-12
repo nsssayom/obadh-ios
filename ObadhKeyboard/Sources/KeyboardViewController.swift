@@ -13,6 +13,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     )
     private let compositionController = TextCompositionController()
     private let personalAutosuggestStore = PersonalAutosuggestStore()
+    /// Words the user has committed, protected from auto-insert corrections.
+    private let learnedWordStore = LearnedWordStore()
     /// Serial queue for heavy engine work (snapshot export/write) so it stays
     /// off the main thread while remaining serialized against the Rust session.
     private let engineQueue = DispatchQueue(label: "com.nsssayom.obadh.engine", qos: .userInitiated)
@@ -445,19 +447,28 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             // The deterministic preview is already known synchronously; show it
             // immediately, then fill in autocorrect candidates off the main
             // thread so the FST traversal never blocks typing.
-            suggestionBar.update(suggestions: composer.activeSuggestions, emojis: resolvedEmojiSuggestions())
+            updateCompositionSuggestionBar()
             let buffer = composer.romanBuffer
             let composerGeneration = composer.generation
             let limit = composer.autocorrectFetchLimit
+            let autoInsert = keyboardPreferences.autoInsertTopCorrection
+            let shownWord = composer.preview
             engineQueue.async { [weak self] in
                 let candidates = engine.compositionSuggestions(for: buffer, limit: limit)
+                // The auto-insert gate: only worth the extra bridge call when the feature
+                // is on and there's a word to check.
+                let shownIsLexiconWord = autoInsert && !shownWord.isEmpty
+                    ? engine.isLexiconWord(shownWord)
+                    : false
                 Task { @MainActor in
                     guard let self, self.suggestionGeneration == generation else { return }
                     self.composer.mergeAutocorrectCandidates(candidates, generation: composerGeneration)
-                    self.suggestionBar.update(
-                        suggestions: self.composer.activeSuggestions,
-                        emojis: self.resolvedEmojiSuggestions()
+                    self.composer.resolveAutocorrectTarget(
+                        autoInsertEnabled: autoInsert,
+                        deterministicIsLexiconWord: shownIsLexiconWord,
+                        isProtectedWord: { self.learnedWordStore.isProtected($0) }
                     )
+                    self.updateCompositionSuggestionBar()
                 }
             }
             return
@@ -861,6 +872,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
     }
 
+    /// Show the composition candidates, quoting the shown word when auto-insert will
+    /// replace it on space (so the user can tap it to keep their spelling).
+    private func updateCompositionSuggestionBar() {
+        suggestionBar.update(
+            suggestions: composer.activeSuggestions,
+            emojis: resolvedEmojiSuggestions(),
+            quotedText: composer.autocorrectTarget != nil ? composer.preview : nil
+        )
+    }
+
     /// Stop tracking the word in progress. The word is ordinary document text, so this
     /// touches nothing — it just means the next keystroke starts a fresh word. Call it
     /// whenever the composition is no longer ours to rewrite: the cursor moved, the
@@ -900,18 +921,27 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
     }
 
-    private func observeCommittedToken(_ token: String) {
+    /// Learn from a committed word. `keep` marks the strong signal — the user tapped
+    /// their quoted spelling to reject a correction — versus an ordinary commit.
+    private func observeCommittedToken(_ token: String, keep: Bool = false) {
         guard !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
         guard engine.commitAutosuggestToken(token) else {
             return
         }
-        // Export + disk write are the slow part; keep them off the space-key
+        // The bridge calls and disk write are the slow part; keep them off the space-key
         // critical path. Serialized on engineQueue against the Rust session.
         let engine = self.engine
         let store = self.personalAutosuggestStore
+        let learnedWordStore = self.learnedWordStore
+        let signal: LearnedWordStore.Signal = keep ? .explicitKeep : .commit
         engineQueue.async {
+            // Only a word the built-in lexicon doesn't know can ever need protection, so
+            // the personal store never fills with words it already covers.
+            if !engine.isLexiconWord(token) {
+                learnedWordStore.reinforce(token, signal: signal)
+            }
             if let snapshot = engine.exportPersonalAutosuggestSnapshot() {
                 store.saveSnapshot(snapshot)
             }
@@ -1277,10 +1307,14 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
     func suggestionBar(_ suggestionBar: SuggestionBarView, didSelect suggestion: KeyboardSuggestion) {
         feedbackController.suggestionAccepted()
         if composer.hasActiveInput {
-            guard suggestion.source != .deterministic else { return }
+            // The deterministic word is informational and inert — except when auto-insert
+            // has quoted it, where tapping it is the "keep my spelling" action: a strong
+            // signal that the word is one the user means.
+            let isQuotedLiteral = suggestion.source == .deterministic && composer.autocorrectTarget != nil
+            guard suggestion.source != .deterministic || isQuotedLiteral else { return }
             commitMarkedSuggestion(suggestion.text)
             composer.clear()
-            observeCommittedToken(suggestion.text)
+            observeCommittedToken(suggestion.text, keep: isQuotedLiteral)
         } else {
             performTextUpdate {
                 compositionController.commitNextWordSuggestion(suggestion.text, in: documentEditor)

@@ -182,6 +182,25 @@ pub extern "C" fn obadh_autocorrect_suggestions_utf8(
     write_joined(candidates.into_iter(), output_ptr, output_capacity)
 }
 
+/// Whether `word` is an exact entry in the autocorrect lexicon (`bn.fst`). This is the
+/// gate for auto-applying a correction: a word already in the lexicon is real and must
+/// never be second-guessed, so the caller only auto-corrects a deterministic output that
+/// returns 0 here. Returns 1 if present, 0 if absent or the lexicon isn't configured.
+#[no_mangle]
+pub extern "C" fn obadh_is_lexicon_word_utf8(word_ptr: *const u8, word_len: usize) -> usize {
+    let Some(word) = utf8_input(word_ptr, word_len) else {
+        return 0;
+    };
+    let Some(assets) = AUTOCORRECT.get() else {
+        return 0;
+    };
+    if assets.lexicon.exact_frequency(word).is_some() {
+        1
+    } else {
+        0
+    }
+}
+
 fn autocorrect_candidates(
     roman_input: &str,
     obadh_output: &str,
