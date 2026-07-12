@@ -44,8 +44,9 @@ final class TextCompositionController {
     /// or the host changed the text — we abandon it untouched and insert `text` fresh.
     func setComposition(_ text: String, in document: TextDocumentEditing) {
         let current = composedText
+        let context = document.contextBeforeInput ?? ""
 
-        if !current.isEmpty, !(document.contextBeforeInput ?? "").hasSuffix(current) {
+        if !current.isEmpty, !context.hasSuffix(current) {
             // Our word is not where we left it. Don't delete whatever is now at the
             // cursor; treat this as a brand-new composition.
             composedText = ""
@@ -69,15 +70,23 @@ final class TextCompositionController {
             return
         }
 
-        // General case (a reshape or a shortening): delete whole grapheme clusters past
-        // the shared prefix — matching deleteBackward's granularity — then insert the new
-        // tail.
-        let commonPrefix = current.commonPrefix(with: text)
-        let deleteCount = current.count - commonPrefix.count
-        for _ in 0..<deleteCount {
+        // General case (a reshape, a shortening, or a correction replacing the word):
+        // remove the changed suffix, then insert the new one. The suffix is deleted
+        // against the LIVE document, not by counting our own grapheme clusters —
+        // deleteBackward's unit is the host's, and a Bangla conjunct may be one press or
+        // several. Counting graphemes and trusting the count is what left half-replaced
+        // words like "বানহবাংলা". Scalars decrease monotonically however the host chunks
+        // a delete, so we delete until the document's scalar length reaches where the
+        // shared (grapheme-aligned) prefix ends.
+        let keep = current.commonPrefix(with: text)
+        let removeScalars = current.unicodeScalars.count - keep.unicodeScalars.count
+        let targetScalars = context.unicodeScalars.count - removeScalars
+        var budget = removeScalars + 8   // guard against a host that never shrinks
+        while budget > 0, (document.contextBeforeInput?.unicodeScalars.count ?? 0) > targetScalars {
             document.deleteBackward()
+            budget -= 1
         }
-        let insertion = String(text[commonPrefix.endIndex...])
+        let insertion = String(text[keep.endIndex...])
         if !insertion.isEmpty {
             document.insertText(insertion)
         }

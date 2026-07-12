@@ -28,7 +28,7 @@ struct SettingsView: View {
                     keyboardMissingSection
                 }
                 keyboardSection
-                typingSection
+                autocorrectSection
                 emojiSection
                 aboutSection
                 #if DEBUG
@@ -91,14 +91,14 @@ struct SettingsView: View {
         }
     }
 
-    private var typingSection: some View {
+    private var autocorrectSection: some View {
         Section {
-            Toggle("Auto-Correction", isOn: $autoInsertTopCorrection)
+            Toggle("Auto-Insert Corrections", isOn: $autoInsertTopCorrection)
                 .onChange(of: autoInsertTopCorrection) { _, enabled in
                     preferences.autoInsertTopCorrection = enabled
                 }
         } header: {
-            Text("Typing")
+            Text("Autocorrect")
         } footer: {
             Text("Space inserts a likely correction for unrecognized words. Tap your spelling to keep it.")
         }

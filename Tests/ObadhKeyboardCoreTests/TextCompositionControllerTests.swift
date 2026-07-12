@@ -138,6 +138,42 @@ final class TextCompositionControllerTests: XCTestCase {
         ])
     }
 
+    /// The reported bug: committing a correction over a typed word must replace it whole,
+    /// not leave a fragment (`বানহবাংলা`). Preceding text must survive.
+    func testCommitCorrectionReplacesTheWholeWord() {
+        let document = FakeCompositionDocument(initialText: "আমি ")
+        let controller = TextCompositionController()
+
+        controller.setComposition("বানহ্লা", in: document)
+        controller.commit(finalText: "বাংলা", trailingText: " ", in: document)
+
+        XCTAssertEqual(document.text, "আমি বাংলা ")
+    }
+
+    /// Same replacement, but on a host that deletes one scalar per press instead of one
+    /// grapheme — the granularity mismatch that produced the fragment. Deleting against
+    /// the live document (not our own count) must still land it exactly.
+    func testCorrectionReplacementSurvivesScalarGranularDeletion() {
+        let document = ScalarDeletingDocument(initialText: "আমি ")
+        let controller = TextCompositionController()
+
+        controller.setComposition("বানহ্লা", in: document)
+        controller.commit(finalText: "বাংলা", trailingText: " ", in: document)
+
+        XCTAssertEqual(document.text, "আমি বাংলা ")
+    }
+
+    /// And an ordinary reshape survives the same coarse/fine mismatch.
+    func testReshapeSurvivesScalarGranularDeletion() {
+        let document = ScalarDeletingDocument()
+        let controller = TextCompositionController()
+
+        controller.setComposition("কি", in: document)
+        controller.setComposition("কী", in: document)
+
+        XCTAssertEqual(document.text, "কী")
+    }
+
     func testTappedSuggestionReplacesTheWordWithoutTrailingSpace() {
         let document = FakeCompositionDocument()
         let controller = TextCompositionController()
