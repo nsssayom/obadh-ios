@@ -95,7 +95,7 @@ final class TextCompositionController {
 
     /// Finalize the current word, optionally replacing it with `finalText` (an
     /// autocorrect pick differing from what is shown), then append `trailingText` (a
-    /// space, a danda, a newline). The word is already real text, so with no replacement
+    /// space, a dari, a newline). The word is already real text, so with no replacement
     /// and no trailing text this is just dropping our tracking.
     @discardableResult
     func commit(finalText: String, trailingText: String = "", in document: TextDocumentEditing) -> Bool {

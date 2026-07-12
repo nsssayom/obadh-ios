@@ -123,11 +123,11 @@ final class KeyboardTouchResolverTests: XCTestCase {
         let rows = makeRows(for: .numbers)
         let lowerRow = rows[2]
         let modeSwitch = try XCTUnwrap(frame(for: .modeSwitch("#+="), in: lowerRow))
-        let danda = try XCTUnwrap(frame(for: .symbol(.danda), in: lowerRow))
-        let boundary = (modeSwitch.maxX + danda.minX) / 2
+        let dari = try XCTUnwrap(frame(for: .symbol(.dari), in: lowerRow))
+        let boundary = (modeSwitch.maxX + dari.minX) / 2
 
-        XCTAssertEqual(resolve(CGPoint(x: boundary - 0.5, y: danda.midY), rows: rows), .modeSwitch("#+="))
-        XCTAssertEqual(resolve(CGPoint(x: boundary + 0.5, y: danda.midY), rows: rows), .symbol(.danda))
+        XCTAssertEqual(resolve(CGPoint(x: boundary - 0.5, y: dari.midY), rows: rows), .modeSwitch("#+="))
+        XCTAssertEqual(resolve(CGPoint(x: boundary + 0.5, y: dari.midY), rows: rows), .symbol(.dari))
     }
 
     private func makeRows(for mode: KeyboardMode) -> [[KeyboardTouchKeyRegion]] {

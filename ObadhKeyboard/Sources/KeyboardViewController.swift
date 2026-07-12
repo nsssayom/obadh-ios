@@ -480,19 +480,29 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             return
         }
 
+        // The autosuggest session accumulates as the user types left-to-right; it
+        // reflects where typing stopped, not where the cursor is, and it never rewinds.
+        // So it's only trustworthy at the end of the text. With the cursor moved into
+        // earlier text, it buries the cursor-accurate context lookup — use that alone.
+        let cursorAtEnd = (textDocumentProxy.documentContextAfterInput ?? "").isEmpty
         engineQueue.async { [weak self] in
-            let sessionSuggestions = engine
-                .autosuggestSessionSuggestions(limit: 6)
-                .map { KeyboardSuggestion(text: $0, source: .autosuggest) }
             let contextSuggestions = engine
                 .autosuggestSuggestions(for: contextBeforeInput, limit: 6)
                 .filter { !$0.isEmpty }
                 .map { KeyboardSuggestion(text: $0, source: .autosuggest) }
-            let merged = KeyboardComposer.mergeSuggestions(
-                primary: sessionSuggestions,
-                fallback: contextSuggestions,
-                limit: 3
-            )
+            let merged: [KeyboardSuggestion]
+            if cursorAtEnd {
+                let sessionSuggestions = engine
+                    .autosuggestSessionSuggestions(limit: 6)
+                    .map { KeyboardSuggestion(text: $0, source: .autosuggest) }
+                merged = KeyboardComposer.mergeSuggestions(
+                    primary: sessionSuggestions,
+                    fallback: contextSuggestions,
+                    limit: 3
+                )
+            } else {
+                merged = Array(contextSuggestions.prefix(3))
+            }
             Task { @MainActor in
                 guard let self, self.suggestionGeneration == generation else { return }
                 self.suggestionBar.update(suggestions: merged)
@@ -847,7 +857,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             return
         }
         let contextBefore = textDocumentProxy.documentContextBeforeInput ?? ""
-        if followsSpace,
+        // Double-space → dari ends a sentence, which only makes sense at the end of the
+        // text. With the cursor inside earlier text the user is editing, not finishing a
+        // sentence, so a plain space is what they mean.
+        let cursorAtEnd = (textDocumentProxy.documentContextAfterInput ?? "").isEmpty
+        if cursorAtEnd, followsSpace,
            let substitution = SmartPunctuation.doubleSpaceSubstitution(contextBefore: contextBefore) {
             performTextUpdate {
                 applySmartPunctuation(substitution)

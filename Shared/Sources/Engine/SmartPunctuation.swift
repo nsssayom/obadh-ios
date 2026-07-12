@@ -18,7 +18,7 @@ struct SmartPunctuationResult: Equatable {
 enum SmartPunctuation {
     static let emDash = "\u{2014}"        // —
     static let ellipsis = "\u{2026}"      // …
-    static let danda = "\u{0964}"         // ।
+    static let dari = "\u{0964}"         // ।
     static let leftDoubleQuote = "\u{201C}"
     static let rightDoubleQuote = "\u{201D}"
     static let leftSingleQuote = "\u{2018}"
@@ -43,13 +43,13 @@ enum SmartPunctuation {
     }
 
     /// The Bangla equivalent of iOS's "double-space inserts a period" shortcut:
-    /// after a word, a second space becomes `। ` (danda + space). Returns nil
+    /// after a word, a second space becomes `। ` (dari + space). Returns nil
     /// when the shortcut should not fire (caller also gates on recency).
     static func doubleSpaceSubstitution(contextBefore: String) -> SmartPunctuationResult? {
         guard contextBefore.hasSuffix(" ") else { return nil }
         let beforeSpace = contextBefore.dropLast()
         guard let last = beforeSpace.last, isWordCharacter(last) else { return nil }
-        return SmartPunctuationResult(deleteBefore: 1, insertion: danda + " ")
+        return SmartPunctuationResult(deleteBefore: 1, insertion: dari + " ")
     }
 
     private static func endsWithTwoLiteralDots(_ context: String) -> Bool {
