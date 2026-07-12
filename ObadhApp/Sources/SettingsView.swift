@@ -100,7 +100,7 @@ struct SettingsView: View {
         } header: {
             Text("Typing")
         } footer: {
-            Text("Experimental. When a word you type isn't recognized and a correction is likely, Space inserts the correction — your spelling stays in quotes to tap and keep. Words you keep, and names you use, are remembered and left alone.")
+            Text("Space inserts a likely correction for unrecognized words. Tap your spelling to keep it.")
         }
     }
 
