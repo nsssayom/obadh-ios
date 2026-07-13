@@ -1,4 +1,6 @@
+// Swift-facing module name stays `ObadhBridge` (import sites unchanged); the
+// header is the engine's own, vendored by build-rust-xcframework.sh.
 module ObadhBridge {
-  header "ObadhBridge.h"
+  header "obadh.h"
   export *
 }

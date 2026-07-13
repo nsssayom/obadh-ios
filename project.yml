@@ -67,6 +67,27 @@ targets:
     dependencies:
       - framework: Frameworks/ObadhBridge.xcframework
         embed: false
+  ObadhEngineTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/ObadhEngineTests
+      # The bridge client + its protocol, compiled against the real cabi so the
+      # Swift↔C boundary is what's under test.
+      - path: Shared/Sources/Engine/ObadhBridgeClient.swift
+      - path: Shared/Sources/Engine/BanglaTypingEngine.swift
+      # The shipped artifacts, so the tests run against real data (folder ref so
+      # the ObadhModels/... subpaths resolve like they do in the keyboard).
+      - path: Resources/ObadhModels
+        buildPhase: resources
+        type: folder
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nsssayom.obadh.enginetests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - framework: Frameworks/ObadhBridge.xcframework
+        embed: false
 schemes:
   Obadh:
     build:
@@ -77,6 +98,8 @@ schemes:
       executable: Obadh
     test:
       config: Debug
+      targets:
+        - ObadhEngineTests
     profile:
       config: Release
       executable: Obadh
