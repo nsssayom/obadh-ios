@@ -57,6 +57,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     /// Set while the suggestion bar is showing corrections for an already-committed word
     /// the cursor sits in, so a tap replaces that word rather than inserting a next word.
     private var activeCursorWord: CursorWord?
+    /// Whether the deterministic literal currently shown is NOT a dictionary word. When
+    /// true the first suggestion slot is quoted ("keep my spelling"), native-style,
+    /// independent of the auto-insert setting. Computed off-main each settle; reset
+    /// before every composition refresh so a stale quote never shows.
+    private var deterministicIsOOV = false
     private var showsSpaceLanguageIntro = false
     private var showsEmojiPanel = false
     private var isEmojiSearchActive = false
@@ -449,8 +454,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
         if composer.hasActiveInput {
             // The deterministic preview is already known synchronously; show it
-            // immediately, then fill in autocorrect candidates off the main
+            // immediately (not yet quoted — its dictionary status is unknown until the
+            // async result below), then fill in autocorrect candidates off the main
             // thread so the FST traversal never blocks typing.
+            deterministicIsOOV = false
             updateCompositionSuggestionBar()
             let buffer = composer.romanBuffer
             let composerGeneration = composer.generation
@@ -459,13 +466,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             let shownWord = composer.preview
             engineQueue.async { [weak self] in
                 let candidates = engine.compositionSuggestions(for: buffer, limit: limit)
-                // The auto-insert gate: only worth the extra bridge call when the feature
-                // is on and there's a word to check.
-                let shownIsLexiconWord = autoInsert && !shownWord.isEmpty
-                    ? engine.isLexiconWord(shownWord)
-                    : false
+                // The literal's dictionary status drives both the native-style "keep my
+                // spelling" quote (always) and the auto-insert gate (when enabled).
+                let shownIsLexiconWord = !shownWord.isEmpty && engine.isLexiconWord(shownWord)
                 Task { @MainActor in
                     guard let self, self.suggestionGeneration == generation else { return }
+                    self.deterministicIsOOV = !shownWord.isEmpty && !shownIsLexiconWord
                     self.composer.mergeAutocorrectCandidates(candidates, generation: composerGeneration)
                     self.composer.resolveAutocorrectTarget(
                         autoInsertEnabled: autoInsert,
@@ -909,13 +915,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
     }
 
-    /// Show the composition candidates, quoting the shown word when auto-insert will
-    /// replace it on space (so the user can tap it to keep their spelling).
+    /// Show the composition candidates, quoting the literal when it is not a dictionary
+    /// word (native-style "keep my spelling"), so the first slot always reads as the
+    /// user's own text and stays tappable. OOV-ness subsumes the auto-insert case —
+    /// auto-insert only ever targets a non-lexicon literal.
     private func updateCompositionSuggestionBar() {
         suggestionBar.update(
             suggestions: composer.activeSuggestions,
             emojis: resolvedEmojiSuggestions(),
-            quotedText: composer.autocorrectTarget != nil ? composer.preview : nil
+            quotedText: deterministicIsOOV ? composer.preview : nil
         )
     }
 
@@ -1344,14 +1352,14 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
     func suggestionBar(_ suggestionBar: SuggestionBarView, didSelect suggestion: KeyboardSuggestion) {
         feedbackController.suggestionAccepted()
         if composer.hasActiveInput {
-            // The deterministic word is informational and inert — except when auto-insert
-            // has quoted it, where tapping it is the "keep my spelling" action: a strong
-            // signal that the word is one the user means.
-            let isQuotedLiteral = suggestion.source == .deterministic && composer.autocorrectTarget != nil
-            guard suggestion.source != .deterministic || isQuotedLiteral else { return }
+            // Native-style: every shown slot is tappable. Tapping the deterministic
+            // literal keeps the user's spelling (a strong "I mean this word" signal);
+            // tapping a correction replaces it. Either commits the tapped text in place
+            // and finalizes the word.
+            let keepsLiteral = suggestion.source == .deterministic
             commitMarkedSuggestion(suggestion.text)
             composer.clear()
-            observeCommittedToken(suggestion.text, keep: isQuotedLiteral)
+            observeCommittedToken(suggestion.text, keep: keepsLiteral)
         } else if let cursorWord = activeCursorWord {
             // A correction for the word the cursor sits in: replace that word in place.
             replaceCursorWord(cursorWord, with: suggestion.text)
