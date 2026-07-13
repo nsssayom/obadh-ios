@@ -8,6 +8,6 @@ publish = false
 crate-type = ["staticlib"]
 
 [dependencies]
-obadh_engine = "0.7.1"
+obadh_engine = "0.8.1"
 fst = "0.4.7"
 memmap2 = "0.9"
