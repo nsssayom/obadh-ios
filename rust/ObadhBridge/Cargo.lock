@@ -91,9 +91,9 @@ dependencies = [
 
 [[package]]
 name = "obadh_engine"
-version = "0.7.1"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79c1370aa67c57a041b94ce332ed7216cbdfec74c64a85f4f4c0b00467bf1d30"
+checksum = "ae9ee94bcdf94402c3566b991a3a3a3d2d937fe6ee707590c7fc97f294019e3d"
 dependencies = [
  "fst",
  "memmap2",
