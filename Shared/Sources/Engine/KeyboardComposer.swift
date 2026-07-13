@@ -1,11 +1,5 @@
 import Foundation
 
-protocol BanglaTypingEngine {
-    func transliterate(_ input: String) -> String
-    func compositionSuggestions(for romanInput: String, limit: Int) -> [String]
-    func autosuggestSuggestions(for context: String, limit: Int) -> [String]
-}
-
 struct KeyboardSuggestion: Equatable {
     let text: String
     let source: Source

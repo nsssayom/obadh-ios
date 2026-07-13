@@ -39,6 +39,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "600DAE229F9A808E9D54B92A"
+               BuildableName = "ObadhEngineTests.xctest"
+               BlueprintName = "ObadhEngineTests"
+               ReferencedContainer = "container:Obadh.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

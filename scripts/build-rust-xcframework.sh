@@ -18,6 +18,19 @@ IOS_SIM_X86_TARGET="x86_64-apple-ios"
 SIM_UNIVERSAL_DIR="$BRIDGE_DIR/target/universal-ios-sim/release"
 SIM_UNIVERSAL_LIB="$SIM_UNIVERSAL_DIR/libobadh_ios_bridge.a"
 
+# The C header is the engine's own (the `cabi` feature owns the FFI surface).
+# Vendor it from the resolved crate source so it can never drift from the linked
+# engine version — the equivalent of the engine's own header-sync test.
+ENGINE_MANIFEST="$(cargo metadata --format-version 1 --manifest-path "$BRIDGE_DIR/Cargo.toml" \
+  | python3 -c 'import json,sys; m=json.load(sys.stdin); print(next(p["manifest_path"] for p in m["packages"] if p["name"]=="obadh_engine"))')"
+ENGINE_HEADER="$(dirname "$ENGINE_MANIFEST")/include/obadh.h"
+if [ ! -f "$ENGINE_HEADER" ]; then
+  echo "Engine C header not found at $ENGINE_HEADER (is obadh_engine built with the cabi feature?)." >&2
+  exit 1
+fi
+cp "$ENGINE_HEADER" "$BRIDGE_DIR/include/obadh.h"
+echo "Vendored engine C header from $ENGINE_HEADER"
+
 rustup target add "$IOS_DEVICE_TARGET" "$IOS_SIM_ARM_TARGET" "$IOS_SIM_X86_TARGET"
 
 cargo build --manifest-path "$BRIDGE_DIR/Cargo.toml" --release --target "$IOS_DEVICE_TARGET"
