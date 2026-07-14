@@ -117,8 +117,12 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
                 break
             }
         }
-        #endif
-
+        // No launch argument: a Debug build opens straight into the tuning screen
+        // (keyboard + haptic/key-tint sliders), bypassing onboarding, so the debug
+        // controls are always reachable by just tapping the app icon.
+        return UINavigationController(rootViewController: KeyboardTestViewController())
+        #else
         return UIHostingController(rootView: RootView())
+        #endif
     }
 }

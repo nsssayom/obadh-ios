@@ -81,6 +81,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var viewWillAppearWasCalled = false
     private var lastAppliedMetricSize: CGSize = .zero
 
+    #if DEBUG
+    /// On-keyboard overlay dumping the presentation context iOS hands us in the current
+    /// host app. Toggle from the app's debug panel; capture in Messenger vs Safari vs a
+    /// legacy app to learn how the system frames the extension, then adapt to match.
+    private let presentationProbeLabel = UILabel()
+    private var lastProbeString = ""
+    #endif
+
     var enableInputClicksWhenVisible: Bool {
         true
     }
@@ -100,7 +108,136 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         configureEmojiPanel()
         reloadKeyboardRows()
         refreshKeyboard()
+        #if DEBUG
+        startKeyTintObserver()
+        configurePresentationProbe()
+        #endif
     }
+
+    deinit {
+        #if DEBUG
+        stopKeyTintObserver()
+        #endif
+    }
+
+    #if DEBUG
+    /// Live native-parity tuning: the containing app posts a Darwin notification when
+    /// a key-tint slider changes; re-style the keys so the change shows without a
+    /// rebuild. DEBUG only.
+    private func startKeyTintObserver() {
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(),
+            { _, observer, _, _, _ in
+                guard let observer else { return }
+                let controller = Unmanaged<KeyboardViewController>.fromOpaque(observer).takeUnretainedValue()
+                DispatchQueue.main.async {
+                    // A debug tunable changed. Drop the memoized metrics (its cache key
+                    // ignores debug values) and force a relayout so shadow, key tint,
+                    // and suggestion height all re-read at once.
+                    controller.metricsCache = nil
+                    controller.applyLayoutMetricsIfNeeded(force: true)
+                    controller.refreshKeyboard()
+                }
+            },
+            KeyboardPreferences.debugKeyTintDarwinName as CFString,
+            nil,
+            .deliverImmediately
+        )
+    }
+
+    private func stopKeyTintObserver() {
+        CFNotificationCenterRemoveObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(),
+            CFNotificationName(KeyboardPreferences.debugKeyTintDarwinName as CFString),
+            nil
+        )
+    }
+
+    /// A yellow top-left overlay reporting the geometry iOS hands the extension: view
+    /// bounds, safe-area insets, window vs screen width (side-inset tell), the height
+    /// constraint, and the nearest rounded-corner ancestor (the system's container
+    /// silhouette). Read it in different host apps to see legacy vs Liquid Glass framing.
+    private func configurePresentationProbe() {
+        presentationProbeLabel.numberOfLines = 0
+        presentationProbeLabel.font = .monospacedSystemFont(ofSize: 9, weight: .medium)
+        presentationProbeLabel.textColor = .systemYellow
+        presentationProbeLabel.backgroundColor = UIColor.black.withAlphaComponent(0.55)
+        presentationProbeLabel.isUserInteractionEnabled = false
+        presentationProbeLabel.isHidden = true
+        presentationProbeLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(presentationProbeLabel)
+        NSLayoutConstraint.activate([
+            presentationProbeLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 2),
+            presentationProbeLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4)
+        ])
+    }
+
+    private func updatePresentationProbe() {
+        let enabled = keyboardPreferences.debugPresentationProbeEnabled
+        presentationProbeLabel.isHidden = !enabled
+        guard enabled else { return }
+        let text = presentationProbeString()
+        presentationProbeLabel.text = text
+        view.bringSubviewToFront(presentationProbeLabel)
+        if text != lastProbeString {
+            lastProbeString = text
+            lifecycleLog.notice("OBADH-PROBE \(text.replacingOccurrences(of: "\n", with: " · "), privacy: .public)")
+        }
+    }
+
+    private func presentationProbeString() -> String {
+        let b = view.bounds
+        let sa = view.safeAreaInsets
+        // frame-in-window is the smoking gun for height fights: origin.y > 0 means the
+        // container is taller than our view and the system bottom-anchored us in it
+        // (the "extra band above the suggestions" presentation); win is the container
+        // the system actually granted, hCon what we asked for.
+        let win = view.window
+        let frame = win.map { view.convert(view.bounds, to: $0) } ?? .zero
+        let winSize = win?.bounds.size ?? .zero
+        let scrW = win?.screen.bounds.width ?? UIScreen.main.bounds.width
+        let ivH = inputView?.bounds.height ?? 0
+        let hActive = keyboardHeightConstraint?.isActive ?? false
+        let selfSizing = inputView?.allowsSelfSizing ?? false
+        // wf = the extension window's frame in SCREEN coordinates: with the screen
+        // height it answers exactly where the system placed us — dock height below
+        // (scrH - wfY - winH) and any system band above our view inside the container.
+        let winFrame = win?.frame ?? .zero
+        let scrH = win?.screen.bounds.height ?? UIScreen.main.bounds.height
+        let designCompat = Bundle.main.object(forInfoDictionaryKey: "UIDesignRequiresCompatibility") as? Bool ?? false
+        let m = currentMetrics
+        return String(
+            format: "b %.0f×%.0f  f(%.0f,%.0f)  win %.0f×%.0f  wf(%.0f,%.0f)  scr %.0f×%.0f\nsa L%.0f R%.0f T%.0f B%.0f  ivH %.0f  hCon %.0f/%@  ss %@\nm s%.0f k%.0f r%.1f t%.0f b%.0f  rnd %@  glass %@  compat %@",
+            b.width, b.height, frame.origin.x, frame.origin.y, winSize.width, winSize.height,
+            winFrame.origin.x, winFrame.origin.y, scrW, scrH,
+            sa.left, sa.right, sa.top, sa.bottom, ivH,
+            keyboardHeightConstraint?.constant ?? 0, hActive ? "on" : "off", selfSizing ? "Y" : "N",
+            m.suggestionHeight, m.minimumKeyHeight, m.rowSpacing,
+            m.keyboardInsets.top, m.keyboardInsets.bottom,
+            nearestRoundedAncestorDescription(), KeyboardGlassStyle.current.rawValue,
+            designCompat ? "Y" : "N"
+        )
+    }
+
+    /// Walks up from the extension's view to the window looking for the first ancestor
+    /// whose layer is corner-rounded — the system's floating/curved keyboard container,
+    /// if any. Reports its class, radius, and whether it clips.
+    private func nearestRoundedAncestorDescription() -> String {
+        var candidate: UIView? = view.superview
+        var depth = 0
+        while let current = candidate, depth < 10 {
+            let radius = current.layer.cornerRadius
+            if radius > 0.5 {
+                return "\(type(of: current))·r\(Int(radius.rounded()))·clip\(current.clipsToBounds ? 1 : 0)"
+            }
+            candidate = current.superview
+            depth += 1
+        }
+        return "none"
+    }
+    #endif
 
     /// Without Full Access this container is unreachable, so the write silently does
     /// nothing — which is precisely the signal. The containing app reads the stamp to
@@ -112,6 +249,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func configureInputViewShell() {
         guard let inputView else { return }
+        // Self-sizing + one height constraint is the deterministic mechanism: the
+        // keyboard is exactly `preferredKeyboardHeight` in every host and on every
+        // presentation path. Letting the system size us instead (allowsSelfSizing
+        // false, no constraint) was measured to be untrustworthy: the granted height
+        // ratchets across presentations (253→290→314 on the same sim) and renders a
+        // container visibly taller than native. See the native-parity notes.
         inputView.allowsSelfSizing = true
         inputView.clipsToBounds = true
     }
@@ -158,6 +301,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         super.viewDidLayoutSubviews()
         applyLayoutMetricsIfNeeded()
         updateKeyboardTouchRegions()
+        #if DEBUG
+        updatePresentationProbe()
+        #endif
     }
 
     override func textWillChange(_ textInput: UITextInput?) {
@@ -1014,6 +1160,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var metricsCache: (key: MetricsCacheKey, value: KeyboardMetrics)?
 
     private var currentMetrics: KeyboardMetrics {
+        // Metrics MUST derive from the intended height, never from view.bounds.height:
+        // the suggestion strip's required height feeds the view's fitting size, which
+        // is what the system sizes the container by. Basing metrics on current bounds
+        // creates a feedback loop (bounds→strip→fitting→bounds) that locks the
+        // container at whatever it currently is and makes height changes impossible —
+        // measured as the 290/314 "phantom grants" that were our own clamps echoed.
         let size: CGSize
         let bounds = view.bounds.size
         if bounds.width > 0 {
@@ -1492,6 +1644,10 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             KeyboardGlassStyle.current = style
             reloadKeyboardRows()
             refreshKeyboard()
+        case "probe":
+            // Mouse-free sim driving of the presentation probe overlay.
+            keyboardPreferences.debugPresentationProbeEnabled = argument != "off"
+            updatePresentationProbe()
         case "emoji":
             switch argument {
             case "close": hideEmojiPanel()

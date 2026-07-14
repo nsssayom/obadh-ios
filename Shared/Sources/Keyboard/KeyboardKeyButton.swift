@@ -104,7 +104,9 @@ final class KeyboardKeyButton: UIButton {
         layer.cornerRadius = KeyboardTheme.defaultMetrics.keyCornerRadius
         layer.cornerCurve = .continuous
         layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = KeyboardTheme.defaultMetrics.keyShadowOpacity
+        layer.shadowOpacity = KeyboardTheme.effectiveKeyShadowOpacity(
+            KeyboardTheme.defaultMetrics.keyShadowOpacity
+        )
         layer.shadowRadius = KeyboardTheme.defaultMetrics.keyShadowRadius
         layer.shadowOffset = KeyboardTheme.defaultMetrics.keyShadowOffset
         contentHorizontalAlignment = .center
@@ -206,9 +208,10 @@ final class KeyboardKeyButton: UIButton {
                     highlighted: self.isHighlighted
                 )
             }
+            let restShadow = KeyboardTheme.effectiveKeyShadowOpacity(self.currentMetrics.keyShadowOpacity)
             self.layer.shadowOpacity = self.isHighlighted
-                ? max(0.25, self.currentMetrics.keyShadowOpacity - 0.12)
-                : self.currentMetrics.keyShadowOpacity
+                ? max(0, restShadow - 0.12)
+                : restShadow
             self.transform = self.isHighlighted
                 ? CGAffineTransform(scaleX: 0.985, y: 0.985)
                 : .identity

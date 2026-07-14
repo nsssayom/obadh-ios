@@ -35,6 +35,20 @@ final class KeyboardTestViewController: UIViewController {
     private let intensityValueLabel = UILabel()
     private let sharpnessValueLabel = UILabel()
     private let backgroundControl = UISegmentedControl(items: ["Gradient", "Solid"])
+    // Live native-parity key-tint tuning: dial the Liquid Glass key fill alpha per
+    // appearance; the running keyboard re-styles instantly via a Darwin notification.
+    private let keyTintSwitch = UISwitch()
+    private let keyTintDarkSlider = UISlider()
+    private let keyTintLightSlider = UISlider()
+    private let keyTintDarkValueLabel = UILabel()
+    private let keyTintLightValueLabel = UILabel()
+    // Native keys are flat and the native suggestion strip is ~half Obadh's height;
+    // these dial the drop-shadow opacity and the suggestion-height fraction live.
+    private let keyShadowSlider = UISlider()
+    private let keyShadowValueLabel = UILabel()
+    // Shows the geometry iOS hands the extension (bounds, safe area, container corners)
+    // as a yellow overlay on the keyboard, to diagnose legacy vs Liquid Glass framing.
+    private let presentationProbeSwitch = UISwitch()
     private lazy var debugControlsView = makeDebugControlsView()
     #endif
 
@@ -132,30 +146,113 @@ final class KeyboardTestViewController: UIViewController {
         backgroundControl.selectedSegmentIndex = startsWithGradient ? 0 : 1
         backgroundControl.addTarget(self, action: #selector(backgroundChanged), for: .valueChanged)
 
+        keyTintSwitch.isOn = prefs.debugKeyTintOverrideEnabled
+        keyTintSwitch.addTarget(self, action: #selector(keyTintOverrideChanged), for: .valueChanged)
+        for slider in [keyTintDarkSlider, keyTintLightSlider] {
+            slider.minimumValue = 0
+            slider.maximumValue = 1
+        }
+        keyTintDarkSlider.value = Float(prefs.debugKeyTintDarkRest)
+        keyTintDarkSlider.addTarget(self, action: #selector(keyTintDarkChanged), for: .valueChanged)
+        keyTintLightSlider.value = Float(prefs.debugKeyTintLightRest)
+        keyTintLightSlider.addTarget(self, action: #selector(keyTintLightChanged), for: .valueChanged)
+        keyShadowSlider.minimumValue = 0
+        keyShadowSlider.maximumValue = 0.5
+        keyShadowSlider.value = Float(prefs.debugKeyShadowOpacity)
+        keyShadowSlider.addTarget(self, action: #selector(keyShadowChanged), for: .valueChanged)
+
+        presentationProbeSwitch.isOn = prefs.debugPresentationProbeEnabled
+        presentationProbeSwitch.addTarget(self, action: #selector(presentationProbeChanged), for: .valueChanged)
+
+        for label in [
+            keyTintDarkValueLabel, keyTintLightValueLabel,
+            keyShadowValueLabel
+        ] {
+            label.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+            label.textColor = .secondaryLabel
+        }
+
         updateHapticValueLabels()
+        updateKeyTintValueLabels()
     }
 
+    /// A scrollable, card-sectioned control panel so nothing clips above the keyboard.
     private func makeDebugControlsView() -> UIView {
-        let title = UILabel()
-        title.text = "Custom haptics"
-        title.font = .preferredFont(forTextStyle: .subheadline)
-        let switchRow = UIStackView(arrangedSubviews: [title, UIView(), hapticSwitch])
-        switchRow.axis = .horizontal
-        switchRow.alignment = .center
-        switchRow.spacing = 8
-
-        let stack = UIStackView(arrangedSubviews: [
-            switchRow,
+        let haptics = debugSection("Haptics", views: [
+            debugSwitchRow("Custom haptics", hapticSwitch),
             intensityValueLabel, intensitySlider,
-            sharpnessValueLabel, sharpnessSlider,
-            backgroundControl
+            sharpnessValueLabel, sharpnessSlider
         ])
-        stack.axis = .vertical
-        stack.spacing = 6
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.setCustomSpacing(2, after: intensityValueLabel)
-        stack.setCustomSpacing(2, after: sharpnessValueLabel)
-        return stack
+        let appearance = debugSection("Test background", views: [backgroundControl])
+        let keyTint = debugSection("Native key tint", views: [
+            debugSwitchRow("Override key tint", keyTintSwitch),
+            keyTintDarkValueLabel, keyTintDarkSlider,
+            keyTintLightValueLabel, keyTintLightSlider
+        ])
+        let keyShape = debugSection("Native key shape", views: [
+            keyShadowValueLabel, keyShadowSlider
+        ])
+        let diagnostics = debugSection("Presentation diagnostics", views: [
+            debugSwitchRow("Probe overlay on keyboard", presentationProbeSwitch)
+        ])
+
+        let content = UIStackView(arrangedSubviews: [haptics, appearance, keyTint, keyShape, diagnostics])
+        content.axis = .vertical
+        content.spacing = 16
+        content.translatesAutoresizingMaskIntoConstraints = false
+
+        let scroll = UIScrollView()
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.showsVerticalScrollIndicator = true
+        scroll.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
+            content.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
+            content.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
+            content.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor)
+        ])
+        return scroll
+    }
+
+    private func debugSwitchRow(_ title: String, _ control: UISwitch) -> UIView {
+        let label = UILabel()
+        label.text = title
+        label.font = .preferredFont(forTextStyle: .subheadline)
+        let row = UIStackView(arrangedSubviews: [label, UIView(), control])
+        row.axis = .horizontal
+        row.alignment = .center
+        row.spacing = 8
+        return row
+    }
+
+    private func debugSection(_ title: String, views: [UIView]) -> UIView {
+        let header = UILabel()
+        header.text = title.uppercased()
+        header.font = .preferredFont(forTextStyle: .caption1)
+        header.textColor = .secondaryLabel
+
+        let inner = UIStackView(arrangedSubviews: views)
+        inner.axis = .vertical
+        inner.spacing = 6
+        inner.translatesAutoresizingMaskIntoConstraints = false
+
+        let card = UIView()
+        card.backgroundColor = .secondarySystemGroupedBackground
+        card.layer.cornerRadius = 12
+        card.layer.cornerCurve = .continuous
+        card.addSubview(inner)
+        NSLayoutConstraint.activate([
+            inner.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
+            inner.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -12),
+            inner.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            inner.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
+        ])
+
+        let wrap = UIStackView(arrangedSubviews: [header, card])
+        wrap.axis = .vertical
+        wrap.spacing = 6
+        return wrap
     }
 
     private func updateHapticValueLabels() {
@@ -180,6 +277,51 @@ final class KeyboardTestViewController: UIViewController {
     @objc private func backgroundChanged() {
         gradientLayer.isHidden = backgroundControl.selectedSegmentIndex != 0
     }
+
+    @objc private func keyTintOverrideChanged() {
+        prefs.debugKeyTintOverrideEnabled = keyTintSwitch.isOn
+        KeyboardPreferences.postKeyTintChanged()
+    }
+
+    @objc private func keyTintDarkChanged() {
+        enableKeyTintOverride()
+        prefs.debugKeyTintDarkRest = Double(keyTintDarkSlider.value)
+        updateKeyTintValueLabels()
+        KeyboardPreferences.postKeyTintChanged()
+    }
+
+    @objc private func keyTintLightChanged() {
+        enableKeyTintOverride()
+        prefs.debugKeyTintLightRest = Double(keyTintLightSlider.value)
+        updateKeyTintValueLabels()
+        KeyboardPreferences.postKeyTintChanged()
+    }
+
+    @objc private func keyShadowChanged() {
+        enableKeyTintOverride()
+        prefs.debugKeyShadowOpacity = Double(keyShadowSlider.value)
+        updateKeyTintValueLabels()
+        KeyboardPreferences.postKeyTintChanged()
+    }
+
+    @objc private func presentationProbeChanged() {
+        prefs.debugPresentationProbeEnabled = presentationProbeSwitch.isOn
+        KeyboardPreferences.postKeyTintChanged()
+    }
+
+    /// Touching a slider turns the override on, so it always takes effect without
+    /// having to flip the switch first.
+    private func enableKeyTintOverride() {
+        guard !keyTintSwitch.isOn else { return }
+        keyTintSwitch.setOn(true, animated: true)
+        prefs.debugKeyTintOverrideEnabled = true
+    }
+
+    private func updateKeyTintValueLabels() {
+        keyTintDarkValueLabel.text = String(format: "Key tint · dark    %.2f", keyTintDarkSlider.value)
+        keyTintLightValueLabel.text = String(format: "Key tint · light   %.2f", keyTintLightSlider.value)
+        keyShadowValueLabel.text = String(format: "Key shadow         %.2f", keyShadowSlider.value)
+    }
     #endif
 
     private func layoutContent() {
@@ -200,7 +342,9 @@ final class KeyboardTestViewController: UIViewController {
             textView.leadingAnchor.constraint(equalTo: margins.leadingAnchor),
             textView.trailingAnchor.constraint(equalTo: margins.trailingAnchor),
             textView.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -16),
-            textView.heightAnchor.constraint(greaterThanOrEqualToConstant: 120)
+            // Fixed (not >=) so the scrollable control panel above gets a determined
+            // height instead of being collapsed to zero by a growing text field.
+            textView.heightAnchor.constraint(equalToConstant: 92)
         ]
 
         var textTop = buildLabel.bottomAnchor
