@@ -379,6 +379,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private func classifyPresentation(screenHeight: CGFloat) {
         presentationClassified = true
+        // iOS 27 removed the legacy keyboard fallback: native renders the modern
+        // container even in pre-iOS-26-SDK hosts (measured in Messenger on an
+        // iOS 27 device: native zone ~51pt = modern). The anchors below are
+        // iOS 26 measurements and misfire against iOS 27 host layouts (Messenger
+        // classified legacy -> 53pt strip + 17pt band = 70pt zone, 18pt taller
+        // than native), so the detector is iOS 26 only.
+        if #available(iOS 27.0, *) {
+            return
+        }
         guard let anchors = Self.presentationIntermediates[screenHeight],
               let intermediate = presentationTransients.last else {
             return
