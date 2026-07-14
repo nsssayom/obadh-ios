@@ -292,14 +292,18 @@ final class TextCompositionControllerTests: XCTestCase {
         ])
     }
 
-    func testIdleDoubleSpaceIsSuppressed() {
+    func testEverySpaceKeyInsertsASpace() {
+        // The space key is explicit intent: two idle taps type two spaces, exactly
+        // like native. (The old whitespace guard swallowed the second one, which
+        // read as "nothing happens" when adding a space mid-sentence. The dari
+        // double-tap shortcut is the keyboard controller's, and time-gated.)
         let document = FakeCompositionDocument()
         let controller = TextCompositionController()
 
-        controller.insertSpaceIfNeeded(in: document)
-        controller.insertSpaceIfNeeded(in: document)
+        controller.insertSpace(in: document)
+        controller.insertSpace(in: document)
 
-        XCTAssertEqual(document.text, " ")
-        XCTAssertEqual(document.operations, [.insertText(" ")])
+        XCTAssertEqual(document.text, "  ")
+        XCTAssertEqual(document.operations, [.insertText(" "), .insertText(" ")])
     }
 }
