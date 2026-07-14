@@ -61,9 +61,11 @@
 		E069CEACDC6107371D84AEA2 /* KeyboardDebugChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDD5C1AACA44AA367113C3B /* KeyboardDebugChannel.swift */; };
 		E8B91E57533EED9A6C92D85C /* KeyboardKeyPreviewCallout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E848AE01B636BE2F743371 /* KeyboardKeyPreviewCallout.swift */; };
 		E8CA44E4569380821431B769 /* EmojiVariantPreferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256744416FB780EEC1BCE05B /* EmojiVariantPreferenceStore.swift */; };
+		F0DC104698DCC75ED181ED27 /* AutoInsertGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A8EBB58A044767CE0E43CF8 /* AutoInsertGate.swift */; };
 		F4BB4142503FBA7B4715B1E7 /* CursorWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4540941392FAC03316773EE5 /* CursorWordDetector.swift */; };
 		F51F3E0D32EE3727F80AE2E8 /* KeyboardLayoutGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */; };
 		F83228BAD4E6CD8BA52B592F /* ObadhApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7A08BDE93B4142634C087E /* ObadhApp.swift */; };
+		FB5A7AF4B3EC0DC7EEDF1F62 /* AutoInsertGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A8EBB58A044767CE0E43CF8 /* AutoInsertGate.swift */; };
 		FC096C9BCC5AC63BB29CAA72 /* SetupWalkthrough.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D96907C8D5CDAF8E2CAAE32 /* SetupWalkthrough.swift */; };
 		FC795F649BAD1AD0CCD4496A /* KeyboardTestViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */; };
 /* End PBXBuildFile section */
@@ -104,6 +106,7 @@
 		2F17B39BFA64FEDB13A98224 /* EmojiPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPanelView.swift; sourceTree = "<group>"; };
 		357A2D2EC4233E419470E4C6 /* BanglaEmojiSearchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanglaEmojiSearchStore.swift; sourceTree = "<group>"; };
 		35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceDeletionPlanner.swift; sourceTree = "<group>"; };
+		3A8EBB58A044767CE0E43CF8 /* AutoInsertGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoInsertGate.swift; sourceTree = "<group>"; };
 		3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalAutosuggestStore.swift; sourceTree = "<group>"; };
 		3FA357898E8C15A804056128 /* TextCompositionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextCompositionController.swift; sourceTree = "<group>"; };
 		3FCEAEC18E70D2E206C2073B /* BanglaEmojiSuggestionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanglaEmojiSuggestionStore.swift; sourceTree = "<group>"; };
@@ -207,6 +210,7 @@
 		516EB0363F32D1F8265CA89D /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				3A8EBB58A044767CE0E43CF8 /* AutoInsertGate.swift */,
 				35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */,
 				4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */,
 				6CDAB14409BFF075910B4EC0 /* BanglaTypingEngine.swift */,
@@ -474,6 +478,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9634DBB4043CE304AF279075 /* AppBuildInfo.swift in Sources */,
+				FB5A7AF4B3EC0DC7EEDF1F62 /* AutoInsertGate.swift in Sources */,
 				8DEAC1E1856D9FA6655586A2 /* BackspaceDeletionPlanner.swift in Sources */,
 				A596F803163521C139657F2F /* BackspaceRepeatController.swift in Sources */,
 				540C97813BB8F24D92201AD1 /* BackspaceRepeatPolicy.swift in Sources */,
@@ -513,6 +518,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F0DC104698DCC75ED181ED27 /* AutoInsertGate.swift in Sources */,
 				B5D10ABF89C16613E608FF31 /* BanglaTypingEngine.swift in Sources */,
 				C81FA0BE1D4BB10FA5B42FBA /* ObadhBridgeClient.swift in Sources */,
 				1211B381465DA94D85B78236 /* ObadhEngineIntegrationTests.swift in Sources */,

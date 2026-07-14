@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Testing
 
 /// Resolves the test bundle so the shipped model artifacts (`bn.fst`, the
@@ -116,4 +117,77 @@ struct ObadhEngineIntegrationTests {
 
     static let pinnedAutocorrectFingerprint: UInt64 = 16_395_964_778_339_222_933
     static let pinnedAutosuggestFingerprint: UInt64 = 12_903_309_268_127_864_731
+
+    // MARK: - Detailed corrections + the auto-insert gate (real artifacts)
+
+    @Test func detailedCorrectionsDecodeForKnownInput() {
+        let detailed = engine.detailedCorrections(for: "manus", limit: 5)
+        #expect(!detailed.isEmpty)
+        #expect(detailed.contains { $0.text == "মানুষ" })
+    }
+
+    /// The canonical rare-baseline cases the ratio rule exists for: the typed
+    /// forms ARE lexicon words (so a non-word gate can never fire), but the
+    /// corrections are overwhelmingly more frequent.
+    @Test(arguments: [("manus", "মানুষ"), ("bondu", "বন্ধু")])
+    func gateFiresForRareLexiconBaselines(roman: String, expected: String) {
+        let baseline = engine.transliterate(roman)
+        let baselineFrequency = engine.wordFrequency(baseline)
+        #expect(baselineFrequency > 0, "the premise: \(baseline) is a (rare) lexicon word")
+        let detailed = engine.detailedCorrections(for: roman, limit: 5)
+        let top = detailed.first { $0.text != baseline }
+        #expect(top?.text == expected)
+        if let top {
+            #expect(AutoInsertGate.shouldAutoInsert(
+                baselineFrequency: baselineFrequency,
+                correction: top,
+                isProtected: false
+            ))
+        }
+    }
+
+    /// banhla's repair cost is genuinely 2 (validated with the engine team) —
+    /// it waits on the engine's Part 2 cost calibration and must not fire.
+    @Test func gateHoldsForCostTwoRepair() {
+        let baseline = engine.transliterate("banhla")
+        let baselineFrequency = engine.wordFrequency(baseline)
+        for candidate in engine.detailedCorrections(for: "banhla", limit: 5)
+        where candidate.text == "বাংলা" {
+            #expect(!AutoInsertGate.shouldAutoInsert(
+                baselineFrequency: baselineFrequency,
+                correction: candidate,
+                isProtected: false
+            ))
+        }
+    }
+
+    /// A common word must never be overridden by any of its own candidates.
+    @Test func gateHoldsForCommonBaselines() {
+        let baseline = engine.transliterate("amar")
+        let baselineFrequency = engine.wordFrequency(baseline)
+        #expect(baselineFrequency > 0)
+        for candidate in engine.detailedCorrections(for: "amar", limit: 5)
+        where candidate.text != baseline {
+            #expect(!AutoInsertGate.shouldAutoInsert(
+                baselineFrequency: baselineFrequency,
+                correction: candidate,
+                isProtected: false
+            ))
+        }
+    }
+
+    @Test func gateRespectsProtectedWords() {
+        let correction = DetailedCorrection(
+            text: "মানুষ",
+            source: DetailedCorrection.Source.editDistance,
+            editCost: 1,
+            romanRepairCost: nil,
+            frequency: 1_000_000
+        )
+        #expect(!AutoInsertGate.shouldAutoInsert(
+            baselineFrequency: 0,
+            correction: correction,
+            isProtected: true
+        ))
+    }
 }

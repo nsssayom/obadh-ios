@@ -20,7 +20,7 @@ use obadh_engine::cabi;
 /// through — only the presence of these addresses in a `#[used]` static matters,
 /// which is what pins the symbols into the staticlib.
 #[repr(transparent)]
-struct AbiSymbols([*const (); 20]);
+struct AbiSymbols([*const (); 21]);
 
 // SAFETY: the elements are code addresses that are never dereferenced or
 // mutated; the table is immutable and read by nothing. It is `Sync` trivially.
@@ -36,6 +36,7 @@ static KEEP_ALIVE: AbiSymbols = AbiSymbols([
     cabi::obadh_autocorrect_free as *const (),
     cabi::obadh_autocorrect_fingerprint as *const (),
     cabi::obadh_autocorrect_word_frequency as *const (),
+    cabi::obadh_autocorrect_suggest_detailed as *const (),
     cabi::obadh_compose_suggestions as *const (),
     cabi::obadh_autocorrect_word_alternatives as *const (),
     cabi::obadh_autosuggest_open as *const (),

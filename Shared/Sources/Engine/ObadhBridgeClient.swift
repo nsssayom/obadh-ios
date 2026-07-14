@@ -167,6 +167,80 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
         }
     }
 
+    /// Ranked corrections for `roman` with full provenance — the records the
+    /// auto-insert gate is built on. Decodes the engine's packed list:
+    /// [u32 count] then per record [u32 len][utf8][u8 source][u16 edit]
+    /// [u16 repair, 0xFFFF = none][u64 frequency], all little-endian.
+    func detailedCorrections(for romanInput: String, limit: Int) -> [DetailedCorrection] {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let autocorrectHandle else { return [] }
+        var romanInput = romanInput
+        let boundedLimit = max(0, limit)
+        let bytes = romanInput.withUTF8 { inputBuffer in
+            readBytes { outputPtr, capacity in
+                obadh_autocorrect_suggest_detailed(
+                    autocorrectHandle,
+                    inputBuffer.baseAddress,
+                    inputBuffer.count,
+                    boundedLimit,
+                    outputPtr,
+                    capacity
+                )
+            }
+        }
+        return Self.parseDetailedCorrections(bytes)
+    }
+
+    static func parseDetailedCorrections(_ bytes: [UInt8]) -> [DetailedCorrection] {
+        guard bytes.count >= 4 else { return [] }
+        func readUInt32(at offset: Int) -> Int {
+            Int(UInt32(bytes[offset])
+                | UInt32(bytes[offset + 1]) << 8
+                | UInt32(bytes[offset + 2]) << 16
+                | UInt32(bytes[offset + 3]) << 24)
+        }
+        func readUInt16(at offset: Int) -> UInt16 {
+            UInt16(bytes[offset]) | UInt16(bytes[offset + 1]) << 8
+        }
+        func readUInt64(at offset: Int) -> UInt64 {
+            var value: UInt64 = 0
+            for i in 0..<8 {
+                value |= UInt64(bytes[offset + i]) << (8 * i)
+            }
+            return value
+        }
+
+        let count = readUInt32(at: 0)
+        var offset = 4
+        var items: [DetailedCorrection] = []
+        items.reserveCapacity(count)
+        for _ in 0..<count {
+            guard offset + 4 <= bytes.count else { break }
+            let length = readUInt32(at: offset)
+            offset += 4
+            guard offset + length + 1 + 2 + 2 + 8 <= bytes.count else { break }
+            let text = String(decoding: bytes[offset..<offset + length], as: UTF8.self)
+            offset += length
+            let source = bytes[offset]
+            offset += 1
+            let editCost = readUInt16(at: offset)
+            offset += 2
+            let repairRaw = readUInt16(at: offset)
+            offset += 2
+            let frequency = readUInt64(at: offset)
+            offset += 8
+            items.append(DetailedCorrection(
+                text: text,
+                source: source,
+                editCost: editCost,
+                romanRepairCost: repairRaw == 0xFFFF ? nil : repairRaw,
+                frequency: frequency
+            ))
+        }
+        return items
+    }
+
     /// Lexicon frequency of `word` (0 if it is not an entry). Presence is `> 0`;
     /// no entry is stored with frequency 0. The count is the baseline signal a
     /// frequency-ratio auto-insert gate needs.

@@ -742,16 +742,21 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             let shownWord = composer.preview
             engineQueue.async { [weak self] in
                 let candidates = engine.compositionSuggestions(for: buffer, limit: limit)
-                // The literal's dictionary status drives both the native-style "keep my
-                // spelling" quote (always) and the auto-insert gate (when enabled).
-                let shownIsLexiconWord = !shownWord.isEmpty && engine.isLexiconWord(shownWord)
+                // The literal's frequency drives both the native-style "keep my
+                // spelling" quote (0 = not a word) and, with the detailed records'
+                // provenance, the auto-insert gate (when enabled).
+                let baselineFrequency = shownWord.isEmpty ? 0 : engine.wordFrequency(shownWord)
+                let detailed = autoInsert
+                    ? engine.detailedCorrections(for: buffer, limit: limit)
+                    : []
                 Task { @MainActor in
                     guard let self, self.suggestionGeneration == generation else { return }
-                    self.deterministicIsOOV = !shownWord.isEmpty && !shownIsLexiconWord
+                    self.deterministicIsOOV = !shownWord.isEmpty && baselineFrequency == 0
                     self.composer.mergeAutocorrectCandidates(candidates, generation: composerGeneration)
                     self.composer.resolveAutocorrectTarget(
                         autoInsertEnabled: autoInsert,
-                        deterministicIsLexiconWord: shownIsLexiconWord,
+                        baselineFrequency: baselineFrequency,
+                        detailedCorrections: detailed,
                         isProtectedWord: { self.learnedWordStore.isProtected($0) }
                     )
                     self.updateCompositionSuggestionBar()
@@ -1813,6 +1818,8 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             let before = textDocumentProxy.documentContextBeforeInput ?? ""
             let after = textDocumentProxy.documentContextAfterInput ?? ""
             lifecycleLog.notice("OBADH-CONTEXT before=[\(before, privacy: .public)] after=[\(after, privacy: .public)]")
+        case "autoinsert":
+            keyboardPreferences.autoInsertTopCorrection = argument != "off"
         case "pick":
             // Tap a suggestion slot through the real delegate path.
             if let argument, let index = Int(argument),
