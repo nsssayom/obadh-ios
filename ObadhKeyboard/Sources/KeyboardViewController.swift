@@ -1461,8 +1461,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let frameInView = button.convert(button.bounds, to: view)
         let desiredX = frameInView.midX - size.width / 2
         let x = min(max(0, desiredX), max(0, view.bounds.width - size.width))
+        // Flush above the pressed key, like native (its preview never overlaps the
+        // key face; verified on iOS 27 device screenshots).
         let y = min(
-            max(0, frameInView.minY - size.height + metrics.keyPreviewStemHeight + 2),
+            max(0, frameInView.minY - size.height),
             max(0, view.bounds.height - size.height)
         )
 
@@ -1736,6 +1738,18 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             // Mouse-free sim driving of the presentation probe overlay.
             keyboardPreferences.debugPresentationProbeEnabled = argument != "off"
             updatePresentationProbe()
+        case "preview":
+            // Show the key preview + pressed state programmatically so the parity
+            // suite can capture the popover (a real touch cannot be scripted).
+            if let argument, argument != "off",
+               let button = keyButtons.first(where: { $0.previewText?.lowercased() == argument.lowercased() }) {
+                button.isHighlighted = true
+                showKeyPreview(for: button)
+            } else {
+                for button in keyButtons { button.isHighlighted = false }
+                hideKeyPreview(animated: false)
+                refreshKeyboard()
+            }
         case "emoji":
             switch argument {
             case "close": hideEmojiPanel()
