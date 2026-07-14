@@ -97,43 +97,11 @@ struct KeyboardPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.debugHapticSharpnessKey) }
     }
 
-    // Live key-tint tuning for native-parity work: dial the Liquid Glass key fill
-    // alpha per appearance on real hardware, no rebuilds. `postKeyTintChanged` fires
-    // a Darwin notification so the running keyboard extension re-styles immediately.
-    // Defaults mirror the shipped `KeyboardTheme.glassKeyTint` rest alphas.
-    private static let debugKeyTintOverrideKey = "debug.keyTintOverrideEnabled"
-    private static let debugKeyTintDarkRestKey = "debug.keyTintDarkRest"
-    private static let debugKeyTintLightRestKey = "debug.keyTintLightRest"
-
+    // NOTE: the live key-tint/shadow override system was removed deliberately. Its
+    // prefs persisted in the App Group across reinstalls and silently re-themed the
+    // keyboard (near-white keys in dark mode) long after the tuning session ended.
+    // Tuned values are baked into KeyboardTheme; render code reads no debug prefs.
     static let debugKeyTintDarwinName = "com.nsssayom.obadh.debug.keytint"
-
-    var debugKeyTintOverrideEnabled: Bool {
-        get { defaults.bool(forKey: Self.debugKeyTintOverrideKey) }
-        nonmutating set { defaults.set(newValue, forKey: Self.debugKeyTintOverrideKey) }
-    }
-
-    var debugKeyTintDarkRest: Double {
-        get { defaults.object(forKey: Self.debugKeyTintDarkRestKey) as? Double ?? 0.19 }
-        nonmutating set { defaults.set(newValue, forKey: Self.debugKeyTintDarkRestKey) }
-    }
-
-    var debugKeyTintLightRest: Double {
-        get { defaults.object(forKey: Self.debugKeyTintLightRestKey) as? Double ?? 0.93 }
-        nonmutating set { defaults.set(newValue, forKey: Self.debugKeyTintLightRestKey) }
-    }
-
-    // Same override flag governs this layout lever so one switch reveals all
-    // native-parity tuning. The default mirrors the shipped metric exactly, so turning
-    // the override on with an untouched slider changes nothing. `postKeyTintChanged`
-    // (below) is the single notify that re-reads every value.
-    private static let debugKeyShadowOpacityKey = "debug.keyShadowOpacity"
-
-    /// Rest-state key drop-shadow opacity. Shipped is 0 — native keys are flat, dialed
-    /// in by eye on device; the slider re-adds shadow only for comparison.
-    var debugKeyShadowOpacity: Double {
-        get { defaults.object(forKey: Self.debugKeyShadowOpacityKey) as? Double ?? 0 }
-        nonmutating set { defaults.set(newValue, forKey: Self.debugKeyShadowOpacityKey) }
-    }
 
     // On-keyboard overlay that dumps the presentation context the system hands us
     // (bounds, safe-area insets, window width, nearest rounded-corner ancestor). Lets

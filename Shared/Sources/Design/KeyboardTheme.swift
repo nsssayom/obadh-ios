@@ -56,14 +56,24 @@ struct KeyboardMetrics {
 
 enum KeyboardTheme {
     private static let referencePhoneWidth: CGFloat = 440
-    /// 270 = key block (4×45 + 3×10.67 + 6 bottom ≈ 218) + a 51pt suggestion zone.
-    /// 51 is the native strip zone measured on iOS 26.5 (container edge → q row) and
-    /// matches the presentation the product owner approved on iOS 27 ("native-like").
-    /// The previous 253 carried a 34pt strip probed against the pre-iOS-26 keyboard —
-    /// 17pt short of native, which read as a cramped autocorrect row everywhere.
-    private static let referenceExtensionHeight: CGFloat = 270
-    /// Strip height the key size is derived against, part of the 270 above.
-    private static let referenceSuggestionHeight: CGFloat = 51
+    /// Key block at scale 1: 4×45pt keys + 3×10.67pt row spacing + 6pt bottom inset.
+    /// 45pt keys at 56pt pitch are measured equal to native's on iOS 26.5 (simulator)
+    /// and iOS 27 (device screenshots, Notes).
+    private static let referenceKeyBlockHeight: CGFloat = 4 * 45 + 3 * 10.67 + 6
+    /// The suggestion strip WE draw. In the modern presentation the system paints an
+    /// unpaintable band (~17-19pt) above the extension inside its container, so the
+    /// VISIBLE zone (container edge → q row) = strip + band. Native zone, measured:
+    /// 51.7pt on iOS 26.5 (sim), 60.7pt on iOS 27 (device). The strip is chosen per
+    /// OS so strip + band lands exactly on the native zone.
+    private static var referenceSuggestionHeight: CGFloat {
+        if #available(iOS 27.0, *) {
+            return 41.5
+        }
+        return 34
+    }
+    private static var referenceExtensionHeight: CGFloat {
+        referenceKeyBlockHeight + referenceSuggestionHeight
+    }
     private static let referenceLandscapeHeight: CGFloat = 220
 
     private static let fallbackMetrics = KeyboardMetrics(
@@ -338,32 +348,14 @@ enum KeyboardTheme {
     /// cool tint made ours read cool where native didn't. Light native keys are
     /// near-opaque white (~254), so the light alpha runs high; dark keys stay
     /// visibly translucent (~64).
+    /// The tuned key fill. No debug overrides reach this: a persisted override pref
+    /// once survived reinstalls and silently re-tinted dark mode, so the shipped
+    /// values are the only values, in every build configuration.
     static func glassKeyTint(for traitCollection: UITraitCollection, highlighted: Bool) -> UIColor {
-        let isDark = traitCollection.userInterfaceStyle == .dark
-        #if DEBUG
-        let prefs = KeyboardPreferences()
-        if prefs.debugKeyTintOverrideEnabled {
-            let rest = isDark ? prefs.debugKeyTintDarkRest : prefs.debugKeyTintLightRest
-            let lift = isDark ? 0.21 : 0.05   // pressed-state brightening, above rest
-            return UIColor.white.withAlphaComponent(highlighted ? min(1.0, rest + lift) : rest)
-        }
-        #endif
-        if isDark {
+        if traitCollection.userInterfaceStyle == .dark {
             return UIColor.white.withAlphaComponent(highlighted ? 0.40 : 0.19)
         }
         return UIColor.white.withAlphaComponent(highlighted ? 0.98 : 0.93)
-    }
-
-    /// Rest-state key shadow opacity, honoring the DEBUG live-tuning override. Native
-    /// keys are flat, so this is the lever that removes Obadh's raised rim.
-    static func effectiveKeyShadowOpacity(_ base: Float) -> Float {
-        #if DEBUG
-        let prefs = KeyboardPreferences()
-        if prefs.debugKeyTintOverrideEnabled {
-            return Float(prefs.debugKeyShadowOpacity)
-        }
-        #endif
-        return base
     }
 
 
