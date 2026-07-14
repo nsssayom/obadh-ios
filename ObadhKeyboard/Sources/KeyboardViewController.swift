@@ -80,6 +80,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var keyboardHeightConstraint: NSLayoutConstraint?
     private var viewWillAppearWasCalled = false
     private var lastAppliedMetricSize: CGSize = .zero
+    // Legacy-presentation detection state (see recordPresentationTransient).
+    private var presentationTransients: [CGFloat] = []
+    private var presentationClassified = false
 
     #if DEBUG
     /// On-keyboard overlay dumping the presentation context iOS hands us in the current
@@ -232,11 +235,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let designCompat = Bundle.main.object(forInfoDictionaryKey: "UIDesignRequiresCompatibility") as? Bool ?? false
         let m = currentMetrics
         return String(
-            format: "b %.0f×%.0f  f(%.0f,%.0f)  win %.0f×%.0f  wf(%.0f,%.0f)  scr %.0f×%.0f\nsa L%.0f R%.0f T%.0f B%.0f  ivH %.0f  hCon %.0f/%@  ss %@\nm s%.0f k%.0f r%.1f t%.0f b%.0f  rnd %@  glass %@  compat %@",
+            format: "b %.0f×%.0f  f(%.0f,%.0f)  win %.0f×%.0f  wf(%.0f,%.0f)  scr %.0f×%.0f\nsa L%.0f R%.0f T%.0f B%.0f  ivH %.0f  hCon %.0f/%@  ss %@  lg %@\nm s%.0f k%.0f r%.1f t%.0f b%.0f  rnd %@  glass %@  compat %@",
             b.width, b.height, frame.origin.x, frame.origin.y, winSize.width, winSize.height,
             winFrame.origin.x, winFrame.origin.y, scrW, scrH,
             sa.left, sa.right, sa.top, sa.bottom, ivH,
             keyboardHeightConstraint?.constant ?? 0, hActive ? "on" : "off", selfSizing ? "Y" : "N",
+            KeyboardTheme.legacyPresentation ? "Y" : "N",
             m.suggestionHeight, m.minimumKeyHeight, m.rowSpacing,
             m.keyboardInsets.top, m.keyboardInsets.bottom,
             nearestRoundedAncestorDescription(), KeyboardGlassStyle.current.rawValue,
@@ -285,6 +289,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         viewWillAppearWasCalled = true
+        // Every presentation re-detects the host's container style (the host app
+        // can differ each time we appear).
+        presentationTransients.removeAll()
+        presentationClassified = false
+        if KeyboardTheme.legacyPresentation {
+            KeyboardTheme.legacyPresentation = false
+            metricsCache = nil
+        }
         view.setNeedsUpdateConstraints()
         feedbackController.prepare()
         // Obadh may be returning to a field another keyboard has edited since we last
@@ -322,11 +334,64 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        recordPresentationTransient()
         applyLayoutMetricsIfNeeded()
         updateKeyboardTouchRegions()
         #if DEBUG
         updatePresentationProbe()
         #endif
+    }
+
+    // MARK: Legacy presentation detection
+
+    /// iOS presents third-party keyboards in one of two containers — modern Liquid
+    /// Glass or the legacy style for hosts that haven't adopted the current design —
+    /// with no public API exposing which. The one observable difference is the
+    /// presentation's transient sizing pass: before honoring our height, the system
+    /// lays the view out at a presentation-specific intermediate. Those
+    /// intermediates are class-quantized and disjoint (measured on every current
+    /// width class, iOS 26.5): modern {294, 444, 452} vs legacy {260, 411, 419},
+    /// separated by 33-34pt. Classification is nearest-anchor per screen height
+    /// with a required margin; modern wins ties, unknown screens, and missing
+    /// transients, so a wrong guess can only ever leave the shipped modern look.
+    private static let presentationIntermediates: [CGFloat: (modern: CGFloat, legacy: CGFloat)] = [
+        667: (294, 260),   // SE class (home button)
+        852: (444, 411),   // iPhone 16 class
+        874: (444, 411),   // iPhone 17 Pro class
+        912: (452, 419),   // iPhone Air class
+        932: (452, 419),   // Plus class
+        956: (452, 419),   // Pro Max class
+    ]
+
+    private func recordPresentationTransient() {
+        guard viewWillAppearWasCalled, !presentationClassified else { return }
+        let height = view.bounds.height
+        guard height > 0 else { return }
+        let screenHeight = view.window?.screen.bounds.height ?? UIScreen.main.bounds.height
+        if abs(height - preferredActiveKeyboardHeight) < 1 || presentationTransients.count > 8 {
+            classifyPresentation(screenHeight: screenHeight)
+            return
+        }
+        if height != screenHeight, presentationTransients.last != height {
+            presentationTransients.append(height)
+        }
+    }
+
+    private func classifyPresentation(screenHeight: CGFloat) {
+        presentationClassified = true
+        guard let anchors = Self.presentationIntermediates[screenHeight],
+              let intermediate = presentationTransients.last else {
+            return
+        }
+        let legacyDistance = abs(intermediate - anchors.legacy)
+        let modernDistance = abs(intermediate - anchors.modern)
+        guard legacyDistance + 8 < modernDistance else { return }
+        lifecycleLog.notice("OBADH-LIFECYCLE legacy presentation detected (intermediate \(intermediate, privacy: .public) on screen \(screenHeight, privacy: .public))")
+        KeyboardTheme.legacyPresentation = true
+        metricsCache = nil
+        updateKeyboardHeightConstraintIfReady()
+        applyLayoutMetricsIfNeeded(force: true)
+        refreshKeyboard()
     }
 
     override func textWillChange(_ textInput: UITextInput?) {

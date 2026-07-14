@@ -55,6 +55,15 @@ struct KeyboardMetrics {
 }
 
 enum KeyboardTheme {
+    /// Whether the host presents us in the LEGACY (pre-Liquid-Glass) keyboard
+    /// container. There is no public API for this; the keyboard controller detects
+    /// it from the presentation's transient sizing pass (see
+    /// LegacyPresentationDetector) and sets this before relayout. Main-thread only,
+    /// like every renderer that reads it. Gates both metrics (native legacy zone is
+    /// 53pt with no system band) and the key palette (legacy keys: dark ≈ white
+    /// @0.30 over panel, light = opaque white — both measured).
+    @MainActor static var legacyPresentation = false
+
     private static let referencePhoneWidth: CGFloat = 440
     /// The suggestion strip WE draw. In the modern presentation the system paints an
     /// unpaintable band (~15-18pt) above the extension inside its container, so the
@@ -62,7 +71,13 @@ enum KeyboardTheme {
     /// pixel-run profiles (not edge heuristics): ~50-52pt on iOS 26.5 across
     /// 375..440pt widths and both host presentations, 54pt on iOS 27 (device —
     /// identical in Notes and a plain host). Strip = zone − band per OS.
+    @MainActor
     private static var referenceSuggestionHeight: CGFloat {
+        // Legacy presentation draws no system band, so the strip IS the zone
+        // (native legacy zone: 53pt at every measured width).
+        if legacyPresentation {
+            return 53
+        }
         if #available(iOS 27.0, *) {
             return 36
         }
@@ -108,6 +123,7 @@ enum KeyboardTheme {
         fallbackMetrics
     }
 
+    @MainActor
     static func metrics(for bounds: CGSize, traitCollection: UITraitCollection) -> KeyboardMetrics {
         let isLandscape = bounds.width > bounds.height && traitCollection.verticalSizeClass == .compact
         guard bounds.width > 0, bounds.height > 0 else {
@@ -270,6 +286,7 @@ enum KeyboardTheme {
         )
     }
 
+    @MainActor
     static func preferredKeyboardHeight(
         for screenSize: CGSize,
         traitCollection: UITraitCollection
@@ -353,14 +370,30 @@ enum KeyboardTheme {
     /// cool tint made ours read cool where native didn't. Light native keys are
     /// near-opaque white (~254), so the light alpha runs high; dark keys stay
     /// visibly translucent (~64).
-    /// The tuned key fill. No debug overrides reach this: a persisted override pref
-    /// once survived reinstalls and silently re-tinted dark mode, so the shipped
+    /// The measured key fill. No debug overrides reach this: a persisted override
+    /// pref once survived reinstalls and silently re-tinted dark mode, so the shipped
     /// values are the only values, in every build configuration.
+    ///
+    /// Rest alphas solved from same-backdrop screenshot sampling against native
+    /// (iOS 26.5, modern presentation, mid-gray measurement background):
+    /// dark — native key 78 over panel 44 → white @ (78−44)/(255−44) ≈ 0.16;
+    /// light — native key ~246.5 over panel ~192 → white @ ≈ 0.87.
+    /// Pressed lifts keep the shipped relative feel.
+    @MainActor
     static func glassKeyTint(for traitCollection: UITraitCollection, highlighted: Bool) -> UIColor {
-        if traitCollection.userInterfaceStyle == .dark {
-            return UIColor.white.withAlphaComponent(highlighted ? 0.40 : 0.19)
+        let isDark = traitCollection.userInterfaceStyle == .dark
+        if legacyPresentation {
+            // Measured against legacy native: dark key 129 over panel 74 → white
+            // @ (129−74)/(255−74) ≈ 0.30; light keys are opaque white (255).
+            if isDark {
+                return UIColor.white.withAlphaComponent(highlighted ? 0.51 : 0.30)
+            }
+            return UIColor.white.withAlphaComponent(highlighted ? 0.94 : 1.0)
         }
-        return UIColor.white.withAlphaComponent(highlighted ? 0.98 : 0.93)
+        if isDark {
+            return UIColor.white.withAlphaComponent(highlighted ? 0.37 : 0.16)
+        }
+        return UIColor.white.withAlphaComponent(highlighted ? 0.94 : 0.87)
     }
 
 
