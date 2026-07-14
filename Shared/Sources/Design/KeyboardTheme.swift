@@ -64,6 +64,13 @@ enum KeyboardTheme {
     /// @0.30 over panel, light = opaque white — both measured).
     @MainActor static var legacyPresentation = false
 
+    /// iOS 27 draws its ~17pt container band above the extension on re-presentation
+    /// paths but NOT on cold launches (measured on device: cold zone 35 = strip
+    /// alone; switch-back zone 52 = strip + band). The keyboard controller detects
+    /// the band-less cold path from the presentation's sub-ask sizing intermediate
+    /// and sets this so the strip carries the full native zone itself.
+    @MainActor static var bandlessPresentation = false
+
     private static let referencePhoneWidth: CGFloat = 440
     /// The suggestion strip WE draw. In the modern presentation the system paints an
     /// unpaintable band (~15-18pt) above the extension inside its container, so the
@@ -79,9 +86,12 @@ enum KeyboardTheme {
             return 53
         }
         if #available(iOS 27.0, *) {
-            return 36
+            // Banded presentations get 36 (zone 54 = 36 + ~18 system band); the
+            // band-less cold path draws the whole 54pt zone itself.
+            return bandlessPresentation ? 54 : 36
         }
-        return 34
+        // Same logic against the iOS 26 native zone of ~51.
+        return bandlessPresentation ? 51 : 34
     }
     private static let referenceLandscapeHeight: CGFloat = 220
 
