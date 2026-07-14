@@ -70,20 +70,29 @@ final class KeyboardComposer {
     /// the lexicon) and is NOT one the user has established; and a confident correction
     /// that differs from it exists. Otherwise the shown word stands and typing is
     /// unchanged.
+    /// The AutoInsertGate decision, applied to the top detailed correction that
+    /// differs from what the user sees. Provenance-driven (channel, cost,
+    /// frequency, baseline ratio) — see AutoInsertGate for the policy.
     func resolveAutocorrectTarget(
         autoInsertEnabled: Bool,
-        deterministicIsLexiconWord: Bool,
+        baselineFrequency: UInt64,
+        detailedCorrections: [DetailedCorrection],
         isProtectedWord: (String) -> Bool
     ) {
         autocorrectTarget = nil
         guard autoInsertEnabled, hasActiveInput else { return }
         guard let shown = compositionSuggestions.first, shown.source == .deterministic else { return }
-        guard !deterministicIsLexiconWord, !isProtectedWord(shown.text) else { return }
-        guard
-            let correction = compositionSuggestions.first(where: { $0.source == .autocorrect })?.text,
-            correction != shown.text
-        else { return }
-        autocorrectTarget = correction
+        guard !isProtectedWord(shown.text) else { return }
+        guard let top = detailedCorrections.first(where: { $0.text != shown.text }) else { return }
+        guard AutoInsertGate.shouldAutoInsert(
+            baselineFrequency: baselineFrequency,
+            correction: top,
+            isProtected: isProtectedWord(top.text)
+        ) else { return }
+        // The bar must show what space will insert; only fire when the gated
+        // correction is actually offered.
+        guard compositionSuggestions.contains(where: { $0.text == top.text }) else { return }
+        autocorrectTarget = top.text
     }
 
     /// Up to 3 emoji for the current word (best first), rendered by the bar in its
