@@ -61,13 +61,14 @@ enum KeyboardTheme {
     /// and iOS 27 (device screenshots, Notes).
     private static let referenceKeyBlockHeight: CGFloat = 4 * 45 + 3 * 10.67 + 6
     /// The suggestion strip WE draw. In the modern presentation the system paints an
-    /// unpaintable band (~17-19pt) above the extension inside its container, so the
-    /// VISIBLE zone (container edge → q row) = strip + band. Native zone, measured:
-    /// 51.7pt on iOS 26.5 (sim), 60.7pt on iOS 27 (device). The strip is chosen per
-    /// OS so strip + band lands exactly on the native zone.
+    /// unpaintable band (~18pt) above the extension inside its container, so the
+    /// VISIBLE zone (container edge → q row) = strip + band. Native zone, measured by
+    /// pixel-run profiles (not edge heuristics): 51.7pt on iOS 26.5 (sim), 54pt on
+    /// iOS 27 (device — identical in Notes and a plain host, so the zone is uniform
+    /// across hosts). Strip = zone − band per OS.
     private static var referenceSuggestionHeight: CGFloat {
         if #available(iOS 27.0, *) {
-            return 41.5
+            return 36
         }
         return 34
     }

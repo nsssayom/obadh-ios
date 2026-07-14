@@ -86,6 +86,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     /// host app. Toggle from the app's debug panel; capture in Messenger vs Safari vs a
     /// legacy app to learn how the system frames the extension, then adapt to match.
     private let presentationProbeLabel = UILabel()
+    /// Fiducial hairlines at the view's top edge and the strip's bottom, so any
+    /// screenshot self-certifies our geometry (band = container edge → top hairline;
+    /// strip = distance between the two lines) with no detector heuristics.
+    private let probeTopHairline = UIView()
+    private let probeStripHairline = UIView()
     private var lastProbeString = ""
     #endif
 
@@ -172,14 +177,32 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             presentationProbeLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 2),
             presentationProbeLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4)
         ])
+        for line in [probeTopHairline, probeStripHairline] {
+            line.backgroundColor = .systemYellow
+            line.isUserInteractionEnabled = false
+            line.isHidden = true
+            view.addSubview(line)
+        }
     }
 
     private func updatePresentationProbe() {
         let enabled = keyboardPreferences.debugPresentationProbeEnabled
         presentationProbeLabel.isHidden = !enabled
+        probeTopHairline.isHidden = !enabled
+        probeStripHairline.isHidden = !enabled
         guard enabled else { return }
         let text = presentationProbeString()
         presentationProbeLabel.text = text
+        let hairline = 1 / (view.window?.screen.scale ?? 3)
+        probeTopHairline.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: hairline)
+        probeStripHairline.frame = CGRect(
+            x: 0,
+            y: currentMetrics.suggestionHeight,
+            width: view.bounds.width,
+            height: hairline
+        )
+        view.bringSubviewToFront(probeTopHairline)
+        view.bringSubviewToFront(probeStripHairline)
         view.bringSubviewToFront(presentationProbeLabel)
         if text != lastProbeString {
             lastProbeString = text
