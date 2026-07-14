@@ -300,9 +300,10 @@ private final class SuggestionSlotControl: UIControl {
         label.textColor = suggestion == nil ? .clear : KeyboardTheme.secondaryTextColor(for: traitCollection)
         label.font = font(for: suggestion, metrics: metrics)
         label.transform = CGAffineTransform(translationX: 0, y: -min(7, max(4, metrics.suggestionHeight * 0.20)))
-        // The deterministic word is normally informational (not tappable). When it's
-        // quoted, it becomes the "keep my spelling" button.
-        isSelectableSuggestion = suggestion.map { $0.source != .deterministic || isQuoted } ?? false
+        // Native-style: every shown slot is tappable. The deterministic literal is the
+        // "keep my spelling" button (quoted when it isn't a dictionary word); the rest
+        // are corrections / next-word picks.
+        isSelectableSuggestion = suggestion != nil
         isEnabled = isSelectableSuggestion
         accessibilityLabel = suggestion?.text
         accessibilityTraits = isSelectableSuggestion ? .button : .staticText
