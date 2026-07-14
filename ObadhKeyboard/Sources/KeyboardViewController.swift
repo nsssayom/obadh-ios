@@ -88,6 +88,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     // Legacy-presentation detection state (see recordPresentationTransient).
     private var presentationTransients: [CGFloat] = []
     private var presentationClassified = false
+    // Presentation-path discrimination (iOS 27 adds its container band only on
+    // some paths): counters surfaced by the probe overlay to find the signal.
+    private var presentationCount = 0
+    private let processStart = CACurrentMediaTime()
 
     #if DEBUG
     /// On-keyboard overlay dumping the presentation context iOS hands us in the current
@@ -250,6 +254,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             m.keyboardInsets.top, m.keyboardInsets.bottom,
             nearestRoundedAncestorDescription(), KeyboardGlassStyle.current.rawValue,
             designCompat ? "Y" : "N"
+        ) + String(
+            format: "\ntr %@  n%d  up%.1f",
+            presentationTransients.map { String(Int($0)) }.joined(separator: "›"),
+            presentationCount,
+            CACurrentMediaTime() - processStart
         )
     }
 
@@ -296,10 +305,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         viewWillAppearWasCalled = true
         // Every presentation re-detects the host's container style (the host app
         // can differ each time we appear).
+        presentationCount += 1
         presentationTransients.removeAll()
         presentationClassified = false
-        if KeyboardTheme.legacyPresentation {
+        if KeyboardTheme.legacyPresentation || KeyboardTheme.bandlessPresentation {
             KeyboardTheme.legacyPresentation = false
+            KeyboardTheme.bandlessPresentation = false
             metricsCache = nil
         }
         view.setNeedsUpdateConstraints()
@@ -389,7 +400,24 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // iOS 27 device: native zone ~51pt = modern). The anchors below are
         // iOS 26 measurements and misfire against iOS 27 host layouts (Messenger
         // classified legacy -> 53pt strip + 17pt band = 70pt zone, 18pt taller
-        // than native), so the detector is iOS 26 only.
+        // than native), so the legacy detector is iOS 26 only.
+        // Band-less cold-launch detection, both OS generations: cold presents pass
+        // through a sizing intermediate BELOW our ask (device-measured on iOS 27:
+        // 224 with ask 255) and get no system band; re-presentations settle at the
+        // ask directly and get the ~17pt band. The signature never occurs in the
+        // iOS 26 simulator corpus (every measured intermediate sits ABOVE the ask),
+        // so this cannot misfire on known-banded paths; if an iOS 26 device cold
+        // start shares the signature, it gets the same correction.
+        let ask = preferredActiveKeyboardHeight
+        if presentationTransients.contains(where: { $0 < ask - 10 }) {
+            lifecycleLog.notice("OBADH-LIFECYCLE bandless cold presentation detected (transients \(self.presentationTransients.map { Int($0) }.description, privacy: .public))")
+            KeyboardTheme.bandlessPresentation = true
+            metricsCache = nil
+            updateKeyboardHeightConstraintIfReady()
+            applyLayoutMetricsIfNeeded(force: true)
+            refreshKeyboard()
+            return
+        }
         if #available(iOS 27.0, *) {
             return
         }
@@ -1617,8 +1645,14 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
             // and finalizes the word.
             let keepsLiteral = suggestion.source == .deterministic
             commitMarkedSuggestion(suggestion.text)
+            // Native-style: accepting a candidate finishes the word, so the
+            // separator comes with it (quoted "keep my spelling" included).
+            performTextUpdate {
+                textDocumentProxy.insertText(" ")
+            }
             composer.clear()
             observeCommittedToken(suggestion.text, keep: keepsLiteral)
+            observeAutosuggestBoundary(" ")
         } else if let cursorWord = activeCursorWord {
             // A correction for the word the cursor sits in: replace that word in place.
             replaceCursorWord(cursorWord, with: suggestion.text)
@@ -1645,15 +1679,16 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
         }
     }
 
-    /// Tapping the inline emoji finalizes the word being composed and appends the
-    /// emoji (so "ভালোবাসা" + tap → "ভালোবাসা❤️"), keeping the word rather than
-    /// replacing it. Also feeds the emoji panel's recents.
+    /// Tapping the inline emoji REPLACES the word being composed — the typed text
+    /// was the emoji's query (native-style: "bhalobasha" + tap → ❤️, not
+    /// "ভালোবাসা❤️"). The discarded query is not committed to autosuggest. Also
+    /// feeds the emoji panel's recents.
     private func acceptEmojiSuggestion(_ emoji: String) {
         if composer.hasActiveInput {
-            let word = composer.preview
-            commitMarkedSuggestion(word)
+            performTextUpdate {
+                compositionController.clearComposition(in: documentEditor)
+            }
             composer.clear()
-            observeCommittedToken(word)
         }
         performTextUpdate {
             textDocumentProxy.insertText(emoji)
@@ -1778,6 +1813,16 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             let before = textDocumentProxy.documentContextBeforeInput ?? ""
             let after = textDocumentProxy.documentContextAfterInput ?? ""
             lifecycleLog.notice("OBADH-CONTEXT before=[\(before, privacy: .public)] after=[\(after, privacy: .public)]")
+        case "pick":
+            // Tap a suggestion slot through the real delegate path.
+            if let argument, let index = Int(argument),
+               composer.activeSuggestions.indices.contains(index) {
+                suggestionBar(self.suggestionBar, didSelect: composer.activeSuggestions[index])
+            }
+        case "pickemoji":
+            if let first = resolvedEmojiSuggestions().first {
+                suggestionBar(self.suggestionBar, didSelectEmoji: first.display)
+            }
         case "preview":
             // Show the key preview + pressed state programmatically so the parity
             // suite can capture the popover (a real touch cannot be scripted).
