@@ -23,6 +23,12 @@ final class KeyboardTestViewController: UIViewController {
     private var startsWithGradient: Bool {
         ProcessInfo.processInfo.arguments.contains("--gradient-bg")
     }
+    /// Measurement backdrop: a flat mid-gray distinct from every keyboard material in
+    /// BOTH appearances, so screenshot tooling can find the container edge without
+    /// ambiguity (the normal solid background ≈ the panel color in dark mode).
+    private var startsWithMeasureBackground: Bool {
+        ProcessInfo.processInfo.arguments.contains("--measure-bg")
+    }
 
     #if DEBUG
     // DEBUG-only on-device tuning: dial haptic feel + flip the test background,
@@ -47,7 +53,9 @@ final class KeyboardTestViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Keyboard Test"
-        view.backgroundColor = .systemGroupedBackground
+        view.backgroundColor = startsWithMeasureBackground
+            ? UIColor(white: 0.5, alpha: 1)   // appearance-independent mid-gray
+            : .systemGroupedBackground
         configureGradient()
         configureTextView()
         configureHelperLabel()

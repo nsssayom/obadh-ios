@@ -56,24 +56,17 @@ struct KeyboardMetrics {
 
 enum KeyboardTheme {
     private static let referencePhoneWidth: CGFloat = 440
-    /// Key block at scale 1: 4×45pt keys + 3×10.67pt row spacing + 6pt bottom inset.
-    /// 45pt keys at 56pt pitch are measured equal to native's on iOS 26.5 (simulator)
-    /// and iOS 27 (device screenshots, Notes).
-    private static let referenceKeyBlockHeight: CGFloat = 4 * 45 + 3 * 10.67 + 6
     /// The suggestion strip WE draw. In the modern presentation the system paints an
-    /// unpaintable band (~18pt) above the extension inside its container, so the
+    /// unpaintable band (~15-18pt) above the extension inside its container, so the
     /// VISIBLE zone (container edge → q row) = strip + band. Native zone, measured by
-    /// pixel-run profiles (not edge heuristics): 51.7pt on iOS 26.5 (sim), 54pt on
-    /// iOS 27 (device — identical in Notes and a plain host, so the zone is uniform
-    /// across hosts). Strip = zone − band per OS.
+    /// pixel-run profiles (not edge heuristics): ~50-52pt on iOS 26.5 across
+    /// 375..440pt widths and both host presentations, 54pt on iOS 27 (device —
+    /// identical in Notes and a plain host). Strip = zone − band per OS.
     private static var referenceSuggestionHeight: CGFloat {
         if #available(iOS 27.0, *) {
             return 36
         }
         return 34
-    }
-    private static var referenceExtensionHeight: CGFloat {
-        referenceKeyBlockHeight + referenceSuggestionHeight
     }
     private static let referenceLandscapeHeight: CGFloat = 220
 
@@ -215,18 +208,23 @@ enum KeyboardTheme {
 
         let scale = clamp(bounds.width / referencePhoneWidth, min: 0.88, max: 1.0)
         let keySpacing = clamp(6 * scale, min: 5.25, max: 6)
-        let rowSpacing = clamp(10.67 * scale, min: 9.4, max: 10.67)
-        // Portrait: keys keep the native-parity size derived from the reference
-        // geometry (45pt at scale 1 — measured equal to native's); the suggestion
-        // strip takes the remainder of the actual bounds, so if a host hands us a
-        // height other than the one we ask for, the strip flexes instead of the keys
-        // drifting off native's rows.
+        // Portrait key geometry is CLASS-QUANTIZED, not proportional to width —
+        // measured against native across 375/393/402/420/430/440pt (iOS 26.5 sim,
+        // modern + legacy hosts): pitch 54 / key 43 below ~410pt, pitch 56 / key 45
+        // at 410pt and up, row gap 11 in both classes. The previous width/440
+        // scaling shrank keys ~9% on Pro-class widths and sat the rows ~9pt below
+        // native's (worst on SE-class, 18.5pt).
+        let compactWidthClass = bounds.width < 410
+        let keyHeight: CGFloat = compactWidthClass ? 43 : 45
+        let rowSpacing: CGFloat = 11
         let topInset: CGFloat = 0
-        let bottomInset = 6 * scale
-        let keyHeight = floor(
-            (referenceExtensionHeight * scale - referenceSuggestionHeight * scale
-                - topInset - bottomInset - 3 * rowSpacing) / 4
-        )
+        // Verified: with 6, class-B q-rows land exactly on native's (440: 663=663).
+        // Class A solves to 3 from the measured chain (q = screen − dock − keyblock
+        // − bottom + strip; native q 591 @ 402pt) — re-verified on-sim.
+        let bottomInset: CGFloat = compactWidthClass ? 3 : 6
+        // The strip takes the remainder of the actual bounds, so if a host hands us
+        // a height other than the one we ask for, the strip flexes instead of the
+        // keys drifting off native's rows.
         let suggestionHeight = clamp(
             bounds.height - topInset - bottomInset - 3 * rowSpacing - 4 * keyHeight,
             min: 24,
@@ -287,9 +285,15 @@ enum KeyboardTheme {
             return clamp(shorterSide * 0.50, min: 196, max: referenceLandscapeHeight)
         }
 
-        let scaledHeight = referenceExtensionHeight * clamp(shorterSide / referencePhoneWidth, min: 0.88, max: 1.0)
+        // Class-quantized like the metrics: key 43 / pitch 54 / bottom 3 below
+        // ~410pt, key 45 / pitch 56 / bottom 6 above (native-measured; see
+        // metrics(for:)).
+        let compact = shorterSide < 410
+        let keyHeight: CGFloat = compact ? 43 : 45
+        let bottomInset: CGFloat = compact ? 3 : 6
+        let classHeight = referenceSuggestionHeight + 4 * keyHeight + 3 * 11 + bottomInset
         let minimumHeight = shorterSide >= 600 ? min(longerSide * 0.20, 320) : 199
-        return clamp(scaledHeight, min: minimumHeight, max: max(minimumHeight, referenceExtensionHeight))
+        return clamp(classHeight, min: minimumHeight, max: max(minimumHeight, classHeight))
     }
 
     static func preferredEmojiKeyboardHeight(
