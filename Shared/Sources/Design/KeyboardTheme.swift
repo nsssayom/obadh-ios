@@ -55,27 +55,53 @@ struct KeyboardMetrics {
 }
 
 enum KeyboardTheme {
+    /// Whether the host presents us in the LEGACY (pre-Liquid-Glass) keyboard
+    /// container. There is no public API for this; the keyboard controller detects
+    /// it from the presentation's transient sizing pass (see
+    /// LegacyPresentationDetector) and sets this before relayout. Main-thread only,
+    /// like every renderer that reads it. Gates both metrics (native legacy zone is
+    /// 53pt with no system band) and the key palette (legacy keys: dark ≈ white
+    /// @0.30 over panel, light = opaque white — both measured).
+    @MainActor static var legacyPresentation = false
+
     private static let referencePhoneWidth: CGFloat = 440
-    private static let referenceExtensionHeight: CGFloat = 253
+    /// The suggestion strip WE draw. In the modern presentation the system paints an
+    /// unpaintable band (~15-18pt) above the extension inside its container, so the
+    /// VISIBLE zone (container edge → q row) = strip + band. Native zone, measured by
+    /// pixel-run profiles (not edge heuristics): ~50-52pt on iOS 26.5 across
+    /// 375..440pt widths and both host presentations, 54pt on iOS 27 (device —
+    /// identical in Notes and a plain host). Strip = zone − band per OS.
+    @MainActor
+    private static var referenceSuggestionHeight: CGFloat {
+        // Legacy presentation draws no system band, so the strip IS the zone
+        // (native legacy zone: 53pt at every measured width).
+        if legacyPresentation {
+            return 53
+        }
+        if #available(iOS 27.0, *) {
+            return 36
+        }
+        return 34
+    }
     private static let referenceLandscapeHeight: CGFloat = 220
 
     private static let fallbackMetrics = KeyboardMetrics(
         keyCornerRadius: 6,
-        keyShadowOpacity: 0.50,
+        keyShadowOpacity: 0,
         keyShadowRadius: 0,
         keyShadowOffset: CGSize(width: 0, height: 0.5),
         rowSpacing: 10.67,
         keySpacing: 6,
         rowTouchExtension: 8,
         keyTouchExtension: 10,
-        suggestionHeight: 34,
+        suggestionHeight: 51,
         suggestionContentTopInset: 0,
         suggestionContentBottomInset: 0,
         minimumKeyHeight: 45,
         keyPreviewHeight: 77,
         keyPreviewMinimumWidth: 56,
         keyPreviewHorizontalOutset: 16,
-        keyPreviewStemHeight: 13,
+        keyPreviewStemHeight: 0,
         keyPreviewStemWidth: 24,
         keyPreviewCornerRadius: 10,
         keyPreviewShadowOpacity: 0.32,
@@ -97,6 +123,7 @@ enum KeyboardTheme {
         fallbackMetrics
     }
 
+    @MainActor
     static func metrics(for bounds: CGSize, traitCollection: UITraitCollection) -> KeyboardMetrics {
         let isLandscape = bounds.width > bounds.height && traitCollection.verticalSizeClass == .compact
         guard bounds.width > 0, bounds.height > 0 else {
@@ -108,7 +135,7 @@ enum KeyboardTheme {
                 let scale = clamp(bounds.height / 320, min: 0.92, max: 1.0)
                 return KeyboardMetrics(
                     keyCornerRadius: 6,
-                    keyShadowOpacity: 0.50,
+                    keyShadowOpacity: 0,
                     keyShadowRadius: 0,
                     keyShadowOffset: CGSize(width: 0, height: 0.5),
                     rowSpacing: 10 * scale,
@@ -122,7 +149,7 @@ enum KeyboardTheme {
                     keyPreviewHeight: 78 * scale,
                     keyPreviewMinimumWidth: 58 * scale,
                     keyPreviewHorizontalOutset: 16 * scale,
-                    keyPreviewStemHeight: 13 * scale,
+                    keyPreviewStemHeight: 0,
                     keyPreviewStemWidth: 24 * scale,
                     keyPreviewCornerRadius: 10 * scale,
                     keyPreviewShadowOpacity: 0.32,
@@ -157,7 +184,7 @@ enum KeyboardTheme {
             )
             return KeyboardMetrics(
                 keyCornerRadius: 5.5,
-                keyShadowOpacity: 0.50,
+                keyShadowOpacity: 0,
                 keyShadowRadius: 0,
                 keyShadowOffset: CGSize(width: 0, height: 0.5),
                 rowSpacing: rowSpacing,
@@ -197,22 +224,31 @@ enum KeyboardTheme {
 
         let scale = clamp(bounds.width / referencePhoneWidth, min: 0.88, max: 1.0)
         let keySpacing = clamp(6 * scale, min: 5.25, max: 6)
-        let rowSpacing = clamp(10.67 * scale, min: 9.4, max: 10.67)
-        let suggestionHeight = 34 * scale
+        // Portrait key geometry is CLASS-QUANTIZED, not proportional to width —
+        // measured against native across 375/393/402/420/430/440pt (iOS 26.5 sim,
+        // modern + legacy hosts): pitch 54 / key 43 below ~410pt, pitch 56 / key 45
+        // at 410pt and up, row gap 11 in both classes. The previous width/440
+        // scaling shrank keys ~9% on Pro-class widths and sat the rows ~9pt below
+        // native's (worst on SE-class, 18.5pt).
+        let compactWidthClass = bounds.width < 410
+        let keyHeight: CGFloat = compactWidthClass ? 43 : 45
+        let rowSpacing: CGFloat = 11
         let topInset: CGFloat = 0
-        let bottomInset = 6 * scale
-        let keyHeight = floor(
-            (
-                referenceExtensionHeight * scale
-                    - suggestionHeight
-                    - topInset
-                    - bottomInset
-                    - 3 * rowSpacing
-            ) / 4
+        // Verified: with 6, class-B q-rows land exactly on native's (440: 663=663).
+        // Class A solves to 3 from the measured chain (q = screen − dock − keyblock
+        // − bottom + strip; native q 591 @ 402pt) — re-verified on-sim.
+        let bottomInset: CGFloat = compactWidthClass ? 3 : 6
+        // The strip takes the remainder of the actual bounds, so if a host hands us
+        // a height other than the one we ask for, the strip flexes instead of the
+        // keys drifting off native's rows.
+        let suggestionHeight = clamp(
+            bounds.height - topInset - bottomInset - 3 * rowSpacing - 4 * keyHeight,
+            min: 24,
+            max: 96
         )
         return KeyboardMetrics(
             keyCornerRadius: clamp(6 * scale, min: 5, max: 6),
-            keyShadowOpacity: 0.50,
+            keyShadowOpacity: 0,
             keyShadowRadius: 0,
             keyShadowOffset: CGSize(width: 0, height: 0.5),
             rowSpacing: rowSpacing,
@@ -226,7 +262,7 @@ enum KeyboardTheme {
             keyPreviewHeight: 77 * scale,
             keyPreviewMinimumWidth: 56 * scale,
             keyPreviewHorizontalOutset: 16 * scale,
-            keyPreviewStemHeight: 13 * scale,
+            keyPreviewStemHeight: 0,
             keyPreviewStemWidth: 24 * scale,
             keyPreviewCornerRadius: 10 * scale,
             keyPreviewShadowOpacity: 0.32,
@@ -250,6 +286,7 @@ enum KeyboardTheme {
         )
     }
 
+    @MainActor
     static func preferredKeyboardHeight(
         for screenSize: CGSize,
         traitCollection: UITraitCollection
@@ -265,9 +302,15 @@ enum KeyboardTheme {
             return clamp(shorterSide * 0.50, min: 196, max: referenceLandscapeHeight)
         }
 
-        let scaledHeight = referenceExtensionHeight * clamp(shorterSide / referencePhoneWidth, min: 0.88, max: 1.0)
+        // Class-quantized like the metrics: key 43 / pitch 54 / bottom 3 below
+        // ~410pt, key 45 / pitch 56 / bottom 6 above (native-measured; see
+        // metrics(for:)).
+        let compact = shorterSide < 410
+        let keyHeight: CGFloat = compact ? 43 : 45
+        let bottomInset: CGFloat = compact ? 3 : 6
+        let classHeight = referenceSuggestionHeight + 4 * keyHeight + 3 * 11 + bottomInset
         let minimumHeight = shorterSide >= 600 ? min(longerSide * 0.20, 320) : 199
-        return clamp(scaledHeight, min: minimumHeight, max: max(minimumHeight, referenceExtensionHeight))
+        return clamp(classHeight, min: minimumHeight, max: max(minimumHeight, classHeight))
     }
 
     static func preferredEmojiKeyboardHeight(
@@ -319,12 +362,40 @@ enum KeyboardTheme {
     /// brightens (mirroring the native key's touch-down lift). Unified for
     /// character and utility keys to match the current design, where
     /// `utilityKeyColor == primaryKeyColor`.
+    ///
+    /// Alphas are calibrated to Apple's own keys sampled on iOS 27 (native vs
+    /// Obadh, dark/light × solid/gradient hosts). A neutral white tint, not a cool
+    /// one: native's cool cast in some hosts comes from the backdrop refracting
+    /// through the glass, so over a neutral backdrop native keys are neutral — a
+    /// cool tint made ours read cool where native didn't. Light native keys are
+    /// near-opaque white (~254), so the light alpha runs high; dark keys stay
+    /// visibly translucent (~64).
+    /// The measured key fill. No debug overrides reach this: a persisted override
+    /// pref once survived reinstalls and silently re-tinted dark mode, so the shipped
+    /// values are the only values, in every build configuration.
+    ///
+    /// Rest alphas solved from same-backdrop screenshot sampling against native
+    /// (iOS 26.5, modern presentation, mid-gray measurement background):
+    /// dark — native key 78 over panel 44 → white @ (78−44)/(255−44) ≈ 0.16;
+    /// light — native key ~246.5 over panel ~192 → white @ ≈ 0.87.
+    /// Pressed lifts keep the shipped relative feel.
+    @MainActor
     static func glassKeyTint(for traitCollection: UITraitCollection, highlighted: Bool) -> UIColor {
-        if traitCollection.userInterfaceStyle == .dark {
-            return UIColor.white.withAlphaComponent(highlighted ? 0.28 : 0.10)
+        let isDark = traitCollection.userInterfaceStyle == .dark
+        if legacyPresentation {
+            // Measured against legacy native: dark key 129 over panel 74 → white
+            // @ (129−74)/(255−74) ≈ 0.30; light keys are opaque white (255).
+            if isDark {
+                return UIColor.white.withAlphaComponent(highlighted ? 0.51 : 0.30)
+            }
+            return UIColor.white.withAlphaComponent(highlighted ? 0.94 : 1.0)
         }
-        return UIColor.white.withAlphaComponent(highlighted ? 0.85 : 0.55)
+        if isDark {
+            return UIColor.white.withAlphaComponent(highlighted ? 0.37 : 0.16)
+        }
+        return UIColor.white.withAlphaComponent(highlighted ? 0.94 : 0.87)
     }
+
 
     static func keyPreviewColor(for traitCollection: UITraitCollection) -> UIColor {
         if traitCollection.userInterfaceStyle == .dark {

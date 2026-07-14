@@ -101,10 +101,15 @@ def key_row_centers_pt(img: Image.Image) -> list[float]:
 # ---------------------------------------------------------------------------
 # Selection (no mouse): keyboard-daemon preferences.
 # ---------------------------------------------------------------------------
-def cmd_select_obadh(udid: str) -> None:
+def cmd_select_obadh(udid: str, extra_launch_args: list[str] | None = None) -> None:
     """Make Obadh the presented keyboard with NO mouse: set it as the last-used
     ASCII/NonASCII keyboard while the daemon is live, then relaunch the harness.
-    (Cold boot re-normalizes to a system keyboard, so this must run post-boot.)"""
+    (Cold boot re-normalizes to a system keyboard, so this must run post-boot.)
+
+    Extra CLI words after `select-obadh` replace the default `--gradient-bg`
+    launch argument — e.g. `select-obadh --solid` launches on the solid
+    background, which measurement scripts prefer (a uniform backdrop behind the
+    translucent keyboard material)."""
     prefs = "com.apple.keyboard.preferences"
     subprocess.run(["xcrun", "simctl", "spawn", udid, "defaults", "write", prefs,
                     "KeyboardLastUsed", "-string", OBADH_KB], check=False)
@@ -113,8 +118,9 @@ def cmd_select_obadh(udid: str) -> None:
                         "KeyboardLastUsedForLanguage", "-dict-add", field, OBADH_KB], check=False)
     subprocess.run(["xcrun", "simctl", "terminate", udid, OBADH_APP], capture_output=True, check=False)
     time.sleep(1)
+    launch_args = extra_launch_args if extra_launch_args else ["--gradient-bg"]
     subprocess.run(["xcrun", "simctl", "launch", udid, OBADH_APP,
-                    "--keyboard-test", "--gradient-bg"], capture_output=True, check=False)
+                    "--keyboard-test", *launch_args], capture_output=True, check=False)
     time.sleep(3)
     print("obadh" if obadh_appeared_recently(udid, 8) else "select-obadh: not confirmed")
 
@@ -177,7 +183,7 @@ def main() -> int:
     elif cmd == "active":
         print("obadh" if obadh_appeared_recently(udid) else "system/other (or idle)")
     elif cmd == "select-obadh":
-        cmd_select_obadh(udid)
+        cmd_select_obadh(udid, sys.argv[2:] or None)
     elif cmd == "debug":
         cmd_debug(udid, sys.argv[2] if len(sys.argv) > 2 else "dump")
     elif cmd == "shot":

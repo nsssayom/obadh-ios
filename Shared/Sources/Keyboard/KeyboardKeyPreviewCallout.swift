@@ -76,6 +76,10 @@ final class KeyboardKeyPreviewCallout: UIView {
             cornerRadius: cornerRadius
         )
 
+        // The native key preview is a plain rounded rectangle (verified on iOS 27
+        // device screenshots); the stem only renders if a metrics variant asks.
+        guard stemHeight > 0 else { return path }
+
         let stemWidth = min(metrics.keyPreviewStemWidth, rect.width * 0.42)
         let stemTopInset: CGFloat = min(8, bodyRect.width * 0.12)
         let centerX = rect.midX

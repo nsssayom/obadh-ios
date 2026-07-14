@@ -206,9 +206,10 @@ final class KeyboardKeyButton: UIButton {
                     highlighted: self.isHighlighted
                 )
             }
+            let restShadow = self.currentMetrics.keyShadowOpacity
             self.layer.shadowOpacity = self.isHighlighted
-                ? max(0.25, self.currentMetrics.keyShadowOpacity - 0.12)
-                : self.currentMetrics.keyShadowOpacity
+                ? max(0, restShadow - 0.12)
+                : restShadow
             self.transform = self.isHighlighted
                 ? CGAffineTransform(scaleX: 0.985, y: 0.985)
                 : .identity

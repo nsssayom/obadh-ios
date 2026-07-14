@@ -96,5 +96,32 @@ struct KeyboardPreferences {
         get { defaults.object(forKey: Self.debugHapticSharpnessKey) as? Double ?? 0.9 }
         nonmutating set { defaults.set(newValue, forKey: Self.debugHapticSharpnessKey) }
     }
+
+    // NOTE: the live key-tint/shadow override system was removed deliberately. Its
+    // prefs persisted in the App Group across reinstalls and silently re-themed the
+    // keyboard (near-white keys in dark mode) long after the tuning session ended.
+    // Tuned values are baked into KeyboardTheme; render code reads no debug prefs.
+    static let debugKeyTintDarwinName = "com.nsssayom.obadh.debug.keytint"
+
+    // On-keyboard overlay that dumps the presentation context the system hands us
+    // (bounds, safe-area insets, window width, nearest rounded-corner ancestor). Lets
+    // us read how iOS 26/27 frames the extension in different host apps (Messenger vs
+    // Safari vs a legacy app) without a Mac log stream, then adapt to match.
+    private static let debugPresentationProbeKey = "debug.presentationProbeEnabled"
+
+    var debugPresentationProbeEnabled: Bool {
+        get { defaults.bool(forKey: Self.debugPresentationProbeKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.debugPresentationProbeKey) }
+    }
+
+    /// Fire a cross-process Darwin notification so the running keyboard re-reads the
+    /// tint and re-styles its keys immediately (the extension is a separate process).
+    static func postKeyTintChanged() {
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName(debugKeyTintDarwinName as CFString),
+            nil, nil, true
+        )
+    }
     #endif
 }

@@ -36,7 +36,15 @@ final class SuggestionBarView: UIView {
     private var contentBottomConstraint: NSLayoutConstraint?
     private var firstSeparatorCenterYConstraint: NSLayoutConstraint?
     private var secondSeparatorCenterYConstraint: NSLayoutConstraint?
+    private var firstSeparatorHeightConstraint: NSLayoutConstraint?
+    private var secondSeparatorHeightConstraint: NSLayoutConstraint?
     private var metrics = KeyboardTheme.defaultMetrics
+
+    /// Separator height: proportional on short strips (the shipped legacy look) but
+    /// capped at native's ~27pt so taller adaptive strips don't grow giant dividers.
+    private func separatorHeight(for metrics: KeyboardMetrics) -> CGFloat {
+        min(27, metrics.suggestionHeight * 0.58)
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -101,6 +109,8 @@ final class SuggestionBarView: UIView {
         contentBottomConstraint?.constant = -metrics.suggestionContentBottomInset
         firstSeparatorCenterYConstraint?.constant = contentVerticalOffset(for: metrics)
         secondSeparatorCenterYConstraint?.constant = contentVerticalOffset(for: metrics)
+        firstSeparatorHeightConstraint?.constant = separatorHeight(for: metrics)
+        secondSeparatorHeightConstraint?.constant = separatorHeight(for: metrics)
         update(suggestions: suggestions, emojis: emojis, quotedText: quotedText)
     }
 
@@ -159,6 +169,15 @@ final class SuggestionBarView: UIView {
         self.firstSeparatorCenterYConstraint = firstSeparatorCenterYConstraint
         self.secondSeparatorCenterYConstraint = secondSeparatorCenterYConstraint
 
+        let firstSeparatorHeightConstraint = firstSeparator.heightAnchor.constraint(
+            equalToConstant: separatorHeight(for: metrics)
+        )
+        let secondSeparatorHeightConstraint = secondSeparator.heightAnchor.constraint(
+            equalToConstant: separatorHeight(for: metrics)
+        )
+        self.firstSeparatorHeightConstraint = firstSeparatorHeightConstraint
+        self.secondSeparatorHeightConstraint = secondSeparatorHeightConstraint
+
         NSLayoutConstraint.activate([
             stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
             stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -181,8 +200,8 @@ final class SuggestionBarView: UIView {
             ),
             firstSeparatorCenterYConstraint,
             secondSeparatorCenterYConstraint,
-            firstSeparator.heightAnchor.constraint(equalTo: heightAnchor, multiplier: 0.58),
-            secondSeparator.heightAnchor.constraint(equalTo: heightAnchor, multiplier: 0.58),
+            firstSeparatorHeightConstraint,
+            secondSeparatorHeightConstraint,
             firstSeparator.widthAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
             secondSeparator.widthAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale)
         ])
@@ -206,8 +225,13 @@ final class SuggestionBarView: UIView {
         secondSeparator.isHidden = hidden
     }
 
+    /// Vertical offset of the strip's content from its center, positive = down.
+    /// Measured rule (native 26.5 + our pre-26-probed strip agree): suggestion text
+    /// centers ~26pt above the strip's BOTTOM edge regardless of strip height, so
+    /// taller adaptive strips keep the text near the keys like native does. The -7
+    /// floor preserves the tuned look of the shortest (legacy 34pt) strip.
     private func contentVerticalOffset(for metrics: KeyboardMetrics) -> CGFloat {
-        -min(7, max(4, metrics.suggestionHeight * 0.20))
+        max(-7, metrics.suggestionHeight / 2 - 26)
     }
 
     @objc private func handleSuggestionTap(_ sender: UIControl) {
@@ -299,7 +323,9 @@ private final class SuggestionSlotControl: UIControl {
         label.text = suggestion.map { isQuoted ? "\u{201C}\($0.text)\u{201D}" : $0.text }
         label.textColor = suggestion == nil ? .clear : KeyboardTheme.secondaryTextColor(for: traitCollection)
         label.font = font(for: suggestion, metrics: metrics)
-        label.transform = CGAffineTransform(translationX: 0, y: -min(7, max(4, metrics.suggestionHeight * 0.20)))
+        // Same rule as SuggestionBarView.contentVerticalOffset: text centers ~26pt
+        // above the strip bottom (native-measured), floored at the legacy -7 lift.
+        label.transform = CGAffineTransform(translationX: 0, y: max(-7, metrics.suggestionHeight / 2 - 26))
         // Native-style: every shown slot is tappable. The deterministic literal is the
         // "keep my spelling" button (quoted when it isn't a dictionary word); the rest
         // are corrections / next-word picks.
@@ -469,7 +495,9 @@ private final class EmojiCellControl: UIControl {
         self.suggestion = suggestion
         label.text = suggestion?.display
         label.font = .systemFont(ofSize: metrics.suggestionFontSize + 4, weight: .regular)
-        label.transform = CGAffineTransform(translationX: 0, y: -min(7, max(4, metrics.suggestionHeight * 0.20)))
+        // Same rule as SuggestionBarView.contentVerticalOffset: text centers ~26pt
+        // above the strip bottom (native-measured), floored at the legacy -7 lift.
+        label.transform = CGAffineTransform(translationX: 0, y: max(-7, metrics.suggestionHeight / 2 - 26))
         leadingDivider.isHidden = !showsLeadingDivider
         leadingDivider.backgroundColor = KeyboardTheme.separatorColor(for: traitCollection)
         isEnabled = suggestion != nil
