@@ -127,10 +127,12 @@ final class TextCompositionController {
         document.insertText(" ")
     }
 
-    func insertSpaceIfNeeded(in document: TextDocumentEditing) {
-        if let previous = document.contextBeforeInput?.last, previous.isWhitespace {
-            return
-        }
+    /// Insert a literal space. The space key is explicit user intent: native inserts
+    /// a space even directly after another space (the double-space dari shortcut
+    /// belongs to the caller, is time-gated, and replaces the first space only when
+    /// it fires). The old whitespace guard here silently swallowed the second of two
+    /// deliberate spaces mid-text.
+    func insertSpace(in document: TextDocumentEditing) {
         document.insertText(" ")
     }
 

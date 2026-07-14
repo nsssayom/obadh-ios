@@ -52,6 +52,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var shifted = false
     private var keyboardMode: KeyboardMode = .letters
     private var previousKeyWasSpace = false
+    /// Native's double-space shortcut is a QUICK double-tap, not "any two spaces":
+    /// only a second space inside this window converts to dari; a slower one types a
+    /// plain space. Monotonic clock so host clock changes can't confuse it.
+    private static let dariDoubleSpaceWindow: TimeInterval = 0.35
+    private var lastSpaceKeyTime: CFTimeInterval = 0
     private var suggestionGeneration = 0
     private var isUpdatingTextProxy = false
     /// Set while the suggestion bar is showing corrections for an already-committed word
@@ -1124,16 +1129,19 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     private func handleSpaceKey() {
-        let followsSpace = previousKeyWasSpace
+        let now = CACurrentMediaTime()
+        let withinDoubleTapWindow = previousKeyWasSpace
+            && now - lastSpaceKeyTime <= Self.dariDoubleSpaceWindow
+        lastSpaceKeyTime = now
         if commitActiveInputIfNeeded(trailingText: " ") {
             return
         }
         let contextBefore = textDocumentProxy.documentContextBeforeInput ?? ""
-        // Double-space → dari ends a sentence, which only makes sense at the end of the
-        // text. With the cursor inside earlier text the user is editing, not finishing a
-        // sentence, so a plain space is what they mean.
+        // Double-space → dari ends a sentence: only at the end of the text, and only
+        // as a quick double-tap, matching the native shortcut. A slow second space,
+        // or any space mid-text, types a plain space — always.
         let cursorAtEnd = (textDocumentProxy.documentContextAfterInput ?? "").isEmpty
-        if cursorAtEnd, followsSpace,
+        if cursorAtEnd, withinDoubleTapWindow,
            let substitution = SmartPunctuation.doubleSpaceSubstitution(contextBefore: contextBefore) {
             performTextUpdate {
                 applySmartPunctuation(substitution)
@@ -1141,7 +1149,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             return
         }
         performTextUpdate {
-            insertSpaceIfNeeded()
+            insertSpace()
         }
     }
 
@@ -1196,8 +1204,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         update()
     }
 
-    private func insertSpaceIfNeeded() {
-        compositionController.insertSpaceIfNeeded(in: documentEditor)
+    private func insertSpace() {
+        compositionController.insertSpace(in: documentEditor)
     }
 
     private func restorePersonalAutosuggest() {
@@ -1747,6 +1755,29 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             // Mouse-free sim driving of the presentation probe overlay.
             keyboardPreferences.debugPresentationProbeEnabled = argument != "off"
             updatePresentationProbe()
+        case "tap":
+            // Inject keys through the exact production path so input behavior
+            // (spaces, dari timing, composition) is scriptable on the simulator.
+            // Comma-separated keys fire back-to-back within one poll — the quick
+            // double-tap case: tap:space,space.
+            guard let argument else { return }
+            for name in argument.split(separator: ",") {
+                if name == "space" {
+                    handleKeyPress(.space)
+                } else if name == "return" {
+                    handleKeyPress(.returnKey)
+                } else if name.count == 1 {
+                    handleKeyPress(.character(String(name)))
+                }
+            }
+        case "cursor":
+            if let argument, let offset = Int(argument) {
+                textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+            }
+        case "context":
+            let before = textDocumentProxy.documentContextBeforeInput ?? ""
+            let after = textDocumentProxy.documentContextAfterInput ?? ""
+            lifecycleLog.notice("OBADH-CONTEXT before=[\(before, privacy: .public)] after=[\(after, privacy: .public)]")
         case "preview":
             // Show the key preview + pressed state programmatically so the parity
             // suite can capture the popover (a real touch cannot be scripted).
