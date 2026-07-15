@@ -1,194 +1,113 @@
-# Obadh iOS
+# Obadh for iOS
 
-Native iOS/iPadOS keyboard for Obadh Bangla transliteration.
+**Obadh** (অবাধ) is a project to modernize Bangla typing across all major
+platforms. At its core is
+[obadh_engine](https://github.com/nsssayom/obadh_engine), a deterministic
+Roman-to-Bangla transliteration engine and runtime SDK written in Rust — fast,
+accurate, dictionary-free at the core, with FST autocorrect and n-gram
+autosuggest as separable layers. This repository is the **iOS deliverable**: a
+native keyboard for iPhone and iPad built on that engine.
 
-Obadh is a Bangla-only custom keyboard that aims to feel like Apple's own: you
-type roman, it composes Bangla live, and the whole thing runs on device. It uses
-the published `obadh_engine` Rust SDK through a thin native bridge for
-transliteration, autocorrect, and autosuggest, and adds an iOS-native layer for
-touch, layout, haptics, punctuation, and emoji.
+You type roman, it composes Bangla live, and everything runs on your device.
 
-## Project shape
+<p align="center">
+  <img src="docs/assets/notes-light.png" alt="Obadh in Notes, light appearance" width="42%">
+  &nbsp;&nbsp;
+  <img src="docs/assets/notes-dark.png" alt="Obadh in Notes, dark appearance" width="42%">
+</p>
 
-- `Obadh` — the containing app, in SwiftUI: a first-run flow that asks its
-  questions once, then a settings screen (haptics, emoji-search language) that
-  asks nothing. Release ships no text input at all; the test field and the
-  geometry probe are `#if DEBUG`.
-- `ObadhKeyboard` — the `UIInputViewController` keyboard extension.
-- `Shared/Sources` — the UIKit keyboard UI, composer state, design tokens, and
-  the emoji stores. The parts with no UIKit dependency also build as the
-  `ObadhKeyboardCore` SwiftPM library so they can be unit-tested off-device.
-- `rust/ObadhBridge` — a static Rust bridge over `obadh_engine`.
-- `Resources/ObadhModels` — the compact binary artifacts bundled into the
-  extension: autocorrect/autosuggest models, the emoji catalog, and the Bangla
-  emoji suggestion + search indexes.
-- `Frameworks/ObadhBridge.xcframework` — the generated native bridge (git-ignored).
+<p align="center">
+  <img src="docs/assets/typing.gif" alt="Typing with Obadh" width="60%">
+</p>
 
-The bridge stays deliberately thin. Rust owns transliteration, autocorrect
-ranking, autosuggest lookup, and model parsing; Swift owns UIKit, touch routing,
-bundle resource discovery, and text-proxy mutation. The C ABI only moves UTF-8
-buffers across the boundary. Everything is local — no network, no telemetry. Full
-Access is requested only because iOS gates keyboard-extension haptics behind it.
+## What it does
 
-## Setup
+- **Live transliteration as real text.** The word you are typing is ordinary
+  text in the field, not an IME composition — the cursor moves freely,
+  mid-text editing just works, and switching keyboards mid-word keeps the
+  word. ([why](docs/text-composition.md))
+- **Autocorrect that knows its place.** The ribbon shows the deterministic
+  output first, then engine-ranked corrections. Optional auto-insert commits a
+  correction on space only when a strict, measurable confidence gate passes —
+  and tapping your own quoted spelling protects it forever.
+  ([the gate](docs/autocorrect.md))
+- **Next-word suggestions and personal learning**, entirely on device, from
+  the engine's bundled n-gram model plus a fingerprint-validated personal
+  overlay.
+- **Emoji, the way you actually say it.** Inline emoji suggestions for the
+  word being typed (ভালোবাসা → ❤️), and a full emoji panel with English and
+  Bangla search. ([the pipeline](docs/emoji.md))
+- **Bangla numerals and punctuation** on the iOS layer: ০–৯ on the number pad,
+  `৳` and `।` (dari) on the punctuation pages, quick double-space for dari,
+  Apple-style smart punctuation.
+- **Indistinguishable from the native keyboard.** Geometry and color are
+  measured against Apple's keyboard across device classes, host presentations,
+  and appearances, and enforced by a screenshot-measurement test suite.
+  ([the measured model](docs/native-parity.md))
+- **Native-feeling haptics**, tuned on device with Core Haptics.
+
+## Privacy
+
+Everything is local. No network, no telemetry, no analytics — the extension
+never talks to anything but the text field. Full Access is requested only
+because iOS gates keyboard-extension haptics (and App Group access) behind it.
+
+## Getting started
 
 ```bash
-cd obadh-ios
+git clone https://github.com/nsssayom/obadh-ios && cd obadh-ios
 ./scripts/bootstrap.sh
-open Obadh.xcodeproj
+./scripts/install-device.sh   # builds Release and installs on your device
 ```
 
-If `xcodebuild` still points at Command Line Tools:
+Requirements: Xcode 26+, [XcodeGen](https://github.com/yonaskolb/XcodeGen), a
+Rust toolchain. The app walks you through enabling the keyboard after install.
+Full details, build configurations, and the engine-bump workflow:
+[docs/build-and-release.md](docs/build-and-release.md).
 
-```bash
-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+## How it's built
+
+The engine owns transliteration, correction ranking, and suggestion lookup;
+the iOS layer owns touch, layout, text-proxy mutation, haptics, and policy.
+They meet at a deliberately thin C ABI that moves UTF-8 buffers and packed
+records — nothing else.
+
+| Doc | Covers |
+|---|---|
+| [architecture.md](docs/architecture.md) | Targets, the engine boundary, the composer boundary, state and storage |
+| [text-composition.md](docs/text-composition.md) | Why not marked text, touch routing, the ribbon, space and dari, backspace |
+| [native-parity.md](docs/native-parity.md) | The measured model of iOS keyboard presentation and how parity is enforced |
+| [autocorrect.md](docs/autocorrect.md) | The engine/client policy split and the auto-insert confidence gate |
+| [emoji.md](docs/emoji.md) | The CLDR + colloquial data pipeline, ranking, search |
+| [testing.md](docs/testing.md) | Unit tests, engine integration tests, the parity suite, mouse-free simulator automation |
+| [build-and-release.md](docs/build-and-release.md) | Setup, the Rust bridge, device install, build stamping |
+
+For the engine itself — the transliteration model, the artifacts, the
+philosophy — read the
+[obadh_engine README](https://github.com/nsssayom/obadh_engine).
+
+## Project layout
+
+```
+ObadhApp/            The containing app (SwiftUI): first-run setup, settings
+ObadhKeyboard/       The UIInputViewController keyboard extension
+Shared/Sources/      Keyboard UI, composer, design tokens, emoji stores
+                     (pure parts also build as the ObadhKeyboardCore SwiftPM
+                     library for off-device tests)
+rust/ObadhBridge/    Static Rust shim over obadh_engine's C ABI
+Resources/           Bundled engine artifacts and emoji indexes
+Tests/               Engine integration tests (real xcframework, real data)
+scripts/             Bootstrap, device install, parity suite, data pipeline
 ```
 
-Then rerun `./scripts/bootstrap.sh`.
+The Xcode project is generated from `project.yml` — edit that, never the
+`.xcodeproj`.
 
-## Real device install
+## Testing
 
-Signing lives in `Config/Signing.local.xcconfig` (git-ignored, included by the
-generated project). The install script infers `DEVELOPMENT_TEAM` from your Apple
-Development certificate, git-stamps the build, regenerates the project, builds
-with automatic provisioning, installs, and launches.
-
-```bash
-./scripts/install-device.sh                 # Release (default)
-DEVICE_ID=<udid> ./scripts/install-device.sh
-CONFIG=Debug ./scripts/install-device.sh    # Debug build, only when explicitly needed
-```
-
-The phone runs **Release** by default — it excludes all `#if DEBUG` tooling.
-After install, the app shows a setup checklist; the paths to enable the keyboard
-and Full Access are listed there.
-
-Regenerate the project, or build the Rust bridge, on their own:
-
-```bash
-xcodegen generate
-./scripts/build-rust-xcframework.sh   # device + simulator slices, rerun after Rust changes
-```
-
-Every build is stamped with the git commit count, short SHA, and a UTC
-timestamp (`scripts/stamp-build.sh` → `Config/BuildInfo.xcconfig`). The version
-is shown in the app's test screen and logged by the extension on appear, so you
-can confirm the device is running the build you think it is — a keyboard
-extension will otherwise happily keep serving a cached old binary.
-
-## Keyboard behavior
-
-- Roman QWERTY feeds Obadh transliteration; the active word renders live as
-  ordinary Bangla text in the focused field — text you can move through and edit
-  like any other. Space keeps the deterministic output.
-- The suggestion ribbon shows the deterministic output first (informational),
-  then autocorrect candidates. After a word commits, it can show next-word
-  suggestions from the bundled n-gram model. Personal autosuggest learns from
-  committed words, persisted to the shared app group and fingerprint-validated
-  on load so stale state is dropped.
-- The ribbon follows the cursor. Sitting inside an already-committed word offers
-  corrections for that word (tap to swap it in place); sitting at a word boundary
-  offers next-word suggestions from the text before the cursor. The rule is the
-  character just before the cursor — a letter means "editing this word", a space
-  means "at a boundary".
-- Numerals and punctuation are handled on the iOS layer: the number pad emits
-  Bangla numerals ০–৯, `৳` (taka) and `।` (danda) sit on the punctuation pages,
-  and Apple-style smart punctuation is applied (`--`→`—`, `...`→`…`, curly
-  quotes, double-space → danda).
-- `qq` (q tapped twice) is a mobile shortcut for `^`, the চন্দ্রবিন্দু marker.
-- Holding backspace follows a native-like curve: immediate delete, fast
-  character repeat, then word and sentence chunks on a sustained hold.
-- The emoji key opens the local Unicode/CLDR emoji panel with categories,
-  recents, and search. Search runs in English by default with an in-bar **EN⇄BN**
-  toggle (default set in the app); skin tones are picked by long-press and
-  remembered.
-- The globe switches to the next keyboard. There is no English typing mode —
-  switch to Apple's English keyboard with the globe when needed.
-
-## Design notes
-
-Most of the interesting decisions were forced by how iOS treats custom
-keyboards, and several of them generalise to any platform.
-
-**Touch routing.** iOS *drops* touches over fully-transparent regions of a
-keyboard extension before they reach `hitTest`. The gaps between keys and the
-padding around the outer keys were dead zones, and no amount of hit-test slop
-fixes it — the event never arrives. The fix is a single near-invisible surface
-(one plain view at ~0.004 alpha, so it's non-transparent but imperceptible)
-covering the whole key area; it catches every touch and resolves it to the
-nearest key by midpoint boundaries. The keys themselves are non-interactive. The
-general lesson: a keyboard lives on the edges of its keys, so make the whole
-surface catch input and resolve to intent instead of trusting per-key hit rects.
-
-**Backdrop and key material.** The background is the system's own keyboard
-material via `UIInputView(inputViewStyle: .keyboard)`, not a hand-rolled blur —
-a generic blur reads as a distinct rectangle sitting on the keyboard. On iOS 26
-the keys are Liquid Glass, but a full-strength glass effect adds a raised
-specular rim the native keys don't have; a flat translucent fill matched them.
-(The Simulator doesn't render Liquid Glass faithfully, so that comparison is a
-device-only check.)
-
-**Haptics.** Apple's key tap is one crisp, near-uniform tick, not a per-key
-intensity curve. The only public API that controls crispness (sharpness) is Core
-Haptics, so the tap is a single transient tuned by intensity and sharpness, with
-a `.rigid` `UIImpactFeedbackGenerator` as the fallback. Final values were dialed
-in on device (intensity 0.5, sharpness 0.9) — haptics don't fire in the
-Simulator, so this is felt, not measured.
-
-**Composing in the document, not in a marked region.** The word you are typing
-is ordinary text in the field, re-derived in place on each keystroke — not iOS
-*marked text*. Marked text is the obvious choice and the wrong one here: it is an
-IME composition that binds the insertion point to itself until committed, so the
-cursor cannot leave a half-typed word, and freeing it depends on each host app
-delivering selection callbacks, which many do not. A transliteration keyboard is
-not assembling one glyph from phonetic parts (where marked text earns its keep) —
-it produces words that should behave like any other text. So Obadh inserts the
-Bangla directly and rewrites the current word as letters arrive: append just the
-new sign when the rendering grows (no flicker), delete whole grapheme clusters
-past the shared prefix when it reshapes. The cursor then moves freely everywhere,
-mid-text editing is a plain edit, and switching keyboards mid-word keeps the
-word. The discipline this demands: track the exact string you inserted and
-confirm it is still at the cursor before rewriting, so a move you did not observe
-never deletes text you do not own. The lesson generalises — reach for marked text
-only when you are truly composing a glyph; for word-level input, real text keeps
-the cursor free.
-
-**Composer boundary.** Keystrokes go to a composer that produces the
-deterministic transliteration synchronously (rendered inline at once) and merges
-the expensive autocorrect/FST results asynchronously, generation-guarded so
-out-of-order or stale results are discarded. New capabilities plug in at this
-boundary rather than into the key handling.
-
-**Emoji, and the data pipeline behind it.** This is the most portable part. When
-you finish a Bangla word, up to three emoji appear in the ribbon, taking over the
-third text slot (the top two text candidates always survive) — matching the
-native keyboard. The data is built offline (`scripts/generate-emoji-data.py`)
-from Unicode CLDR Bengali annotations laid *under* a hand-curated colloquial map,
-because CLDR is descriptive (হার্ট = heart) while people type colloquially
-(ভালোবাসা = love). Candidates are ranked by name-centrality first — an emoji
-whose *primary name* is the word beats one that merely mentions it, so নাক → 👃,
-not 😤 — then by Unicode usage frequency, which is used at build time only and
-never ships. The runtime artifact is a tiny sorted-key binary (word → up to 3
-emoji) answered by exact binary search. Emoji *search* reuses the same pipeline
-as a broader index with prefix and multi-term matching, plus a fuzzy fallback
-(grapheme edit-distance against the closed keyword vocabulary — aggressive is
-safe there because the only candidates are emoji keywords). Skin tones are
-remembered per-emoji in shared preferences. None of this needs iOS: the build
-pipeline, the ranking, and the binary format are directly reusable on Android.
-
-**Performance discipline.** The typing path never touches the ~1 MB emoji
-catalog; the suggestion lookup is a memory-mapped binary search over a ~110 KB
-index. The Bangla search index (and its fuzzy fallback) only load when you switch
-the search to Bangla, so the English default pays nothing. Preferences (haptics,
-skin tone, emoji-search language) are plain `UserDefaults` in the shared app
-group — the right tool for small state; no SQLite or Core Data.
-
-**Where things live.** The pure logic — composer, emoji stores, resolvers — is in
-the SwiftPM `ObadhKeyboardCore` target so it's unit-tested against the *real*
-generated artifacts off-device. UIKit views and the extension controller stay in
-the extension target. App and extension share preferences and learned state
-through an App Group.
-
-Debug builds carry a small file-based control channel and on-device tuning
-controls (haptic sliders, glass-style toggle) for iterating on feel; it is all
-`#if DEBUG`, verified absent from Release binaries, and never ships.
+Behavior is verified against the real thing at every layer: unit tests run
+against the real generated artifacts, integration tests link the real
+xcframework with pinned data fingerprints, and visual parity is gated by
+measured screenshots, not eyeballs. Debug builds carry the instrumentation
+that makes this scriptable; none of it exists in Release.
+[docs/testing.md](docs/testing.md) has the map.
