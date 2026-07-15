@@ -13,7 +13,7 @@ If `xcodebuild` still points at Command Line Tools:
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 ```
 
-The Xcode project is **generated** — edit `project.yml`, then
+The Xcode project is **generated**: edit `project.yml`, then
 `xcodegen generate`. Requirements: Xcode 26+, [XcodeGen](https://github.com/yonaskolb/XcodeGen),
 a Rust toolchain with the iOS targets (bootstrap installs what it can).
 
@@ -31,7 +31,7 @@ Rerun after any change under `rust/`. The engine's C header is vendored into
 (stale archives otherwise link silently) → run the integration tests (pinned
 fingerprints catch a silent artifact swap) → commit. Adding a new engine call
 also means adding its symbol to the shim's `#[used]` table in
-`rust/ObadhBridge/src/lib.rs` — the staticlib dead-strips unreferenced
+`rust/ObadhBridge/src/lib.rs`: the staticlib dead-strips unreferenced
 dependency symbols.
 
 ## Device install
@@ -49,7 +49,7 @@ CONFIG=Debug ./scripts/install-device.sh    # only when debug tooling is needed
 
 Phones run **Release** by default: it excludes every `#if DEBUG` surface (the
 test screen, the probe overlay, the control channel). With a free Personal
-Team, provisioning profiles expire after 7 days — "Obadh is not available
+Team, provisioning profiles expire after 7 days. "Obadh is not available
 anymore" on the device means the profile lapsed, not a code failure.
 
 ## Build configurations
@@ -57,7 +57,7 @@ anymore" on the device means the profile lapsed, not a code failure.
 | Config | Purpose |
 |---|---|
 | `Debug` | Development: debug panel, probe overlay, control channel. |
-| `Debug-Legacy` | Debug, with the container app opted out of the modern system design (`UIDesignRequiresCompatibility`) — reproduces the legacy keyboard presentation for parity work. iOS 26 SDK builds only. |
+| `Debug-Legacy` | Debug, with the container app opted out of the modern system design (`UIDesignRequiresCompatibility`); reproduces the legacy keyboard presentation for parity work. iOS 26 SDK builds only. |
 | `Release` | What users run. No debug surface, no text input in the app. |
 
 ## Build stamping
@@ -65,5 +65,5 @@ anymore" on the device means the profile lapsed, not a code failure.
 Every build is stamped with the git commit count, short SHA, and a UTC
 timestamp (`scripts/stamp-build.sh` → `Config/BuildInfo.xcconfig`, generated
 and git-ignored). The version shows in the app and is logged by the extension
-on appear — a keyboard extension will otherwise happily keep serving a cached
+on appear: a keyboard extension will otherwise happily keep serving a cached
 old binary, so always confirm the stamp when testing on device.

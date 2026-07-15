@@ -1,6 +1,6 @@
 # Native-parity suite
 
-Measures Obadh against the native keyboard — geometry and color — across device
+Measures Obadh against the native keyboard (geometry and color) across device
 width classes, host presentations, and appearances, on the iOS Simulator.
 Everything is measured from screenshots; nothing is eyeballed.
 
@@ -35,14 +35,14 @@ The device set covers both measured geometry classes (key 43 / pitch 54 below
 - **Obadh is self-certifying**: with the probe overlay on, the keyboard draws
   yellow fiducial hairlines at its view top and strip bottom (= q row), and logs
   an `OBADH-PROBE` line with the screen size and rendered metrics. The suite
-  reads the fiducials at x 0.86..0.97 W — the probe label must never grow past
+  reads the fiducials at x 0.86..0.97 W; the probe label must never grow past
   ~0.84 W (keep new probe fields on its shortest line).
 - **Native** has no fiducials: q comes from key-brightness bands (glyph-structure
   fallback), container edges from panel-color runs walking up from the q row.
   The debug harness's `--measure-bg` launch argument paints an
   appearance-independent mid-gray behind the keyboard so those runs have
   contrast in both light and dark. Never measure edges with a
-  largest-brightness-step heuristic — it snaps to accessory bars, labels, and
+  largest-brightness-step heuristic: it snaps to accessory bars, labels, and
   fiducials (all observed).
 - Captures are mouse-free: `simctl` + the DEBUG control channel
   (`scripts/sim-kbd.py`). Fresh simulators are created on demand and keyboards
@@ -50,7 +50,7 @@ The device set covers both measured geometry classes (key 43 / pitch 54 below
 
 ## Honest limits
 
-- Runs against the **iOS 26.5 simulator runtime** — the only one installed with
+- Runs against the **iOS 26.5 simulator runtime**, the only one installed with
   Xcode 26.6. iOS 27 truth comes from device screenshots (the fiducials make
   those self-measuring too; see the probe overlay switch in the debug app).
 - Pressed-state colors are not covered (static captures).

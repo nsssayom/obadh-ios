@@ -1,7 +1,7 @@
 # Architecture
 
 **Obadh** is a project to modernize Bangla typing across all major platforms.
-Its core is [obadh_engine](https://github.com/nsssayom/obadh_engine) — a
+Its core is [obadh_engine](https://github.com/nsssayom/obadh_engine), a
 deterministic Roman-to-Bangla transliteration engine and runtime SDK in Rust
 (dictionary-free core, FST-based autocorrect, n-gram autosuggest, a personal
 learning overlay). This repository is the **iOS deliverable**: a keyboard
@@ -9,9 +9,8 @@ extension where everything real happens, and a small containing app for setup
 and preferences, with the engine underneath reached through a deliberately
 thin C ABI.
 
-This document covers the iOS side. For the engine itself — the transliteration
-model, the artifacts, the philosophy ("the core is dictionary-free and must
-stay that way") — read the
+This document covers the iOS side. For the engine itself (the transliteration
+model, the artifacts, the philosophy of a dictionary-free core) read the
 [engine README](https://github.com/nsssayom/obadh_engine).
 
 ## Targets
@@ -21,7 +20,7 @@ stay that way") — read the
 | `Obadh` | The containing app (SwiftUI): a first-run flow that asks its questions once, then a settings screen that asks nothing. Release ships no text input anywhere in the app. |
 | `ObadhKeyboard` | The `UIInputViewController` keyboard extension. |
 | `Shared/Sources` | The UIKit keyboard UI, composer state, design tokens, emoji stores. Parts with no UIKit dependency also build as the `ObadhKeyboardCore` SwiftPM library for off-device unit tests. |
-| `rust/ObadhBridge` | A static Rust shim over `obadh_engine`'s `cabi` feature — see below. |
+| `rust/ObadhBridge` | A static Rust shim over `obadh_engine`'s `cabi` feature; see below. |
 | `Resources/ObadhModels` | The bundled binary artifacts: autocorrect FST, autosuggest n-grams, emoji catalog and Bangla emoji indexes. |
 | `Frameworks/ObadhBridge.xcframework` | The generated native bridge (git-ignored; built by `scripts/build-rust-xcframework.sh`). |
 
@@ -34,7 +33,7 @@ and regenerate.
 Rust owns transliteration, autocorrect ranking, autosuggest lookup, and model
 parsing. Swift owns UIKit, touch routing, bundle resource discovery, and
 text-proxy mutation. The C ABI between them moves UTF-8 buffers and packed
-little-endian records — nothing else. The full ABI contract (sizing
+little-endian records, nothing else. The full ABI contract (sizing
 conventions, record formats, handle rules) is documented in the engine's
 vendored header (`rust/ObadhBridge/include/obadh.h`) and in the
 [engine README](https://github.com/nsssayom/obadh_engine#c-abi).
@@ -42,14 +41,14 @@ vendored header (`rust/ObadhBridge/include/obadh.h`) and in the
 `rust/ObadhBridge` adds no API. It exists because a Rust staticlib
 dead-strips `#[no_mangle]` symbols defined in a *dependency* unless the root
 crate references them, so the shim holds a `#[used]` table of exactly the
-symbols the Swift client calls — currently 21. Adding an engine call means
+symbols the Swift client calls, currently 21. Adding an engine call means
 adding it to that table and rebuilding the xcframework (see
 [build-and-release.md](build-and-release.md)).
 
 Division of decision-making mirrors the code boundary: the engine ships
 *mechanism and provenance* (candidates, channels, costs, frequencies); the
 client owns *policy* (what auto-inserts, what renders, what learns). That
-split was negotiated deliberately — see [autocorrect.md](autocorrect.md).
+split was negotiated deliberately; see [autocorrect.md](autocorrect.md).
 
 ## The composer boundary
 
@@ -62,13 +61,10 @@ than into key handling.
 ## State and storage
 
 Preferences (haptics, emoji-search language, auto-insert opt-in, skin tones)
-are plain `UserDefaults` in the shared App Group — the right tool for small
+are plain `UserDefaults` in the shared App Group, the right tool for small
 state; no SQLite or Core Data. Personal autosuggest learning persists as an
 engine-exported snapshot in the App Group, fingerprint-validated on load so a
 stale snapshot from a different artifact generation is dropped rather than
-imported.
-
-## Everything is local
-
-No network, no telemetry, no analytics. Full Access is requested only because
-iOS gates keyboard-extension haptics (and App Group access) behind it.
+imported. Neither the app nor the extension makes network requests; the Full
+Access toggle exists only because iOS gates keyboard-extension haptics and App
+Group access behind it.

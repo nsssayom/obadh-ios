@@ -1,14 +1,13 @@
 # Testing and verification
 
 Three layers, each aimed at a different failure class. The shared principle:
-behavior is verified by exercising the real thing — real artifacts, real
-input paths, real screenshots — and anything visual is measured, not
-eyeballed.
+behavior is verified by exercising the real thing: real artifacts, real
+input paths, real screenshots. Anything visual is measured, not eyeballed.
 
 ## Unit tests (SwiftPM, off-device)
 
-The pure logic — composer, text composition controller, emoji stores,
-resolvers — builds as the `ObadhKeyboardCore` SwiftPM library and is
+The pure logic (composer, text composition controller, emoji stores,
+resolvers) builds as the `ObadhKeyboardCore` SwiftPM library and is
 unit-tested against the *real generated artifacts* without a simulator.
 
 ## Engine integration tests (`Tests/ObadhEngineTests`)
@@ -45,14 +44,14 @@ pressed-state colors not yet covered).
 
 ## Mouse-free simulator automation
 
-Everything above is scriptable without ever touching the mouse — a hard
+Everything above is scriptable without ever touching the mouse, a hard
 requirement (simulator UI cannot be safely mouse-automated, and `simctl` has
 no tap primitive). Two pieces make it work:
 
-- **`scripts/sim-kbd.py`** — boots/selects Obadh as the presented keyboard by
+- **`scripts/sim-kbd.py`**: boots/selects Obadh as the presented keyboard by
   writing keyboard-daemon preferences, takes screenshots, and drives the
   debug channel.
-- **The DEBUG control channel** — a file the extension polls in its own
+- **The DEBUG control channel**: a file the extension polls in its own
   sandbox, giving scripted access to the *production* input path:
   `tap:<keys>`, `cursor:<offset>`, `context` (log the document around the
   cursor), `pick:<slot>`, `pickemoji`, `preview:<key>`, `autoinsert:on/off`,
@@ -60,4 +59,4 @@ no tap primitive). Two pieces make it work:
   reproduced and verified end-to-end through the same code a finger would
   hit.
 
-All debug tooling is `#if DEBUG` — verified absent from Release binaries.
+All debug tooling is `#if DEBUG`, verified absent from Release binaries.
