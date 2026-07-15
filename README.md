@@ -11,13 +11,7 @@ native keyboard for iPhone and iPad built on that engine.
 You type roman, it composes Bangla live, and everything runs on your device.
 
 <p align="center">
-  <img src="docs/assets/notes-light.png" alt="Obadh in Notes, light appearance" width="42%">
-  &nbsp;&nbsp;
-  <img src="docs/assets/notes-dark.png" alt="Obadh in Notes, dark appearance" width="42%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/typing.gif" alt="Typing with Obadh" width="60%">
+  <img src="docs/assets/typing.gif" alt="Typing Bangla with Obadh in Notes" width="330">
 </p>
 
 ## What it does
@@ -64,6 +58,10 @@ Requirements: Xcode 26+, [XcodeGen](https://github.com/yonaskolb/XcodeGen), a
 Rust toolchain. The app walks you through enabling the keyboard after install.
 Full details, build configurations, and the engine-bump workflow:
 [docs/build-and-release.md](docs/build-and-release.md).
+
+<p align="center">
+  <img src="docs/assets/onboarding.png" alt="Obadh setup, light and dark" width="560">
+</p>
 
 ## How it's built
 

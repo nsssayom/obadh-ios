@@ -1,15 +1,31 @@
 # README assets
 
-Captured on a physical device running a **Release** build, in a real host app
-(Notes) — never the in-app debug harness.
+Two visuals, deliberately no more. Both come from **Release** builds — never
+the in-app debug harness.
 
-| File | Content |
+| File | Provenance |
 |---|---|
-| `notes-light.png` | Notes, light appearance, keyboard up, a line composed with Obadh |
-| `notes-dark.png` | Same scene, dark appearance |
-| `typing.gif` | Short screen recording of a line being typed (optional but wanted) |
+| `typing.gif` | Screen recording from a physical device: Notes, dark appearance, typing a Bangla line with Obadh. |
+| `onboarding.png` | Simulator captures of the onboarding welcome step (Release configuration), light and dark, composed side by side with a transparent gutter. |
 
-Sample lines (Tagore / Nazrul):
+## Regenerating
 
-- `amar sonar bangla, ami tomay bhalobasi` → আমার সোনার বাংলা, আমি তোমায় ভালোবাসি
-- `bolo bir, bolo unnata mama shir` → বল বীর, বল উন্নত মম শির
+Typing GIF from a device screen recording (crops the status bar, 12 fps,
+palette-quantized — lands ~1.4 MB for 30 s):
+
+```bash
+ffmpeg -i recording.MP4 -vf "crop=iw:ih-190:0:190,scale=420:-1:flags=lanczos,fps=12,\
+split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4" \
+  typing.gif
+```
+
+Onboarding pair from the simulator (fresh install of a Release build shows the
+welcome step; `xcrun simctl ui <udid> appearance light|dark` +
+`xcrun simctl io <udid> screenshot`), then:
+
+```bash
+ffmpeg -i light.png -i dark.png -filter_complex \
+  "[0]scale=620:-1,format=rgba,pad=660:ih:0:0:color=0x00000000[a];\
+   [1]scale=620:-1,format=rgba[b];[a][b]hstack=inputs=2" \
+  -frames:v 1 -update 1 onboarding.png
+```
