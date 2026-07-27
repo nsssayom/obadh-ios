@@ -64,20 +64,31 @@ enum KeyboardTheme {
     /// @0.30 over panel, light = opaque white — both measured).
     @MainActor static var legacyPresentation = false
 
-    /// iOS 27 draws its ~17pt container band above the extension on re-presentation
-    /// paths but NOT on cold launches (measured on device: cold zone 35 = strip
-    /// alone; switch-back zone 52 = strip + band). The keyboard controller detects
-    /// the band-less cold path from the presentation's sub-ask sizing intermediate
-    /// and sets this so the strip carries the full native zone itself.
-    @MainActor static var bandlessPresentation = false
+    #if DEBUG
+    /// Diagnosis-only override making the strip carry the whole native zone, as if
+    /// no system band were coming. Set solely by the debug panel's pinned-presentation
+    /// control so the two layouts can be A/B'd on device; the shipping path never
+    /// reads a runtime-detected value here. See KeyboardSizingLog.
+    @MainActor static var debugFullZoneStrip = false
+    #endif
 
     private static let referencePhoneWidth: CGFloat = 440
     /// The suggestion strip WE draw. In the modern presentation the system paints an
-    /// unpaintable band (~15-18pt) above the extension inside its container, so the
-    /// VISIBLE zone (container edge → q row) = strip + band. Native zone, measured by
-    /// pixel-run profiles (not edge heuristics): ~50-52pt on iOS 26.5 across
-    /// 375..440pt widths and both host presentations, 54pt on iOS 27 (device —
-    /// identical in Notes and a plain host). Strip = zone − band per OS.
+    /// unpaintable band above the extension inside its container, so the VISIBLE zone
+    /// (container edge → q row) = band + strip.
+    ///
+    /// The band is a CONSTANT per OS, not a per-presentation variable. Measured on
+    /// iOS 26.5 at 16.0pt and invariant under a swept asked height (217→307pt),
+    /// repeated presentations, and host `inputAccessoryView`s of 0/44/88pt; measured
+    /// on an iOS 27 device at 17.3pt in a third-party host. Apple describes it as the
+    /// margin added above the keyboard's top row in iOS 26 (FB17978212).
+    ///
+    /// Do NOT reintroduce a runtime "is a band coming?" detector. One shipped briefly
+    /// and keyed off the presentation's transient sizing heights, which are not
+    /// stable (identical simulator presentations measured intermediates of 452 AND
+    /// 481). Because the system pins our view's BOTTOM edge, changing this value
+    /// moves every key row by the delta — a wrong guess re-shapes the whole keyboard,
+    /// which is exactly the instability it was meant to cure.
     @MainActor
     private static var referenceSuggestionHeight: CGFloat {
         // Legacy presentation draws no system band, so the strip IS the zone
@@ -85,13 +96,17 @@ enum KeyboardTheme {
         if legacyPresentation {
             return 53
         }
-        if #available(iOS 27.0, *) {
-            // Banded presentations get 36 (zone 54 = 36 + ~18 system band); the
-            // band-less cold path draws the whole 54pt zone itself.
-            return bandlessPresentation ? 54 : 36
+        #if DEBUG
+        if debugFullZoneStrip {
+            if #available(iOS 27.0, *) { return 54 }
+            return 51
         }
-        // Same logic against the iOS 26 native zone of ~51.
-        return bandlessPresentation ? 51 : 34
+        #endif
+        // zone − band, per OS: iOS 27 native zone 54 − band ~17; iOS 26 zone ~51 − 16.
+        if #available(iOS 27.0, *) {
+            return 36
+        }
+        return 34
     }
     private static let referenceLandscapeHeight: CGFloat = 220
 
@@ -257,7 +272,9 @@ enum KeyboardTheme {
             max: 96
         )
         return KeyboardMetrics(
-            keyCornerRadius: clamp(6 * scale, min: 5, max: 6),
+            // Native's corner arc spans ~7pt at 440pt (measured: the top-row edge
+            // inset decays 6.33 → 0 over 7 rows), drawn with a continuous curve.
+            keyCornerRadius: clamp(7 * scale, min: 6, max: 7),
             keyShadowOpacity: 0,
             keyShadowRadius: 0,
             keyShadowOffset: CGSize(width: 0, height: 0.5),

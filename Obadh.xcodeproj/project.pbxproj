@@ -37,6 +37,8 @@
 		87D1A84F96B30E1DAF83EC89 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B56BEB7F3697DA4E57C7F6 /* SettingsView.swift */; };
 		8DEAC1E1856D9FA6655586A2 /* BackspaceDeletionPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35B18AA8869B4393EFF61797 /* BackspaceDeletionPlanner.swift */; };
 		8E471953129D5F47A9ACAF9A /* KeyboardLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22CFF9E5FDDBFC923C946FF4 /* KeyboardLayout.swift */; };
+		8E90797269458789A02FFC76 /* SizingLogViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F66AD0166AD79842FFFD45 /* SizingLogViewController.swift */; };
+		8ECB38284C1273C3061499A7 /* KeyboardSizingLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A54E6808E9AB6949BF32A08 /* KeyboardSizingLog.swift */; };
 		9249FCD6DDEBECFECE0D6F6F /* ObadhModels in Resources */ = {isa = PBXBuildFile; fileRef = 62363696E04B4D208F1866B8 /* ObadhModels */; };
 		9549B4CA9D78A51B8E5FDCBF /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1FF20E2656214A31CEB6A9B /* RootView.swift */; };
 		9634DBB4043CE304AF279075 /* AppBuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */; };
@@ -68,6 +70,7 @@
 		FB5A7AF4B3EC0DC7EEDF1F62 /* AutoInsertGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A8EBB58A044767CE0E43CF8 /* AutoInsertGate.swift */; };
 		FC096C9BCC5AC63BB29CAA72 /* SetupWalkthrough.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D96907C8D5CDAF8E2CAAE32 /* SetupWalkthrough.swift */; };
 		FC795F649BAD1AD0CCD4496A /* KeyboardTestViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */; };
+		FE12A7039253018807417ECE /* KeyboardSizingLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A54E6808E9AB6949BF32A08 /* KeyboardSizingLog.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -120,6 +123,7 @@
 		61724397185A8DA236054BCD /* KeyboardKeyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardKeyButton.swift; sourceTree = "<group>"; };
 		62363696E04B4D208F1866B8 /* ObadhModels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ObadhModels; path = Resources/ObadhModels; sourceTree = SOURCE_ROOT; };
 		63A0E44B2BF4ECEBD1F200FA /* KeyboardTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTheme.swift; sourceTree = "<group>"; };
+		6A54E6808E9AB6949BF32A08 /* KeyboardSizingLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardSizingLog.swift; sourceTree = "<group>"; };
 		6C197034282DB0D01EF59071 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		6CDAB14409BFF075910B4EC0 /* BanglaTypingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanglaTypingEngine.swift; sourceTree = "<group>"; };
 		6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackspaceRepeatController.swift; sourceTree = "<group>"; };
@@ -143,6 +147,7 @@
 		ACDD5C1AACA44AA367113C3B /* KeyboardDebugChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDebugChannel.swift; sourceTree = "<group>"; };
 		AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTestViewController.swift; sourceTree = "<group>"; };
 		B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayoutGeometry.swift; sourceTree = "<group>"; };
+		B9F66AD0166AD79842FFFD45 /* SizingLogViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SizingLogViewController.swift; sourceTree = "<group>"; };
 		D9ADB202376C34EB2B402A81 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearnedWordStore.swift; sourceTree = "<group>"; };
 		E1FF20E2656214A31CEB6A9B /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -176,6 +181,7 @@
 			isa = PBXGroup;
 			children = (
 				AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */,
+				B9F66AD0166AD79842FFFD45 /* SizingLogViewController.swift */,
 			);
 			path = Debug;
 			sourceTree = "<group>";
@@ -246,6 +252,7 @@
 				E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */,
 				8109D1F633534167E8886D3C /* KeyboardInstallState.swift */,
 				E9EA5D130961F58065D10E2D /* KeyboardPreferences.swift */,
+				6A54E6808E9AB6949BF32A08 /* KeyboardSizingLog.swift */,
 				DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */,
 			);
 			name = Settings;
@@ -501,6 +508,7 @@
 				F51F3E0D32EE3727F80AE2E8 /* KeyboardLayoutGeometry.swift in Sources */,
 				14B443384482487193F34C8C /* KeyboardPreferences.swift in Sources */,
 				4DFAA32AC12C80F82CE9685F /* KeyboardRowView.swift in Sources */,
+				FE12A7039253018807417ECE /* KeyboardSizingLog.swift in Sources */,
 				00A0F8BFEB55AE4C83370FE3 /* KeyboardTheme.swift in Sources */,
 				DA9D6D96EFAEA0A75C0C69E3 /* KeyboardTouchResolver.swift in Sources */,
 				2E19839B4C6301EBEF3AFDFD /* KeyboardTouchSurfaceView.swift in Sources */,
@@ -536,6 +544,7 @@
 				7E7505AE67FE8CD5F09DA8AB /* KeyboardGeometryProbeView.swift in Sources */,
 				6C548734A429722399902830 /* KeyboardInstallState.swift in Sources */,
 				D772F15083EB0629D19F35B7 /* KeyboardPreferences.swift in Sources */,
+				8ECB38284C1273C3061499A7 /* KeyboardSizingLog.swift in Sources */,
 				FC795F649BAD1AD0CCD4496A /* KeyboardTestViewController.swift in Sources */,
 				4D1233218307DF3CA79F70A2 /* LearnedWordStore.swift in Sources */,
 				F83228BAD4E6CD8BA52B592F /* ObadhApp.swift in Sources */,
@@ -545,6 +554,7 @@
 				9549B4CA9D78A51B8E5FDCBF /* RootView.swift in Sources */,
 				87D1A84F96B30E1DAF83EC89 /* SettingsView.swift in Sources */,
 				FC096C9BCC5AC63BB29CAA72 /* SetupWalkthrough.swift in Sources */,
+				8E90797269458789A02FFC76 /* SizingLogViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

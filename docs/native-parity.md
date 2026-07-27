@@ -19,14 +19,44 @@ for any of it.
   bounds therefore creates a feedback loop that locks the container and, with
   self-sizing released, makes every height a fixed point (visible shaking).
 - In the modern (Liquid Glass) presentation the system paints an unpaintable
-  **band of ~15–18 pt** above the extension inside its container. The visible
-  suggestion zone is therefore `band + strip`.
-- **Presentation paths differ.** On iOS 27, cold-launched hosts draw *no*
-  band, while re-presentations do. The only observable discriminant is the
-  presentation's transient sizing pass: cold presents pass through an
-  intermediate *below* the asked height; re-presents settle at the ask
-  directly. The keyboard classifies each presentation and draws the full zone
-  itself when no band is coming.
+  **band** above the extension inside its container — Apple's "new margin with
+  edge and rounded corners above the top row" added in iOS 26. The visible
+  suggestion zone is therefore `band + strip`. Measured: **16.0 pt on iOS 26.5**
+  (invariant under a swept asked height 217→307 pt, repeated presentations, and
+  host `inputAccessoryView`s of 0/44/88 pt) and **17.0–17.3 pt on iOS 27**.
+- **On iOS 27 the band sometimes does not appear at all, and this is not
+  detectable from inside the extension.** Cold-launched hosts have been measured
+  with band 0 (zone = strip alone) while other presentations of the same build
+  measure 17. Device-measured, fiducial-certified:
+
+  | case | container top | our view top | q | band | strip | zone |
+  |------|---------------|--------------|---|------|-------|------|
+  | banded        | 609 | 626 | 662 | 17.0 | 36 | 53.0 |
+  | band-less     | 626 | 626 | 662 | 0    | 36 | 36.0 |
+  | band-less spec drawn under a band | 591 | 608 | 662 | 17.0 | 54 | 71.0 |
+
+  **Do not add a detector for this.** One shipped briefly (`46268f2`) keyed on a
+  sub-ask sizing intermediate, and correlated screenshots refuted it: presentations
+  with byte-identical layout traces (`956*>|>255`) produced band 17.3 *and* band 0.
+  The signature appeared in 7 of 56 logged presentations and did not predict the
+  outcome. Also refuted as discriminants: presentation index (iOS builds a fresh
+  view controller per presentation, so it is always 1), process age, and the
+  view-controller-to-appear delay (one band-less case 1.86 s, another 0.27 s).
+
+  There is no observable, by construction: the container is
+  `band + ourView + systemBottomRow` with its bottom pinned to the screen, so our
+  view sits at `screenBottom − bottomRow − ourHeight` with no band term. When the
+  band vanishes the *container's* top edge moves and we do not — the q row stays
+  at 662 either way. Confirmed by three further probes: the extension receives
+  **zero** keyboard-frame notifications; `view.convert(bounds, to:
+  screen.fixedCoordinateSpace)` returns origin (0,0); and no late layout pass ever
+  fires (69 logged presentations, zero late heights).
+
+  The strip is therefore a per-OS constant. `zone − band` is right whenever the
+  band appears; when it doesn't, the zone is short by the band. That is preferred
+  over the reverse error: drawing the full zone under a band that *does* arrive
+  overshoots native by 17 pt, which is far more visible and was the regression
+  the detector caused.
 - **Legacy hosts** (apps predating the iOS 26 SDK, on iOS 26) get a different
   container: edge-to-edge, square, band-less, with its own geometry. There is
   no API for this either; the transient intermediates are class-quantized and

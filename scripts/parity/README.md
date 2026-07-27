@@ -36,7 +36,12 @@ The device set covers both measured geometry classes (key 43 / pitch 54 below
   yellow fiducial hairlines at its view top and strip bottom (= q row), and logs
   an `OBADH-PROBE` line with the screen size and rendered metrics. The suite
   reads the fiducials at x 0.86..0.97 W; the probe label must never grow past
-  ~0.84 W (keep new probe fields on its shortest line).
+  ~0.84 W (keep new probe fields on its shortest line). The label is also **taller
+  than the modern strip** and overhangs ~10 pt into the first key row, so colour
+  samples come from the **last key** in the row (x ≈ 0.943 W), clear of it. Sampling
+  any key further left measures the label's black backing rather than the key —
+  it read 58 vs native 78 in dark and 179 vs 246 in light, a false FAIL that only
+  hit modern cells (legacy's 53 pt strip hides the label).
 - **Native** has no fiducials: q comes from key-brightness bands (glyph-structure
   fallback), container edges from panel-color runs walking up from the q row.
   The debug harness's `--measure-bg` launch argument paints an

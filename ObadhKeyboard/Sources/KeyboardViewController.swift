@@ -104,6 +104,23 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private let probeTopHairline = UIView()
     private let probeStripHairline = UIView()
     private var lastProbeString = ""
+    /// Forces the height we ask for, independent of the metrics we render, so the
+    /// band's law can be measured by sweeping the ask and reading the resulting
+    /// band off the fiducials (`ask:<pt>`; `ask:0` restores). DEBUG only.
+    private var debugAskOverride: CGFloat?
+    /// Complete layout-pass trace for the sizing investigation: every distinct
+    /// height the system lays us out at, with the ask in force at that moment.
+    /// The classifier's `presentationTransients` is a filtered view of this; the
+    /// filtering is what hid the race, so the raw sequence is logged separately.
+    private var lastTracedHeight: CGFloat = -1
+    /// Distinct laid-out heights since the last recorded presentation, `*`-marked
+    /// when the pass arrived before `viewWillAppear` (those are invisible to the
+    /// shipping classifier) and `|`-separated at each `viewWillAppear`. The probe
+    /// shows the tail; KeyboardSizingLog stores the whole thing.
+    private var layoutTrace: [String] = []
+    private var sizingRecordWrite: DispatchWorkItem?
+    private var sizingRecordIdentifier = 0
+    private var presentationUptime: Double = 0
     #endif
 
     var enableInputClicksWhenVisible: Bool {
@@ -128,6 +145,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         #if DEBUG
         startKeyTintObserver()
         configurePresentationProbe()
+        startBandObservationProbe()
         #endif
     }
 
@@ -255,8 +273,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             nearestRoundedAncestorDescription(), KeyboardGlassStyle.current.rawValue,
             designCompat ? "Y" : "N"
         ) + String(
-            format: "\ntr %@  n%d  up%.1f",
-            presentationTransients.map { String(Int($0)) }.joined(separator: "›"),
+            format: "\n#%d tr %@  a%.0f p%d n%d up%.1f",
+            sizingRecordIdentifier,
+            layoutTrace.suffix(6).joined(separator: "›"),
+            preferredActiveKeyboardHeight,
+            keyboardPreferences.debugPinnedPresentation,
             presentationCount,
             CACurrentMediaTime() - processStart
         )
@@ -308,11 +329,28 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         presentationCount += 1
         presentationTransients.removeAll()
         presentationClassified = false
-        if KeyboardTheme.legacyPresentation || KeyboardTheme.bandlessPresentation {
-            KeyboardTheme.legacyPresentation = false
-            KeyboardTheme.bandlessPresentation = false
+        // Diagnosis mode: hold the presentation class fixed so our asked height is
+        // identical on every presentation, isolating the system's band from our own
+        // changes. See KeyboardPreferences.debugPinnedPresentation.
+        #if DEBUG
+        // Diagnosis mode: pin the layout instead of detecting anything, so a capture
+        // run can A/B the two strip heights on device.
+        let pinned = keyboardPreferences.debugPinnedPresentation
+        if pinned != 0 {
+            presentationClassified = true
+        }
+        if KeyboardTheme.debugFullZoneStrip != (pinned == 2) {
+            KeyboardTheme.debugFullZoneStrip = pinned == 2
             metricsCache = nil
         }
+        #endif
+        if KeyboardTheme.legacyPresentation {
+            KeyboardTheme.legacyPresentation = false
+            metricsCache = nil
+        }
+        #if DEBUG
+        beginSizingRecord()
+        #endif
         view.setNeedsUpdateConstraints()
         feedbackController.prepare()
         // Obadh may be returning to a field another keyboard has edited since we last
@@ -329,6 +367,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         lifecycleLog.notice("OBADH-LIFECYCLE viewDidAppear — keyboard visible, build=\(AppBuildInfo.summary, privacy: .public) style=\(self.traitCollection.userInterfaceStyle == .dark ? "dark" : "light", privacy: .public) size=\(NSCoder.string(for: self.view.bounds.size), privacy: .public)")
+        #if DEBUG
+        logBandObservationCandidates()
+        #endif
         showSpaceLanguageIntro()
         // Reflect the current cursor context (e.g. next-word suggestions) now that we
         // are back, rather than showing whatever was in the bar when we left.
@@ -344,12 +385,17 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // ordinary text, so we only stop tracking it. Nothing is lost or stranded.
         resetCompositionBookkeeping()
         #if DEBUG
+        // Capture short presentations too, before the deferred write would fire.
+        writeSizingRecord()
         debugChannel.stop()
         #endif
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        #if DEBUG
+        traceLayoutPass()
+        #endif
         recordPresentationTransient()
         applyLayoutMetricsIfNeeded()
         updateKeyboardTouchRegions()
@@ -357,6 +403,137 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         updatePresentationProbe()
         #endif
     }
+
+    #if DEBUG
+    /// Last-resort search for a runtime observable of the system's container band.
+    /// Two candidates the geometry argument does not already rule out:
+    ///   1. keyboard-frame notifications — if the extension receives them at all, the
+    ///      frame would be the CONTAINER's, and band = container − ourHeight − dock.
+    ///   2. conversion into the screen's fixed coordinate space, which may route
+    ///      through the remote-view transform even though `window.frame` reads (0,0).
+    /// Both are logged so a device capture can confirm or close the question.
+    private func startBandObservationProbe() {
+        let names: [Notification.Name] = [
+            UIResponder.keyboardWillShowNotification,
+            UIResponder.keyboardDidShowNotification,
+            UIResponder.keyboardWillChangeFrameNotification,
+            UIResponder.keyboardDidChangeFrameNotification
+        ]
+        for name in names {
+            NotificationCenter.default.addObserver(
+                forName: name, object: nil, queue: .main
+            ) { [weak self] note in
+                let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
+                self?.lifecycleLog.notice(
+                    "OBADH-BANDPROBE notification \(name.rawValue, privacy: .public) frame=\(frame.map(NSCoder.string(for:)) ?? "nil", privacy: .public)"
+                )
+            }
+        }
+    }
+
+    private func logBandObservationCandidates() {
+        guard let window = view.window else { return }
+        let screenSpace = window.screen.fixedCoordinateSpace
+        let inScreen = view.convert(view.bounds, to: screenSpace)
+        let windowInScreen = window.convert(window.bounds, to: screenSpace)
+        lifecycleLog.notice(
+            """
+            OBADH-BANDPROBE geometry viewInScreen=\(NSCoder.string(for: inScreen), privacy: .public) \
+            windowInScreen=\(NSCoder.string(for: windowInScreen), privacy: .public) \
+            screen=\(NSCoder.string(for: window.screen.bounds), privacy: .public) \
+            viewH=\(Int(self.view.bounds.height)) \
+            safeArea=\(NSCoder.string(for: self.view.safeAreaInsets), privacy: .public) \
+            windowSafeArea=\(NSCoder.string(for: window.safeAreaInsets), privacy: .public) \
+            windowLevel=\(window.windowLevel.rawValue)
+            """
+        )
+    }
+
+    /// Opens a sizing record for this presentation. The record is written ~1.5s after
+    /// the keyboard appears — late enough to include our own classification-driven
+    /// resize and any system resize that follows it, which is exactly the window the
+    /// shipping classifier stops watching.
+    private func beginSizingRecord() {
+        sizingRecordWrite?.cancel()
+        sizingRecordIdentifier = KeyboardSizingLog.shared.nextIdentifier()
+        presentationUptime = CACurrentMediaTime() - processStart
+        layoutTrace.append("|")
+        let write = DispatchWorkItem { [weak self] in self?.writeSizingRecord() }
+        sizingRecordWrite = write
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: write)
+    }
+
+    private func writeSizingRecord() {
+        guard sizingRecordWrite != nil else { return }
+        sizingRecordWrite?.cancel()
+        sizingRecordWrite = nil
+        let mode: String
+        switch keyboardPreferences.debugPinnedPresentation {
+        case 1: mode = "pinned-banded"
+        case 2: mode = "pinned-bandless"
+        default: mode = "auto"
+        }
+        let presentationClass: String
+        if KeyboardTheme.legacyPresentation {
+            presentationClass = "legacy"
+        } else if KeyboardTheme.debugFullZoneStrip {
+            presentationClass = "full-zone-strip"
+        } else {
+            presentationClass = "banded"
+        }
+        // Heights seen after the first pass that matched the ask — a resize the
+        // classifier never sees, because it stops at that pass.
+        let settledIndex = layoutTrace.lastIndex { $0 == "|" } ?? 0
+        let afterAppear = layoutTrace[settledIndex...].compactMap { Double($0.filter(\.isNumber)) }
+        let ask = Double(preferredActiveKeyboardHeight)
+        let firstSettle = afterAppear.firstIndex { abs($0 - ask) < 1 }
+        let late = firstSettle.map { Array(afterAppear[($0 + 1)...]) } ?? []
+        let screen = view.window?.screen.bounds.size ?? UIScreen.main.bounds.size
+        KeyboardSizingLog.shared.append(
+            KeyboardSizingLog.Entry(
+                id: sizingRecordIdentifier,
+                date: Date(),
+                uptime: presentationUptime,
+                presentation: presentationCount,
+                pid: ProcessInfo.processInfo.processIdentifier,
+                trace: layoutTrace,
+                ask: ask,
+                strip: Double(currentMetrics.suggestionHeight),
+                settled: Double(view.bounds.height),
+                mode: mode,
+                presentationClass: presentationClass,
+                screen: "\(Int(screen.width))x\(Int(screen.height))",
+                systemVersion: UIDevice.current.systemVersion,
+                dark: traitCollection.userInterfaceStyle == .dark,
+                lateHeights: late
+            )
+        )
+        layoutTrace.removeAll()
+    }
+
+    /// One line per distinct height the system lays us out at, from process start
+    /// to teardown — the unfiltered ground truth behind the classifier. Includes
+    /// whether `viewWillAppear` has run, because passes before it are invisible to
+    /// the classifier and that asymmetry is a race candidate.
+    private func traceLayoutPass() {
+        let height = view.bounds.height
+        guard height != lastTracedHeight else { return }
+        lastTracedHeight = height
+        layoutTrace.append("\(Int(height))\(viewWillAppearWasCalled ? "" : "*")")
+        if layoutTrace.count > 32 {
+            layoutTrace.removeFirst(layoutTrace.count - 32)
+        }
+        lifecycleLog.notice(
+            """
+            OBADH-TRACE n\(self.presentationCount) t\(Int((CACurrentMediaTime() - self.processStart) * 1000)) \
+            b\(Int(height)) ask\(Int(self.preferredActiveKeyboardHeight)) \
+            con\(Int(self.keyboardHeightConstraint?.constant ?? -1))/\(self.keyboardHeightConstraint?.isActive == true ? "on" : "off") \
+            iv\(Int(self.inputView?.bounds.height ?? -1)) win\(Int(self.view.window?.bounds.height ?? -1)) \
+            wva\(self.viewWillAppearWasCalled ? 1 : 0) cls\(self.presentationClassified ? 1 : 0)
+            """
+        )
+    }
+    #endif
 
     // MARK: Legacy presentation detection
 
@@ -401,23 +578,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // iOS 26 measurements and misfire against iOS 27 host layouts (Messenger
         // classified legacy -> 53pt strip + 17pt band = 70pt zone, 18pt taller
         // than native), so the legacy detector is iOS 26 only.
-        // Band-less cold-launch detection, both OS generations: cold presents pass
-        // through a sizing intermediate BELOW our ask (device-measured on iOS 27:
-        // 224 with ask 255) and get no system band; re-presentations settle at the
-        // ask directly and get the ~17pt band. The signature never occurs in the
-        // iOS 26 simulator corpus (every measured intermediate sits ABOVE the ask),
-        // so this cannot misfire on known-banded paths; if an iOS 26 device cold
-        // start shares the signature, it gets the same correction.
-        let ask = preferredActiveKeyboardHeight
-        if presentationTransients.contains(where: { $0 < ask - 10 }) {
-            lifecycleLog.notice("OBADH-LIFECYCLE bandless cold presentation detected (transients \(self.presentationTransients.map { Int($0) }.description, privacy: .public))")
-            KeyboardTheme.bandlessPresentation = true
-            metricsCache = nil
-            updateKeyboardHeightConstraintIfReady()
-            applyLayoutMetricsIfNeeded(force: true)
-            refreshKeyboard()
-            return
-        }
+        // NOTE: a band-less-cold-launch detector used to live here, keyed off a
+        // sizing intermediate below our ask. It is gone deliberately. The system's
+        // container band is a per-OS constant (16.0pt measured on iOS 26.5 and
+        // invariant under a swept ask, repeated presentations, and host accessory
+        // views; 17.3pt measured on an iOS 27 device), so there is nothing to detect
+        // — and because the system pins our view's bottom edge, acting on a wrong
+        // guess moved every key row ~18pt, which is the height instability it was
+        // meant to fix. See KeyboardTheme.referenceSuggestionHeight.
         if #available(iOS 27.0, *) {
             return
         }
@@ -1332,6 +1500,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     private var preferredActiveKeyboardHeight: CGFloat {
+        #if DEBUG
+        if let debugAskOverride {
+            return debugAskOverride
+        }
+        #endif
         let screenSize = view.window?.screen.bounds.size ?? UIScreen.main.bounds.size
         if showsEmojiPanel {
             return KeyboardTheme.preferredEmojiKeyboardHeight(
@@ -1795,6 +1968,34 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             // Mouse-free sim driving of the presentation probe overlay.
             keyboardPreferences.debugPresentationProbeEnabled = argument != "off"
             updatePresentationProbe()
+        case "backdrop":
+            // Structural test: does the system's container paint keyboard material
+            // BEHIND our view? If it does, our own backdrop is redundant and is what
+            // creates the band/strip seam; if it does not, we must keep painting it.
+            keyboardBackgroundView.isHidden = argument == "off"
+            lifecycleLog.notice("OBADH-DEBUG backdrop hidden=\(self.keyboardBackgroundView.isHidden)")
+        case "ask":
+            // Sizing investigation: force the asked height without touching what we
+            // render, so sweeping it isolates how the system's container band
+            // responds to the ask. `ask:0` restores the computed height.
+            let value = CGFloat(argument.flatMap(Double.init) ?? 0)
+            debugAskOverride = value > 0 ? value : nil
+            lifecycleLog.notice("OBADH-DEBUG ask override=\(self.debugAskOverride.map { String(Int($0)) } ?? "none", privacy: .public)")
+            updateKeyboardHeightConstraintIfReady()
+            applyLayoutMetricsIfNeeded(force: true)
+            view.setNeedsLayout()
+        case "strip":
+            // Force the strip height so band and strip can be varied independently
+            // while measuring.
+            switch argument {
+            case "bandless", "fullzone": KeyboardTheme.debugFullZoneStrip = true
+            case "banded": KeyboardTheme.debugFullZoneStrip = false
+            default: break
+            }
+            metricsCache = nil
+            updateKeyboardHeightConstraintIfReady()
+            applyLayoutMetricsIfNeeded(force: true)
+            refreshKeyboard()
         case "tap":
             // Inject keys through the exact production path so input behavior
             // (spaces, dari timing, composition) is scriptable on the simulator.
