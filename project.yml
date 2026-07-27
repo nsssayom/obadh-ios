@@ -33,6 +33,7 @@ targets:
         buildPhase: resources
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
       - path: Shared/Sources/Settings/KeyboardInstallState.swift
+      - path: Shared/Sources/Settings/KeyboardSizingLog.swift
       - path: Shared/Sources/Settings/LearnedWordStore.swift
       - path: Shared/Sources/Settings/AppBuildInfo.swift
       - path: Shared/Sources/Engine/PersonalAutosuggestStore.swift
@@ -62,6 +63,7 @@ targets:
       - path: Shared/Sources/Engine
       - path: Shared/Sources/Keyboard
       - path: Shared/Sources/Settings/KeyboardPreferences.swift
+      - path: Shared/Sources/Settings/KeyboardSizingLog.swift
       - path: Shared/Sources/Settings/LearnedWordStore.swift
       - path: Shared/Sources/Settings/AppBuildInfo.swift
       - path: Resources/ObadhModels

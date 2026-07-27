@@ -142,8 +142,15 @@ def measure_colors(path, ptw, q_pt, compact):
     q = int(q_pt * S)
     keyh = int((43 if compact else 45) * S)
     pitch = int((54 if compact else 56) * S)
-    xw = int(1.5 / 10 * img.width)
-    kx0, kx1 = xw - int(8 * S), xw + int(8 * S)
+    # Sample the LAST key in the row. The probe overlay's label is top-left, and at
+    # 4 lines it is taller than the modern strip (34pt), so its black backing
+    # overhangs ~10pt into the first key row out to x ≈ 335pt. Sampling any key left
+    # of that measured the label, not the key: obadh read 58 vs native 78 in dark and
+    # 179 vs 246 in light, while a histogram of the same captures showed the fills
+    # identical (77.7 vs 77.7). Legacy cells passed only because their 53pt strip
+    # hides the label. Keep this clear of the label on every width class.
+    xw = int(0.943 * img.width)
+    kx0, kx1 = xw - int(6 * S), xw + int(6 * S)
     fill = (median_rgb(a, q + int(5 * S), q + int(11 * S), kx0, kx1)
             + median_rgb(a, q + keyh - int(11 * S), q + keyh - int(4 * S), kx0, kx1)) / 2
     panel = median_rgb(a, q + keyh + int(2 * S), q + pitch - int(2 * S), kx0, kx1)

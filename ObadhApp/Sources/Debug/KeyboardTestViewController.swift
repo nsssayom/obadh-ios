@@ -29,6 +29,16 @@ final class KeyboardTestViewController: UIViewController {
     private var startsWithMeasureBackground: Bool {
         ProcessInfo.processInfo.arguments.contains("--measure-bg")
     }
+    /// Sizing investigation: attach a host `inputAccessoryView` (what a chat
+    /// composer like Messenger's uses) so we can test whether the system's
+    /// container band above the extension depends on the host, not on us.
+    /// `--accessory[=<pt>]`, default 44pt.
+    private var accessoryHeight: CGFloat? {
+        guard let argument = ProcessInfo.processInfo.arguments
+            .first(where: { $0.hasPrefix("--accessory") }) else { return nil }
+        let value = argument.split(separator: "=").last.flatMap { Double($0) }
+        return CGFloat(value ?? 44)
+    }
 
     // On-device tuning + diagnostics, written to the shared App Group so the live
     // keyboard picks them up. The render path reads none of these: tuned visuals
@@ -42,6 +52,22 @@ final class KeyboardTestViewController: UIViewController {
     private let sharpnessValueLabel = UILabel()
     private let backgroundControl = UISegmentedControl(items: ["Gradient", "Solid"])
     private let presentationProbeSwitch = UISwitch()
+    private let pinnedPresentationControl = UISegmentedControl(items: ["Auto", "Banded", "Band-less"])
+    private lazy var sizingLogButton: UIButton = {
+        var configuration = UIButton.Configuration.tinted()
+        configuration.title = "Sizing log"
+        configuration.image = UIImage(systemName: "list.bullet.rectangle")
+        configuration.imagePadding = 6
+        return UIButton(configuration: configuration, primaryAction: UIAction { [weak self] _ in
+            guard let self else { return }
+            let controller = SizingLogViewController()
+            if let navigationController {
+                navigationController.pushViewController(controller, animated: true)
+            } else {
+                present(UINavigationController(rootViewController: controller), animated: true)
+            }
+        })
+    }()
     private lazy var controlsPanel = makeControlsPanel()
 
     override func viewDidLoad() {
@@ -98,6 +124,11 @@ final class KeyboardTestViewController: UIViewController {
         textView.keyboardType = .alphabet
         textView.text = ""
         textView.accessibilityLabel = "Obadh keyboard test field"
+        if let accessoryHeight {
+            let bar = UIToolbar(frame: CGRect(x: 0, y: 0, width: 320, height: accessoryHeight))
+            bar.items = [UIBarButtonItem(title: "accessory", style: .plain, target: nil, action: nil)]
+            textView.inputAccessoryView = bar
+        }
     }
 
     private func configureBuildLabel() {
@@ -133,6 +164,9 @@ final class KeyboardTestViewController: UIViewController {
         presentationProbeSwitch.isOn = prefs.debugPresentationProbeEnabled
         presentationProbeSwitch.addTarget(self, action: #selector(presentationProbeChanged), for: .valueChanged)
 
+        pinnedPresentationControl.selectedSegmentIndex = prefs.debugPinnedPresentation
+        pinnedPresentationControl.addTarget(self, action: #selector(pinnedPresentationChanged), for: .valueChanged)
+
         updateHapticValueLabels()
     }
 
@@ -160,8 +194,12 @@ final class KeyboardTestViewController: UIViewController {
         let diagnostics = sectionCard(
             symbol: "ruler",
             title: "Diagnostics",
-            rows: [switchRow("Probe overlay", presentationProbeSwitch)],
-            footer: "Draws measurement fiducials and a geometry readout on the keyboard. Screenshots become self-measuring; scripts/parity reads them."
+            rows: [
+                switchRow("Probe overlay", presentationProbeSwitch),
+                paddedRow(pinnedPresentationControl),
+                paddedRow(sizingLogButton)
+            ],
+            footer: "Probe draws measurement fiducials and a geometry readout on the keyboard; screenshots become self-measuring. Presentation class: Auto detects it per presentation (shipping behavior); Banded/Band-less pin it, so our asked height never changes and the system's own container band can be measured in isolation."
         )
 
         let note = UILabel()
@@ -319,6 +357,13 @@ final class KeyboardTestViewController: UIViewController {
 
     @objc private func presentationProbeChanged() {
         prefs.debugPresentationProbeEnabled = presentationProbeSwitch.isOn
+        KeyboardPreferences.postKeyTintChanged()
+    }
+
+    /// Takes effect on the keyboard's next presentation (the class is chosen in
+    /// viewWillAppear), so switch keyboards away and back after changing it.
+    @objc private func pinnedPresentationChanged() {
+        prefs.debugPinnedPresentation = pinnedPresentationControl.selectedSegmentIndex
         KeyboardPreferences.postKeyTintChanged()
     }
 

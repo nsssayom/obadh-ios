@@ -114,6 +114,18 @@ struct KeyboardPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.debugPresentationProbeKey) }
     }
 
+    /// Sizing diagnosis: pins the presentation class instead of detecting it, so a
+    /// capture run holds OUR asked height constant across presentations. If the
+    /// system's container band still varies while pinned, the band is genuinely
+    /// nondeterministic; if it stops varying, our own mid-presentation height
+    /// changes were driving it. 0 = auto (shipping detector), 1 = banded, 2 = bandless.
+    private static let debugPinnedPresentationKey = "debug.pinnedPresentation"
+
+    var debugPinnedPresentation: Int {
+        get { defaults.integer(forKey: Self.debugPinnedPresentationKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.debugPinnedPresentationKey) }
+    }
+
     /// Fire a cross-process Darwin notification so the running keyboard re-reads the
     /// tint and re-styles its keys immediately (the extension is a separate process).
     static func postKeyTintChanged() {
