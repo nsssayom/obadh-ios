@@ -11,14 +11,25 @@ struct ObadhModelConfiguration: Equatable {
 /// this type only manages the opaque handles and marshals strings across the
 /// boundary.
 ///
-/// The ABI has no internal locking and forbids using a single handle from two
-/// threads at once, so every call is serialized behind `lock`. Contention is nil
-/// in practice — typing is main-thread and the async work runs on one serial
-/// queue — but the lock makes the contract hold regardless of caller.
+/// The ABI has no internal locking and forbids using a SINGLE handle from two
+/// threads at once. That is a per-handle contract, so each handle carries its own
+/// lock. Do NOT collapse these back into one mutex: the handles share no state,
+/// and a single lock puts the keystroke path behind the FST search.
+///
+/// Measured against the real models (release Rust, `PerKeystrokeCostBench`):
+/// `transliterate` on `engineHandle` costs ~0.001 ms, while one background
+/// `compositionSuggestions` traversal on `autocorrectHandle` costs 1.3-5.3 ms and
+/// `detailedCorrections` about the same again. Under one lock, every keystroke's
+/// 1 microsecond of work queued behind milliseconds of unrelated FST traversal.
+/// On a fast phone that still fit between keystrokes; on a slower one it did not,
+/// and the backlog — hence the latency — grew without bound while typing.
+/// No method takes more than one lock, so there is no lock-ordering hazard.
 final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     static let shared = ObadhBridgeClient()
 
-    private let lock = NSLock()
+    private let engineLock = NSLock()
+    private let autocorrectLock = NSLock()
+    private let autosuggestLock = NSLock()
     private var engineHandle: OpaquePointer?
     private var autocorrectHandle: OpaquePointer?
     private var autosuggestHandle: OpaquePointer?
@@ -36,29 +47,38 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
 
     // MARK: - Configuration
 
+    /// Each handle is opened under its own lock, sequentially rather than nested, so
+    /// no call site ever holds two locks at once.
     func configureModels(in bundle: Bundle) -> ObadhModelConfiguration {
-        lock.lock()
-        defer { lock.unlock() }
-
         assert(obadh_abi_version() == 2, "ObadhBridge built against a different engine C ABI")
 
+        engineLock.lock()
         if engineHandle == nil {
             engineHandle = obadh_engine_new()
         }
+        engineLock.unlock()
+
+        autocorrectLock.lock()
         if autocorrectHandle == nil {
             autocorrectHandle = openAutocorrect(in: bundle)
         }
+        let autocorrectAvailable = autocorrectHandle != nil
+        autocorrectLock.unlock()
+
+        autosuggestLock.lock()
         if autosuggestHandle == nil {
             autosuggestHandle = openAutosuggest(in: bundle)
         }
+        let autosuggestAvailable = autosuggestHandle != nil
+        autosuggestLock.unlock()
 
         #if DEBUG
-        print("[Obadh] autocorrect fingerprint: \(autocorrectFingerprintLocked()), autosuggest fingerprint: \(autosuggestFingerprintLocked())")
+        print("[Obadh] autocorrect fingerprint: \(autocorrectFingerprint()), autosuggest fingerprint: \(autosuggestFingerprint())")
         #endif
 
         return ObadhModelConfiguration(
-            autocorrectAvailable: autocorrectHandle != nil,
-            autosuggestAvailable: autosuggestHandle != nil
+            autocorrectAvailable: autocorrectAvailable,
+            autosuggestAvailable: autosuggestAvailable
         )
     }
 
@@ -66,16 +86,16 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     /// hash of the artifact bytes: pin it in a test so a silent artifact swap on an
     /// engine bump fails loudly instead of degrading suggestions unnoticed.
     func autocorrectFingerprint() -> UInt64 {
-        lock.lock()
-        defer { lock.unlock() }
+        autocorrectLock.lock()
+        defer { autocorrectLock.unlock() }
         return autocorrectFingerprintLocked()
     }
 
     /// Content fingerprint of the loaded autosuggest n-gram artifact, or 0 if
     /// unavailable. See `autocorrectFingerprint()`.
     func autosuggestFingerprint() -> UInt64 {
-        lock.lock()
-        defer { lock.unlock() }
+        autosuggestLock.lock()
+        defer { autosuggestLock.unlock() }
         return autosuggestFingerprintLocked()
     }
 
@@ -138,8 +158,8 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     // MARK: - Transliteration
 
     func transliterate(_ input: String) -> String {
-        lock.lock()
-        defer { lock.unlock() }
+        engineLock.lock()
+        defer { engineLock.unlock() }
         guard let engineHandle else { return "" }
         var input = input
         return input.withUTF8 { inputBuffer in
@@ -155,8 +175,8 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     /// corrections. Always non-empty for real input so the user can keep exactly
     /// what they typed.
     func compositionSuggestions(for romanInput: String, limit: Int) -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
+        autocorrectLock.lock()
+        defer { autocorrectLock.unlock() }
         guard let autocorrectHandle else { return [] }
         var romanInput = romanInput
         let boundedLimit = max(0, limit)
@@ -172,8 +192,8 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     /// [u32 count] then per record [u32 len][utf8][u8 source][u16 edit]
     /// [u16 repair, 0xFFFF = none][u64 frequency], all little-endian.
     func detailedCorrections(for romanInput: String, limit: Int) -> [DetailedCorrection] {
-        lock.lock()
-        defer { lock.unlock() }
+        autocorrectLock.lock()
+        defer { autocorrectLock.unlock() }
         guard let autocorrectHandle else { return [] }
         var romanInput = romanInput
         let boundedLimit = max(0, limit)
@@ -245,8 +265,8 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     /// no entry is stored with frequency 0. The count is the baseline signal a
     /// frequency-ratio auto-insert gate needs.
     func wordFrequency(_ word: String) -> UInt64 {
-        lock.lock()
-        defer { lock.unlock() }
+        autocorrectLock.lock()
+        defer { autocorrectLock.unlock() }
         guard let autocorrectHandle else { return 0 }
         var word = word
         return word.withUTF8 { buffer in
@@ -262,8 +282,8 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     /// Lexicon alternatives for an already-committed Bangla word under the cursor
     /// (a re-correction menu; lexicon-only, no Roman repairs).
     func wordAlternatives(for banglaWord: String, limit: Int) -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
+        autocorrectLock.lock()
+        defer { autocorrectLock.unlock() }
         guard let autocorrectHandle else { return [] }
         var banglaWord = banglaWord
         let boundedLimit = max(0, limit)
@@ -279,8 +299,8 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     /// Stateless next-word suggestions for an explicit context (the mid-cursor
     /// path). Model-only — does not use or mutate the session's learned state.
     func autosuggestSuggestions(for context: String, limit: Int) -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
+        autosuggestLock.lock()
+        defer { autosuggestLock.unlock() }
         guard let autosuggestHandle else { return [] }
         var context = context
         let boundedLimit = max(0, limit)
@@ -294,8 +314,8 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     /// Next-word suggestions for the current session context, with the personal
     /// overlay's learned words merged in.
     func autosuggestSessionSuggestions(limit: Int) -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
+        autosuggestLock.lock()
+        defer { autosuggestLock.unlock() }
         guard let autosuggestHandle else { return [] }
         let boundedLimit = max(0, limit)
         return readStringList { outputPtr, capacity in
@@ -307,8 +327,8 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     /// overlay. Word-protection for auto-insert lives app-side (`LearnedWordStore`).
     @discardableResult
     func commitAutosuggestToken(_ token: String) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
+        autosuggestLock.lock()
+        defer { autosuggestLock.unlock() }
         guard let autosuggestHandle else { return false }
         var token = token
         return token.withUTF8 { buffer in
@@ -317,22 +337,22 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
     }
 
     func clearAutosuggestSession() {
-        lock.lock()
-        defer { lock.unlock() }
+        autosuggestLock.lock()
+        defer { autosuggestLock.unlock() }
         guard let autosuggestHandle else { return }
         obadh_autosuggest_clear_session(autosuggestHandle)
     }
 
     func clearPersonalAutosuggest() {
-        lock.lock()
-        defer { lock.unlock() }
+        autosuggestLock.lock()
+        defer { autosuggestLock.unlock() }
         guard let autosuggestHandle else { return }
         obadh_autosuggest_clear_personal(autosuggestHandle)
     }
 
     func exportPersonalAutosuggestSnapshot() -> Data? {
-        lock.lock()
-        defer { lock.unlock() }
+        autosuggestLock.lock()
+        defer { autosuggestLock.unlock() }
         guard let autosuggestHandle else { return nil }
         let bytes = readBytes { outputPtr, capacity in
             obadh_autosuggest_export_personal(autosuggestHandle, outputPtr, capacity)
@@ -342,8 +362,8 @@ final class ObadhBridgeClient: BanglaTypingEngine, @unchecked Sendable {
 
     @discardableResult
     func importPersonalAutosuggestSnapshot(_ data: Data) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
+        autosuggestLock.lock()
+        defer { autosuggestLock.unlock() }
         guard let autosuggestHandle, !data.isEmpty else { return false }
         return data.withUnsafeBytes { inputBuffer in
             obadh_autosuggest_import_personal(

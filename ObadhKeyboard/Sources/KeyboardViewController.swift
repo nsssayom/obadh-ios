@@ -58,6 +58,13 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private static let dariDoubleSpaceWindow: TimeInterval = 0.35
     private var lastSpaceKeyTime: CFTimeInterval = 0
     private var suggestionGeneration = 0
+    /// The in-flight suggestion query. Each keystroke supersedes the last, so the
+    /// previous one is cancelled rather than left to run: dispatch skips a work item
+    /// cancelled before it starts, which stops the serial queue from accumulating
+    /// stale FST traversals. Without this, typing N characters enqueued N searches
+    /// with N-1 already irrelevant — the results were discarded by
+    /// `suggestionGeneration`, but the work still ran and still cost battery.
+    private var pendingSuggestionWork: DispatchWorkItem?
     private var isUpdatingTextProxy = false
     /// Set while the suggestion bar is showing corrections for an already-committed word
     /// the cursor sits in, so a tap replaces that word rather than inserting a next word.
@@ -890,6 +897,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
     }
 
+    /// Enqueues a suggestion query, cancelling whichever one it supersedes. Only for
+    /// work whose result the next keystroke invalidates — never for learning or
+    /// persistence, which must always complete.
+    private func scheduleSuggestionQuery(_ body: @escaping @Sendable () -> Void) {
+        pendingSuggestionWork?.cancel()
+        let work = DispatchWorkItem(block: body)
+        pendingSuggestionWork = work
+        engineQueue.async(execute: work)
+    }
+
     private func refreshSuggestions() {
         suggestionGeneration &+= 1
         let generation = suggestionGeneration
@@ -908,7 +925,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             let limit = composer.autocorrectFetchLimit
             let autoInsert = keyboardPreferences.autoInsertTopCorrection
             let shownWord = composer.preview
-            engineQueue.async { [weak self] in
+            scheduleSuggestionQuery { [weak self] in
                 let candidates = engine.compositionSuggestions(for: buffer, limit: limit)
                 // The literal's frequency drives both the native-style "keep my
                 // spelling" quote (0 = not a word) and, with the detailed records'
@@ -944,7 +961,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let contextAfterInput = textDocumentProxy.documentContextAfterInput ?? ""
         if let cursorWord = CursorWordDetector.wordAtCursor(before: contextBeforeInput, after: contextAfterInput) {
             activeCursorWord = cursorWord
-            engineQueue.async { [weak self] in
+            scheduleSuggestionQuery { [weak self] in
                 let alternatives = engine
                     .wordAlternatives(for: cursorWord.word, limit: 4)
                     .filter { !$0.isEmpty && $0 != cursorWord.word }
@@ -963,7 +980,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // So it's only trustworthy at the end of the text. With the cursor moved into
         // earlier text, it buries the cursor-accurate context lookup — use that alone.
         let cursorAtEnd = (textDocumentProxy.documentContextAfterInput ?? "").isEmpty
-        engineQueue.async { [weak self] in
+        scheduleSuggestionQuery { [weak self] in
             let contextSuggestions = engine
                 .autosuggestSuggestions(for: contextBeforeInput, limit: 6)
                 .filter { !$0.isEmpty }
@@ -1424,16 +1441,17 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         guard !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
-        guard engine.commitAutosuggestToken(token) else {
-            return
-        }
-        // The bridge calls and disk write are the slow part; keep them off the space-key
-        // critical path. Serialized on engineQueue against the Rust session.
+        // Every bridge call here is off the space-key critical path, including the
+        // commit itself: it takes the autosuggest handle, which the snapshot export
+        // below also holds for as long as it takes to serialize. Committing on the
+        // main thread meant one space key could block on the previous space key's
+        // export. Ordering is preserved because engineQueue is serial.
         let engine = self.engine
         let store = self.personalAutosuggestStore
         let learnedWordStore = self.learnedWordStore
         let signal: LearnedWordStore.Signal = keep ? .explicitKeep : .commit
         engineQueue.async {
+            guard engine.commitAutosuggestToken(token) else { return }
             // Only a word the built-in lexicon doesn't know can ever need protection, so
             // the personal store never fills with words it already covers.
             if !engine.isLexiconWord(token) {
