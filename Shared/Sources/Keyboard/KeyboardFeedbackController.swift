@@ -26,6 +26,24 @@ final class KeyboardFeedbackController {
     private let preferences = KeyboardPreferences()
     private var hapticFeedbackEnabled = true
 
+    /// Core Haptics needs Full Access: a sandboxed extension without it cannot reach
+    /// the haptic server. The controller must be TOLD, because without this it kept
+    /// retrying and each attempt blocked the main thread.
+    private var fullAccessGranted = false
+
+    /// Set once engine creation has failed, and never retried for the lifetime of the
+    /// controller.
+    ///
+    /// WHY THIS EXISTS: `emit()` falls through to `startEngine()` whenever `engine` is
+    /// nil, so with Full Access off — a fully supported configuration — every single
+    /// keystroke constructed a `CHHapticEngine` and called the synchronous
+    /// `engine.start()`, which fails slowly. Measured on an iPhone 16e: main-thread
+    /// stalls up to **3.7 seconds** and 220 dropped frames in a single second, while
+    /// every instrumented path (keystroke 1.1ms, textDidChange, selectionDidChange,
+    /// refreshSuggestions) stayed under 8ms. The keyboard was unusable and the cause
+    /// was a haptic engine that could never start.
+    private var engineUnavailable = false
+
     /// One crisp transient: intensity + sharpness (each 0…1), plus the intensity
     /// to use for the `.rigid` impact fallback.
     private struct Tick {
@@ -45,7 +63,14 @@ final class KeyboardFeedbackController {
 
     // MARK: Lifecycle
 
-    func prepare() {
+    /// `hasFullAccess` comes from the input view controller; Core Haptics is
+    /// unreachable without it.
+    func prepare(hasFullAccess: Bool) {
+        if hasFullAccess, !fullAccessGranted {
+            // Newly granted: it is worth one more attempt.
+            engineUnavailable = false
+        }
+        fullAccessGranted = hasFullAccess
         reloadPreferences()
         rigidFeedback.prepare()
         startEngine()
@@ -55,24 +80,42 @@ final class KeyboardFeedbackController {
         hapticFeedbackEnabled = preferences.hapticFeedbackEnabled
     }
 
+    /// Starts the engine ASYNCHRONOUSLY and at most once. Both guards matter: the
+    /// synchronous `start()` blocks the main thread, and a single failure means it
+    /// will keep failing, so retrying per keystroke only multiplies the stall.
     private func startEngine() {
-        guard supportsHaptics, hapticFeedbackEnabled, engine == nil else { return }
+        guard supportsHaptics, hapticFeedbackEnabled, fullAccessGranted,
+              !engineUnavailable, engine == nil else { return }
         do {
-            let engine = try CHHapticEngine()
-            engine.isAutoShutdownEnabled = true
-            engine.stoppedHandler = { [weak self] _ in
+            let created = try CHHapticEngine()
+            created.isAutoShutdownEnabled = true
+            created.stoppedHandler = { [weak self] _ in
                 Task { @MainActor in self?.engine = nil }
             }
-            engine.resetHandler = { [weak self] in
-                Task { @MainActor in try? self?.engine?.start() }
+            created.resetHandler = { [weak self] in
+                Task { @MainActor in self?.engine?.start(completionHandler: { _ in }) }
             }
-            try engine.start()
-            self.engine = engine
-            // Prewarm with an imperceptible zero-intensity transient so the first
-            // real key tap doesn't pay the engine's cold-start latency.
-            try? play(intensity: 0, sharpness: 0)
+            // Held before starting so the completion handler never has to send a
+            // non-Sendable engine across an isolation boundary; until the start
+            // succeeds a play() simply throws and emit() falls back to the impact.
+            engine = created
+            // Async start: the synchronous variant is what blocked the main thread.
+            created.start { [weak self] error in
+                Task { @MainActor in
+                    guard let self else { return }
+                    guard error == nil else {
+                        self.engine = nil
+                        self.engineUnavailable = true
+                        return
+                    }
+                    // Prewarm with an imperceptible zero-intensity transient so the
+                    // first real key tap doesn't pay the cold-start latency.
+                    try? self.play(intensity: 0, sharpness: 0)
+                }
+            }
         } catch {
             engine = nil
+            engineUnavailable = true
         }
     }
 
@@ -128,12 +171,15 @@ final class KeyboardFeedbackController {
                 try play(intensity: tick.intensity, sharpness: tick.sharpness)
                 return
             } catch {
-                engine = nil // died between taps → fall through and relight
+                engine = nil // died between taps
             }
         }
         rigidFeedback.impactOccurred(intensity: tick.fallbackIntensity)
         rigidFeedback.prepare()
-        startEngine()
+        // Deliberately NOT relighting the engine here. This is the keystroke path, and
+        // startEngine() used to run on it: with Full Access off it constructed and
+        // synchronously started an engine that could never work, once per keypress.
+        // Relighting is now driven by prepare() at presentation instead.
     }
 
     private func play(intensity: Float, sharpness: Float) throws {
