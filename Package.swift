@@ -18,6 +18,7 @@ let package = Package(
                 "Keyboard/Emoji/EmojiVariantPopoverView.swift",
                 "Keyboard/KeyboardDebugChannel.swift",
                 "Settings/KeyboardSizingLog.swift",
+                "Settings/KeystrokeProfile.swift",
                 "Keyboard/KeyboardFeedbackController.swift",
                 "Keyboard/KeyboardKeyButton.swift",
                 "Keyboard/KeyboardKeyPreviewCallout.swift",

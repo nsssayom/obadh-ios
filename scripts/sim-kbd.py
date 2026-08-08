@@ -41,8 +41,10 @@ import time
 import numpy as np
 from PIL import Image
 
-OBADH_APP = "com.nsssayom.obadh"
-OBADH_KB = "com.nsssayom.obadh.keyboard"
+# Overridable so the tooling still works when the bundle id is temporarily bumped
+# (e.g. OBADH_APP=com.nsssayom.obadhdev while a provisioning quota is cleared).
+OBADH_APP = os.environ.get("OBADH_APP", "com.nsssayom.obadh")
+OBADH_KB = os.environ.get("OBADH_KB", OBADH_APP + ".keyboard")
 LOG_PREDICATE = 'subsystem == "com.nsssayom.obadh.keyboard"'
 DEVICE_W_PT = 440.0
 

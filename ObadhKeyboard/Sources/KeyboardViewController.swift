@@ -120,6 +120,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     /// The classifier's `presentationTransients` is a filtered view of this; the
     /// filtering is what hid the race, so the raw sequence is logged separately.
     private var lastTracedHeight: CGFloat = -1
+    private var frameMonitor: CADisplayLink?
+    private var frameWindowStart: CFTimeInterval = 0
+    private var lastFrameTimestamp: CFTimeInterval = 0
+    private var frameCount = 0
+    private var droppedFrames = 0
+    private var worstFrameMs: Double = 0
     /// Distinct laid-out heights since the last recorded presentation, `*`-marked
     /// when the pass arrived before `viewWillAppear` (those are invisible to the
     /// shipping classifier) and `|`-separated at each `viewWillAppear`. The probe
@@ -143,7 +149,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         if configuration.autosuggestAvailable {
             restorePersonalAutosuggest()
         }
-        feedbackController.prepare()
+        feedbackController.prepare(hasFullAccess: hasFullAccess)
         configureRootView()
         configureSuggestionBar()
         configureEmojiPanel()
@@ -359,7 +365,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         beginSizingRecord()
         #endif
         view.setNeedsUpdateConstraints()
-        feedbackController.prepare()
+        feedbackController.prepare(hasFullAccess: hasFullAccess)
         // Obadh may be returning to a field another keyboard has edited since we last
         // saw it. Any composition we remember is stale; start from whatever the
         // document is now.
@@ -376,6 +382,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         lifecycleLog.notice("OBADH-LIFECYCLE viewDidAppear — keyboard visible, build=\(AppBuildInfo.summary, privacy: .public) style=\(self.traitCollection.userInterfaceStyle == .dark ? "dark" : "light", privacy: .public) size=\(NSCoder.string(for: self.view.bounds.size), privacy: .public)")
         #if DEBUG
         logBandObservationCandidates()
+        startFrameMonitor()
         #endif
         showSpaceLanguageIntro()
         // Reflect the current cursor context (e.g. next-word suggestions) now that we
@@ -392,6 +399,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // ordinary text, so we only stop tracking it. Nothing is lost or stranded.
         resetCompositionBookkeeping()
         #if DEBUG
+        stopFrameMonitor()
         // Capture short presentations too, before the deferred write would fire.
         writeSizingRecord()
         debugChannel.stop()
@@ -412,6 +420,59 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     #if DEBUG
+    /// Frame-drop monitor. The per-keystroke profile showed only ~1.1 ms of
+    /// main-thread work on an iPhone 16e, which cannot by itself feel laggy — so the
+    /// cost has to be after our code returns, in layout and GPU compositing. This
+    /// measures that directly: whether frames are actually being missed.
+    ///
+    /// Streams over USB alongside the keystroke lines:
+    ///   idevicesyslog -u <udid> -m OBADH-
+    private func startFrameMonitor() {
+        frameMonitor?.invalidate()
+        let link = CADisplayLink(target: self, selector: #selector(frameTick(_:)))
+        link.add(to: .main, forMode: .common)
+        frameMonitor = link
+        frameWindowStart = CACurrentMediaTime()
+        frameCount = 0
+        droppedFrames = 0
+        worstFrameMs = 0
+        lastFrameTimestamp = 0
+    }
+
+    private func stopFrameMonitor() {
+        frameMonitor?.invalidate()
+        frameMonitor = nil
+    }
+
+    @objc private func frameTick(_ link: CADisplayLink) {
+        let now = link.timestamp
+        // `targetTimestamp - timestamp` is the display's current frame budget, which
+        // varies with ProMotion, so the threshold is derived rather than hardcoded.
+        let expected = link.targetTimestamp - now
+        if lastFrameTimestamp > 0 {
+            let delta = now - lastFrameTimestamp
+            worstFrameMs = max(worstFrameMs, delta * 1000)
+            if delta > expected * 1.5 {
+                // Count how many frame slots were missed, not just that one was.
+                droppedFrames += Int((delta / max(expected, 0.0001)).rounded()) - 1
+            }
+        }
+        lastFrameTimestamp = now
+        frameCount += 1
+
+        let elapsed = now - frameWindowStart
+        guard elapsed >= 1.0 else { return }
+        if droppedFrames > 0 || worstFrameMs > 25 {
+            lifecycleLog.notice(
+                "OBADH-FRAMES \(self.frameCount, privacy: .public) frames in \(Int(elapsed * 1000), privacy: .public)ms  dropped \(self.droppedFrames, privacy: .public)  worst \(Int(self.worstFrameMs), privacy: .public)ms  budget \(Int(expected * 1000), privacy: .public)ms"
+            )
+        }
+        frameWindowStart = now
+        frameCount = 0
+        droppedFrames = 0
+        worstFrameMs = 0
+    }
+
     /// Last-resort search for a runtime observable of the system's container band.
     /// Two candidates the geometry argument does not already rule out:
     ///   1. keyboard-frame notifications — if the extension receives them at all, the
@@ -542,6 +603,23 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
     #endif
 
+    #if DEBUG
+    /// Times a main-thread entry point and logs anything over one frame budget. The
+    /// keystroke profiler brackets handleKeyPress only, but the host calls BACK into
+    /// the proxy callbacks after our insert, and that work is also main-thread. A
+    /// 1.4s frame gap with a 1.1ms keystroke means the cost lives here.
+    @discardableResult
+    private func measureMain<T>(_ label: String, _ body: () -> T) -> T {
+        let t0 = CACurrentMediaTime()
+        let value = body()
+        let ms = (CACurrentMediaTime() - t0) * 1000
+        if ms > 8 {
+            lifecycleLog.notice("OBADH-STALL \(label, privacy: .public) \(Int(ms), privacy: .public)ms")
+        }
+        return value
+    }
+    #endif
+
     // MARK: Legacy presentation detection
 
     /// iOS presents third-party keyboards in one of two containers — modern Liquid
@@ -623,6 +701,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
         guard !isUpdatingTextProxy else { return }
+        #if DEBUG
+        return measureMain("textDidChange") { textDidChangeBody() }
+        #else
+        textDidChangeBody()
+        #endif
+    }
+
+    private func textDidChangeBody() {
         if !composer.hasActiveInput,
            (textDocumentProxy.documentContextBeforeInput ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -650,6 +736,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
         guard !isUpdatingTextProxy else { return }
+        #if DEBUG
+        return measureMain("selectionDidChange") { selectionDidChangeBody() }
+        #else
+        selectionDidChangeBody()
+        #endif
+    }
+
+    private func selectionDidChangeBody() {
         // Backstop for hosts that deliver only one of the two callbacks; idempotent.
         resetCompositionBookkeeping()
         refreshSuggestions()
@@ -908,6 +1002,14 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     private func refreshSuggestions() {
+        #if DEBUG
+        measureMain("refreshSuggestions") { refreshSuggestionsBody() }
+        #else
+        refreshSuggestionsBody()
+        #endif
+    }
+
+    private func refreshSuggestionsBody() {
         suggestionGeneration &+= 1
         let generation = suggestionGeneration
         let engine = self.engine
@@ -1053,6 +1155,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     private func handleKeyPress(_ key: KeyboardKey) {
+        #if DEBUG
+        KeystrokeProfile.shared.beginKeystroke()
+        defer { KeystrokeProfile.shared.endKeystroke() }
+        #endif
         if isEmojiSearchActive {
             if key == .backspace {
                 endBackspacePress()
@@ -1065,7 +1171,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
         switch key {
         case let .character(value):
+            #if DEBUG
+            KeystrokeProfile.shared.measureEngine { composer.append(shifted ? value.uppercased() : value) }
+            #else
             composer.append(shifted ? value.uppercased() : value)
+            #endif
             shifted = false
             refreshCompositionPreview()
         case let .symbol(symbol):
@@ -1942,16 +2052,31 @@ extension KeyboardViewController: EmojiPanelViewDelegate {
 private struct DocumentProxyEditor: TextDocumentEditing {
     let proxy: any UITextDocumentProxy
 
+    // Every accessor below is a synchronous round-trip to the HOST app's process.
+    // In DEBUG each one is timed and counted (see KeystrokeProfile) because the
+    // reshape path can issue many per keypress.
     var contextBeforeInput: String? {
-        proxy.documentContextBeforeInput
+        #if DEBUG
+        return KeystrokeProfile.shared.measureProxy(.context) { proxy.documentContextBeforeInput }
+        #else
+        return proxy.documentContextBeforeInput
+        #endif
     }
 
     func insertText(_ text: String) {
+        #if DEBUG
+        KeystrokeProfile.shared.measureProxy(.insert) { proxy.insertText(text) }
+        #else
         proxy.insertText(text)
+        #endif
     }
 
     func deleteBackward() {
+        #if DEBUG
+        KeystrokeProfile.shared.measureProxy(.delete) { proxy.deleteBackward() }
+        #else
         proxy.deleteBackward()
+        #endif
     }
 }
 
