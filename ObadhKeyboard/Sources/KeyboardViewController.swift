@@ -1559,14 +1559,28 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let engine = self.engine
         let store = self.personalAutosuggestStore
         let learnedWordStore = self.learnedWordStore
-        let signal: LearnedWordStore.Signal = keep ? .explicitKeep : .commit
         engineQueue.async {
-            guard engine.commitAutosuggestToken(token) else { return }
-            // Only a word the built-in lexicon doesn't know can ever need protection, so
-            // the personal store never fills with words it already covers.
-            if !engine.isLexiconWord(token) {
-                learnedWordStore.reinforce(token, signal: signal)
+            // Word protection FIRST, and independent of autosuggest: they are unrelated
+            // subsystems, and an unavailable autosuggest handle must not silence
+            // learning. On iOS the artifact is always bundled so this never bit here,
+            // but a straight port to a client that ships no autosuggest learned nothing
+            // at all (issue #19).
+            //
+            // An explicit keep is never gated on the lexicon. The `isLexiconWord` guard
+            // is right for the weak signal — it stops the store filling with words that
+            // were never at risk — but wrong for the strong one: the user tapping their
+            // own quoted spelling is saying "leave this alone", and whether the lexicon
+            // knows the word is beside the point. Gating both silenced protection for
+            // exactly the main case, because the frequency-ratio gate exists to correct
+            // RARE LEXICON WORDS: মানুস (49) → মানুষ (95278) and বন্দু (25) → বন্ধু
+            // (21081) are both lexicon entries, so a keep on either stored nothing and
+            // the same correction came back forever, with no way to stop it.
+            if keep {
+                learnedWordStore.reinforce(token, signal: .explicitKeep)
+            } else if !engine.isLexiconWord(token) {
+                learnedWordStore.reinforce(token, signal: .commit)
             }
+            guard engine.commitAutosuggestToken(token) else { return }
             if let snapshot = engine.exportPersonalAutosuggestSnapshot() {
                 store.saveSnapshot(snapshot)
             }
