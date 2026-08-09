@@ -26,6 +26,23 @@ struct ObadhEngineIntegrationTests {
         configuration = ObadhBridgeClient.shared.configureModels(in: Bundle(for: BundleToken.self))
     }
 
+    // MARK: - Non-word tokens (engine 0.9.1, issue #34)
+
+    /// A token with no Bangla letter must yield ONLY its deterministic baseline.
+    /// Before 0.9.1 the edit-distance channel ran on every baseline, so punctuation
+    /// and digits fell within edit distance of the shortest, most frequent lexicon
+    /// entries and surfaced as "corrections" in the suggestion bar (`,` pulled in
+    /// ও/এ/অং). Pinned here because it is user-visible in our candidate strip and a
+    /// future engine bump could regress it.
+    @Test(arguments: [",", ".", "1", "12", "()", "?", "!"])
+    func nonWordTokensOfferNoLexiconCorrections(token: String) {
+        let suggestions = engine.compositionSuggestions(for: token, limit: 4)
+        #expect(
+            suggestions.count <= 1,
+            "\(token) offered \(suggestions.count) candidates: \(suggestions)"
+        )
+    }
+
     // MARK: - Configuration
 
     @Test func modelsLoadFromTheBundledArtifacts() {
