@@ -13,6 +13,11 @@ enum KeyboardKey: Equatable {
     case backspace
     case modeSwitch(String)
     case emoji
+    /// Next-keyboard switch. Only laid out when the system does NOT provide its
+    /// own (see `needsInputModeSwitchKey`): on iPhone the system draws a globe in
+    /// the row below our view, but on iPad it does not, which left no way out of
+    /// Obadh at all.
+    case globe
     case space
     case returnKey
 
@@ -22,7 +27,7 @@ enum KeyboardKey: Equatable {
             5.0
         case .returnKey:
             2.25
-        case .modeSwitch, .emoji:
+        case .modeSwitch, .emoji, .globe:
             1.25
         case .shift, .backspace:
             1.35
@@ -125,7 +130,16 @@ enum KeyboardLayoutProvider {
         ]
     }
 
-    static func rows(for mode: KeyboardMode) -> [KeyboardRow] {
+
+    /// The bottom command row. When the system does not supply a next-keyboard key
+    /// we add our own (see `KeyboardKey.globe`). No explicit weights: each key's own
+    /// `weight` applies, so space keeps its 5.0 share and the row re-proportions
+    /// itself around the extra key instead of being hand-tuned per variant.
+    private static func commandRow(leading: [KeyboardKey], includesGlobeKey: Bool) -> KeyboardRow {
+        KeyboardRow(keys: leading + (includesGlobeKey ? [.globe] : []) + [.space, .returnKey])
+    }
+
+    static func rows(for mode: KeyboardMode, includesGlobeKey: Bool = false) -> [KeyboardRow] {
         switch mode {
         case .letters:
             [
@@ -140,10 +154,7 @@ enum KeyboardLayoutProvider {
                     keyWeights: NativeGeometry.lowerRowWeights,
                     customSpacingAfterKeyIndex: NativeGeometry.lowerRowSpacingAfterKeyIndex
                 ),
-                KeyboardRow(
-                    keys: [.modeSwitch("123"), .emoji, .space, .returnKey],
-                    keyWeights: NativeGeometry.commandRowWeights
-                )
+                commandRow(leading: [.modeSwitch("123"), .emoji], includesGlobeKey: includesGlobeKey)
             ]
         case .numbers:
             [
@@ -159,10 +170,7 @@ enum KeyboardLayoutProvider {
                     keyWeights: NativeGeometry.punctuationLowerRowWeights,
                     customSpacingAfterKeyIndex: NativeGeometry.punctuationLowerRowSpacingAfterKeyIndex
                 ),
-                KeyboardRow(
-                    keys: [.modeSwitch("ABC"), .space, .returnKey],
-                    keyWeights: NativeGeometry.punctuationCommandRowWeights
-                )
+                commandRow(leading: [.modeSwitch("ABC")], includesGlobeKey: includesGlobeKey)
             ]
         case .symbols:
             [
@@ -178,10 +186,7 @@ enum KeyboardLayoutProvider {
                     keyWeights: NativeGeometry.punctuationLowerRowWeights,
                     customSpacingAfterKeyIndex: NativeGeometry.punctuationLowerRowSpacingAfterKeyIndex
                 ),
-                KeyboardRow(
-                    keys: [.modeSwitch("ABC"), .space, .returnKey],
-                    keyWeights: NativeGeometry.punctuationCommandRowWeights
-                )
+                commandRow(leading: [.modeSwitch("ABC")], includesGlobeKey: includesGlobeKey)
             ]
         }
     }

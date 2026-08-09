@@ -904,7 +904,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             view.removeFromSuperview()
         }
 
-        let rows = KeyboardLayoutProvider.rows(for: keyboardMode)
+        let rows = KeyboardLayoutProvider.rows(for: keyboardMode, includesGlobeKey: needsInputModeSwitchKey)
         for row in rows {
             let rowView = KeyboardRowView()
             rowView.translatesAutoresizingMaskIntoConstraints = false
@@ -1211,6 +1211,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             reloadKeyboardRows()
         case .emoji:
             showEmojiPanel()
+        case .globe:
+            advanceToNextInputMode()
         }
         previousKeyWasSpace = key == .space
         refreshKeyboard()
@@ -1276,7 +1278,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 emojiSearchQuery.append(" ")
                 syncEmojiSearchQuery()
             }
-        case .returnKey, .emoji:
+        case .returnKey, .emoji, .globe:
             exitEmojiSearch()
         case .backspace:
             if emojiSearchQuery.isEmpty {
@@ -1725,7 +1727,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     private func keyRowsHeight(for metrics: KeyboardMetrics) -> CGFloat {
-        let rowCount = CGFloat(KeyboardLayoutProvider.rows(for: keyboardMode).count)
+        let rowCount = CGFloat(KeyboardLayoutProvider.rows(for: keyboardMode, includesGlobeKey: needsInputModeSwitchKey).count)
         guard rowCount > 0 else { return 0 }
         return rowCount * metrics.minimumKeyHeight + max(0, rowCount - 1) * metrics.rowSpacing
     }

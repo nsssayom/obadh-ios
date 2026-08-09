@@ -92,6 +92,19 @@ final class KeyboardKeyButton: UIButton {
             setTitle(nil, for: .normal)
             setImage(nativeEmojiGlyph(pointSize: metrics.commandFontSize + 2), for: .normal)
             keyPreviewText = nil
+        case .globe:
+            setTitle(nil, for: .normal)
+            setImage(
+                UIImage(
+                    systemName: "globe",
+                    withConfiguration: UIImage.SymbolConfiguration(
+                        pointSize: metrics.commandFontSize,
+                        weight: .regular
+                    )
+                ),
+                for: .normal
+            )
+            keyPreviewText = nil
         }
     }
 
@@ -174,7 +187,7 @@ final class KeyboardKeyButton: UIButton {
             highlighted
                 ? KeyboardTheme.highlightedPrimaryKeyColor(for: traitCollection)
                 : KeyboardTheme.primaryKeyColor(for: traitCollection)
-        case .shift, .backspace, .modeSwitch, .emoji, .returnKey:
+        case .shift, .backspace, .modeSwitch, .emoji, .globe, .returnKey:
             highlighted
                 ? KeyboardTheme.highlightedUtilityKeyColor(for: traitCollection)
                 : KeyboardTheme.utilityKeyColor(for: traitCollection)
