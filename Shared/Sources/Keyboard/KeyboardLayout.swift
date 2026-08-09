@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 enum KeyboardMode: Equatable {
@@ -231,14 +232,28 @@ enum KeyboardLayoutProvider {
         /// 1024/1032pt — 13-inch. Five rows: a real number row appears.
         case extended
 
+        /// Selected from the device's PORTRAIT width — the screen's shorter side —
+        /// never from the current layout width.
+        ///
+        /// This distinction is the whole ballgame in landscape. An iPad Pro 11-inch
+        /// is 1210pt wide in landscape, which is past the extended threshold, but
+        /// native still draws it the 4-row standard layout: the family is a property
+        /// of the DEVICE, and rotating only stretches whichever layout that device
+        /// has. Keying off the live width would hand every rotated iPad a number row
+        /// it does not have in native.
+        ///
         /// Boundaries sit in the empty space between real device widths, so no
         /// shipping iPad lands near one. The fleet is 744 / 820 / 834 / 1024 / 1032.
-        static func forWidth(_ width: Double) -> PadFamily {
+        static func forPortraitWidth(_ width: Double) -> PadFamily {
             switch width {
             case ..<780: .compact
             case ..<1000: .standard
             default: .extended
             }
+        }
+
+        static func forScreen(_ size: CGSize) -> PadFamily {
+            forPortraitWidth(Double(min(size.width, size.height)))
         }
 
         var margin: Double {
@@ -518,12 +533,14 @@ enum KeyboardLayoutProvider {
         return rows
     }
 
+    /// `width` is the CURRENT layout width (it sizes the keys); `family` comes from
+    /// the device's portrait width and does not change when the iPad rotates.
     static func padRows(
         for mode: KeyboardMode,
         width: Double,
+        family: PadFamily,
         includesGlobeKey: Bool
     ) -> [KeyboardRow] {
-        let family = PadFamily.forWidth(width)
         switch mode {
         case .letters:
             return padLetterRows(family: family, width: width, includesGlobeKey: includesGlobeKey)
@@ -560,10 +577,11 @@ enum KeyboardLayoutProvider {
         for mode: KeyboardMode,
         includesGlobeKey: Bool = false,
         isPad: Bool = false,
-        width: Double = 0
+        width: Double = 0,
+        family: PadFamily = .standard
     ) -> [KeyboardRow] {
         if isPad, width > 0 {
-            return padRows(for: mode, width: width, includesGlobeKey: includesGlobeKey)
+            return padRows(for: mode, width: width, family: family, includesGlobeKey: includesGlobeKey)
         }
         return phoneRows(for: mode, includesGlobeKey: includesGlobeKey)
     }

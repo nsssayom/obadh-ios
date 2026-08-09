@@ -196,6 +196,75 @@ the stored reference and exits non-zero on any violation. Current state, toleran
 
 Margins, gaps, row counts and per-row key counts match native exactly on all five.
 
+## Landscape
+
+Captures in `Reference/native-ipad/landscape/`. The single most important finding:
+
+> **The layout family is a property of the DEVICE, not of the current width.**
+
+An iPad Pro 11-inch is 1210pt wide in landscape, well past the extended threshold,
+and native still draws it the **4-row standard** layout. An iPad mini at 1133pt
+still gets the **compact** layout, indented home row and all. Selecting the family
+from the live width would hand every rotated iPad a number row it does not have —
+which is why `PadFamily.forPortraitWidth` takes the screen's *shorter* side.
+
+Row structure is identical to each device's portrait layout: 11/10/11/6,
+12/11/11/6, 14/14/13/12/6.
+
+| | mini 1133 | iPad 1180 | Pro 11 1210 | Air 13 1366 | Pro 13 1376 |
+|---|---|---|---|---|---|
+| family | compact | standard | standard | extended | extended |
+| margin | 7 | 15 | 15 | 5 | 5 |
+| gap | 14 | 14 | 14 | 10 | 10 |
+| key height | 75 | 72.5 | 74 | 79 | 79 |
+| number row | — | — | — | 59 | 59 |
+| row pitch | 85.75 | 84.25 | 85.75 | 88 | 88 |
+| row spacing | 10.75 | 11.75 | 11.75 | 9 | 9 |
+| bottom inset | 30 | 31 | 31 | 24 | 24 |
+| container | 410.5 | 404.5 | 410.5 | 480.5 | 480.5 |
+
+**Letter-row weights are orientation-independent.** Every one of them reproduces
+within 0.01 of the portrait fit — tab 1.292/1.294/1.297, caps 1.648/1.644/1.652,
+return 2.120/2.117/2.120, left shift 2.179/2.172/2.177, right shift 1.589 exactly
+on both. The extended family matches too (tab 1.601, caps 1.853→1.863, shift
+2.410→2.423). So landscape reuses the same weight tables.
+
+What *does* change is the command row and the spatial constants. Landscape command
+weights, in units of the letter key:
+
+| | compact | standard | extended |
+|---|---|---|---|
+| globe / mode / emoji | 1.023 | 1.013 | 1.474 |
+| space | 5.770 | 7.617 | 6.565 |
+| mode (right) / hide | 1.612 | 1.503 | 2.280 |
+
+The extended family's command row is effectively unchanged from portrait
+(1.474/6.523/2.276); compact and standard both give the space bar more and the
+side keys less than they get in portrait.
+
+Key height in landscape tracks the device's portrait width within a family —
+72.5/820 = 0.0884 against 74/834 = 0.0887 — rather than being the flat constant it
+is in portrait.
+
+**Not yet implemented.** These numbers are measured and stored; the layout code
+still runs landscape through the old heuristics. See the handoff note below.
+
+### Capturing landscape
+
+iPadOS 26 ignores in-app orientation locks (iPad apps are resizable), so
+`requestGeometryUpdate` does **not** rotate an iPad simulator — it was tried.
+`simctl` has no rotation primitive either. The only route is Simulator's own
+**Device ▸ Orientation ▸ Landscape Left** menu command, which means:
+
+* Exactly one simulator may be booted, or the frontmost window is ambiguous.
+* Landscape captures are **serial**, unlike the portrait sweep, which runs all
+  five at once.
+* The menu is disabled until Simulator has a window for the booted device — allow
+  several seconds after `open -a Simulator`.
+* Launch the app **before** rotating; rotating SpringBoard alone did not stick.
+* `simctl io screenshot` returns the raw display buffer, which keeps the panel's
+  portrait shape with the UI rotated inside it. De-rotate the PNG afterwards.
+
 ## Where Obadh stood before this work
 
 Measured off `Reference/native-ipad/` versus a capture of the shipping build on the

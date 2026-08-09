@@ -158,7 +158,15 @@ enum KeyboardTheme {
     }
 
     @MainActor
-    static func metrics(for bounds: CGSize, traitCollection: UITraitCollection) -> KeyboardMetrics {
+    /// `padFamily` is the DEVICE's layout family. It must be passed in rather than
+    /// derived from `bounds`, because `bounds.width` is the rotated width in
+    /// landscape and an iPad Pro 11-inch at 1210pt would otherwise be classified as
+    /// a 13-inch. See KeyboardLayoutProvider.PadFamily.forPortraitWidth.
+    static func metrics(
+        for bounds: CGSize,
+        traitCollection: UITraitCollection,
+        padFamily requestedPadFamily: KeyboardLayoutProvider.PadFamily? = nil
+    ) -> KeyboardMetrics {
         let isLandscape = bounds.width > bounds.height && traitCollection.verticalSizeClass == .compact
         guard bounds.width > 0, bounds.height > 0 else {
             return fallbackMetrics
@@ -260,7 +268,7 @@ enum KeyboardTheme {
         // Type and key spacing scale with the taller iPad key; `scale` is capped at
         // 1.0, so without this an 834pt iPad drew 440pt-iPhone glyphs.
         let padFamily = traitCollection.userInterfaceIdiom == .pad
-            ? KeyboardLayoutProvider.PadFamily.forWidth(Double(bounds.width))
+            ? (requestedPadFamily ?? .forPortraitWidth(Double(bounds.width)))
             : nil
         let padTypeScale: CGFloat = padFamily == nil ? 1 : (padFamily == .extended ? 61.0 / 45.0 : 55.3 / 45.0)
         // The gap between keys is a per-family CONSTANT on iPad (12 / 10 / 7),
@@ -392,7 +400,7 @@ enum KeyboardTheme {
         // extension and is not part of the height we request. Keep in step with
         // metrics(for:) or the rows drift off the height we ask for.
         if traitCollection.userInterfaceIdiom == .pad {
-            switch KeyboardLayoutProvider.PadFamily.forWidth(Double(shorterSide)) {
+            switch KeyboardLayoutProvider.PadFamily.forPortraitWidth(Double(shorterSide)) {
             case .extended:
                 return referenceSuggestionHeight + 45.5 + 4 * 61 + 4 * 7.12 + 4
             case .compact, .standard:

@@ -59,15 +59,21 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     /// The width the layout is being built for. `view.bounds` is zero before the
-    /// first layout pass, which would resolve every iPad to the compact family, so
-    /// fall back to the screen's shorter side.
+    /// first layout pass, so fall back to the screen's shorter side.
     private var layoutWidth: CGFloat {
         let bounds = view.bounds.width
-        guard bounds > 1 else {
-            let screen = view.window?.windowScene?.screen.bounds.size ?? UIScreen.main.bounds.size
-            return min(screen.width, screen.height)
-        }
+        guard bounds > 1 else { return min(screenSize.width, screenSize.height) }
         return bounds
+    }
+
+    private var screenSize: CGSize {
+        view.window?.windowScene?.screen.bounds.size ?? UIScreen.main.bounds.size
+    }
+
+    /// The layout family, which is a property of the DEVICE and so must not move
+    /// when the iPad rotates. See PadFamily.forPortraitWidth.
+    private var padFamily: KeyboardLayoutProvider.PadFamily {
+        KeyboardLayoutProvider.PadFamily.forScreen(screenSize)
     }
     private var keyboardMode: KeyboardMode = .letters
     private var previousKeyWasSpace = false
@@ -950,7 +956,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             for: keyboardMode,
             includesGlobeKey: needsInputModeSwitchKey,
             isPad: isPadIdiom,
-            width: Double(layoutWidth)
+            width: Double(layoutWidth),
+            family: padFamily
         )
         for row in rows {
             let rowView = KeyboardRowView()
@@ -1698,7 +1705,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         if let cached = metricsCache, cached.key == key {
             return cached.value
         }
-        let value = KeyboardTheme.metrics(for: size, traitCollection: traitCollection)
+        let value = KeyboardTheme.metrics(
+            for: size,
+            traitCollection: traitCollection,
+            padFamily: isPadIdiom ? padFamily : nil
+        )
         metricsCache = (key, value)
         return value
     }
@@ -1806,7 +1817,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             for: keyboardMode,
             includesGlobeKey: needsInputModeSwitchKey,
             isPad: isPadIdiom,
-            width: Double(layoutWidth)
+            width: Double(layoutWidth),
+            family: padFamily
         ).count
         guard count > 0 else { return 0 }
         let keys = (0..<count).reduce(CGFloat(0)) { $0 + rowHeight(atIndex: $1, metrics: metrics) }
