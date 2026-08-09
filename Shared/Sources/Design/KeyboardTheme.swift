@@ -52,6 +52,15 @@ struct KeyboardMetrics {
     let spaceLanguageFontSize: CGFloat
     let suggestionFontSize: CGFloat
     let deterministicSuggestionFontSize: CGFloat
+    /// iPad flick-down glyph. Measured off the reference capture: cap height 7pt
+    /// (so ~10pt SF) with its cap top 10pt below the key top. Defaulted so the
+    /// iPhone metrics and `defaultMetrics` need no change — they never draw it.
+    var padSecondaryFontSize: CGFloat = 10
+    var padSecondaryTopInset: CGFloat = 8
+    /// The 13-inch iPad draws its number row shorter than the letter rows
+    /// (45.5pt against 61pt). Zero means "every row is `minimumKeyHeight`",
+    /// which is every other layout we ship.
+    var padNumberRowHeight: CGFloat = 0
 }
 
 enum KeyboardTheme {
@@ -250,34 +259,65 @@ enum KeyboardTheme {
         let scale = clamp(bounds.width / referencePhoneWidth, min: 0.88, max: 1.0)
         // Type and key spacing scale with the taller iPad key; `scale` is capped at
         // 1.0, so without this an 834pt iPad drew 440pt-iPhone glyphs.
-        let padTypeScale: CGFloat = traitCollection.userInterfaceIdiom == .pad ? 55.0 / 45.0 : 1
-        let keySpacing = clamp(6 * scale, min: 5.25, max: 6) * padTypeScale
+        let padFamily = traitCollection.userInterfaceIdiom == .pad
+            ? KeyboardLayoutProvider.PadFamily.forWidth(Double(bounds.width))
+            : nil
+        let padTypeScale: CGFloat = padFamily == nil ? 1 : (padFamily == .extended ? 61.0 / 45.0 : 55.3 / 45.0)
+        // The gap between keys is a per-family CONSTANT on iPad (12 / 10 / 7),
+        // measured off native — not a scaled version of the phone's 6pt.
+        let keySpacing = padFamily.map { CGFloat($0.gap) }
+            ?? clamp(6 * scale, min: 5.25, max: 6)
         // Portrait key geometry is CLASS-QUANTIZED, not proportional to width —
         // measured against native across 375/393/402/420/430/440pt (iOS 26.5 sim,
         // modern + legacy hosts): pitch 54 / key 43 below ~410pt, pitch 56 / key 45
         // at 410pt and up, row gap 11 in both classes. The previous width/440
         // scaling shrank keys ~9% on Pro-class widths and sat the rows ~9pt below
         // native's (worst on SE-class, 18.5pt).
-        // iPad is its own geometry class. Measured against native on an iPad Pro
-        // 11-inch (M4) in portrait, 834×1210pt: key 55.1-55.7, pitch 64.2-64.8 (so a
-        // 9.5pt row gap), key block 933.4→1182.2 = 248.8, and 27.8pt below the last
-        // row. Before this, `compactWidthClass` was simply false at 834pt, so an iPad
-        // rendered iPhone Pro Max geometry — keys 10pt too short at 8.5pt too tight a
-        // pitch. Gated on the idiom so no iPhone width can reach it.
-        let isPad = traitCollection.userInterfaceIdiom == .pad
+        // iPad is its own geometry class, and unlike iPhone its VERTICAL metrics do
+        // not vary with width at all: measured across 744/820/834pt native key
+        // height moves 0.5pt and total keyboard height 3pt, so both are family
+        // constants. The 13-inch family is a different keyboard entirely — five
+        // rows, taller keys, tighter gaps. See docs/native-parity-ipad.md.
         let compactWidthClass = bounds.width < 410
-        let keyHeight: CGFloat = isPad ? 55 : (compactWidthClass ? 43 : 45)
-        let rowSpacing: CGFloat = isPad ? 9.5 : 11
+        let keyHeight: CGFloat = switch padFamily {
+        case .extended: 61
+        case .compact, .standard: 55.3
+        case nil: compactWidthClass ? 43 : 45
+        }
+        let rowSpacing: CGFloat = switch padFamily {
+        case .extended: 7.12
+        case .compact, .standard: 8.9
+        case nil: 11
+        }
+        let keyRowCount = padFamily == .extended ? 5 : 4
         let topInset: CGFloat = 0
         // Verified: with 6, class-B q-rows land exactly on native's (440: 663=663).
         // Class A solves to 3 from the measured chain (q = screen − dock − keyblock
         // − bottom + strip; native q 591 @ 402pt) — re-verified on-sim.
-        let bottomInset: CGFloat = isPad ? 27.8 : (compactWidthClass ? 3 : 6)
+        // NOT native's 28/24. Those are measured from the SCREEN edge, and an iPad
+        // input view does not reach it: the system's own keyboard container keeps a
+        // 20pt band below us (measured identically on all five fleet widths — it is
+        // not the safe area, which reports 5). Our view's bottom edge is therefore
+        // already 20pt up, so the inset we apply is native's gap minus that band.
+        // Verified by screenshot: with these values the last key row lands on
+        // native's to within a point on every class.
+        let padSystemBottomBand: CGFloat = 20
+        let bottomInset: CGFloat = switch padFamily {
+        case .extended: 24 - padSystemBottomBand
+        case .compact, .standard: 28 - padSystemBottomBand
+        case nil: compactWidthClass ? 3 : 6
+        }
         // The strip takes the remainder of the actual bounds, so if a host hands us
         // a height other than the one we ask for, the strip flexes instead of the
         // keys drifting off native's rows.
+        // The number row is shorter than the letter rows on the extended layout, so
+        // the key block is not simply rowCount * keyHeight.
+        let numberRowHeight: CGFloat = padFamily == .extended ? 45.5 : 0
+        let keyBlockHeight = CGFloat(keyRowCount) * keyHeight
+            - (numberRowHeight > 0 ? keyHeight - numberRowHeight : 0)
+            + CGFloat(keyRowCount - 1) * rowSpacing
         let suggestionHeight = clamp(
-            bounds.height - topInset - bottomInset - 3 * rowSpacing - 4 * keyHeight,
+            bounds.height - topInset - bottomInset - keyBlockHeight,
             min: 24,
             max: 96
         )
@@ -307,9 +347,10 @@ enum KeyboardTheme {
             keyPreviewShadowOffset: CGSize(width: 0, height: 2 * scale),
             keyboardInsets: UIEdgeInsets(
                 top: topInset,
-                left: clamp(6.67 * scale, min: 5.87, max: 6.67),
+                // Side margin is a measured per-family constant on iPad (6 / 9 / 3.5).
+                left: padFamily.map { CGFloat($0.margin) } ?? clamp(6.67 * scale, min: 5.87, max: 6.67),
                 bottom: bottomInset,
-                right: clamp(6.67 * scale, min: 5.87, max: 6.67)
+                right: padFamily.map { CGFloat($0.margin) } ?? clamp(6.67 * scale, min: 5.87, max: 6.67)
             ),
             characterFontSize: 23 * scale * padTypeScale,
             symbolFontSize: 21 * scale * padTypeScale,
@@ -319,7 +360,10 @@ enum KeyboardTheme {
             spaceIntroFontSize: 18,
             spaceLanguageFontSize: 11,
             suggestionFontSize: 15,
-            deterministicSuggestionFontSize: 15
+            deterministicSuggestionFontSize: 15,
+            padSecondaryFontSize: padFamily == .extended ? 11 : 10,
+            padSecondaryTopInset: padFamily == .extended ? 9 : 8,
+            padNumberRowHeight: padFamily == .extended ? 45.5 : 0
         )
     }
 
@@ -342,11 +386,18 @@ enum KeyboardTheme {
         // Class-quantized like the metrics: key 43 / pitch 54 / bottom 3 below
         // ~410pt, key 45 / pitch 56 / bottom 6 above (native-measured; see
         // metrics(for:)).
-        // iPad portrait, measured against native on an iPad Pro 11-inch (M4):
-        // key 55, pitch 64.5 (9.5pt gap), 27.8pt below the last row. Keep this in
-        // step with metrics(for:) or the rows drift off the height we ask for.
+        // iPad portrait. Measured native totals are 322.5 / 319.5 / 322.5 / 385.5 /
+        // 385.5pt across 744 / 820 / 834 / 1024 / 1032 — constant per family, with
+        // 45.4pt of that being the system shortcut bar, which iOS draws above the
+        // extension and is not part of the height we request. Keep in step with
+        // metrics(for:) or the rows drift off the height we ask for.
         if traitCollection.userInterfaceIdiom == .pad {
-            return referenceSuggestionHeight + 4 * 55 + 3 * 9.5 + 27.8
+            switch KeyboardLayoutProvider.PadFamily.forWidth(Double(shorterSide)) {
+            case .extended:
+                return referenceSuggestionHeight + 45.5 + 4 * 61 + 4 * 7.12 + 4
+            case .compact, .standard:
+                return referenceSuggestionHeight + 4 * 55.3 + 3 * 8.9 + 8
+            }
         }
         let compact = shorterSide < 410
         let keyHeight: CGFloat = compact ? 43 : 45

@@ -162,6 +162,40 @@ key row is the **system shortcut bar** — `UITextInputAssistantItem`, drawn by 
 above the extension on iPad, carrying undo/redo/paste and the prediction chips. It
 is not ours to draw and not part of our requested height.
 
+## The 20pt band below an iPad input view
+
+Native's bottom insets (28pt on a 4-row iPad, 24pt on the 13-inch) are measured
+from the **screen** edge, and an iPad keyboard extension does not reach it: the
+system's keyboard container keeps a 20pt band below our view. Measured identically
+on all five widths. It is **not** the safe area, which reports 5pt.
+
+So the inset we apply is native's gap minus that band — 8pt and 4pt. Anchoring to
+`view.safeAreaLayoutGuide` instead left the whole key block 25pt high; anchoring to
+`view.bottomAnchor` with native's raw 28 left it 20pt high. Both were tried and
+measured before this landed.
+
+One more consequence: on iPad the key block must be anchored from the **bottom**,
+with the top constraint demoted to slack. iPhone positions from the top (strip
+height plus inset), which is how its geometry was calibrated, but the system hands
+an iPad extension a view taller than the height it asked for, so a top-driven
+block floats above where native's sits.
+
+## Verification
+
+`scripts/parity/ipad-geometry.py compare <shots>` diffs a capture directory against
+the stored reference and exits non-zero on any violation. Current state, tolerance
+2pt:
+
+| Device | Result | Worst key |
+|---|---|---|
+| iPad mini (744) | PASS | 0.5pt |
+| iPad (820) | PASS | 1.0pt |
+| iPad Pro 11-inch (834) | PASS | 1.0pt |
+| iPad Air 13-inch (1024) | PASS | 0.5pt |
+| iPad Pro 13-inch (1032) | PASS | 0.5pt |
+
+Margins, gaps, row counts and per-row key counts match native exactly on all five.
+
 ## Where Obadh stood before this work
 
 Measured off `Reference/native-ipad/` versus a capture of the shipping build on the

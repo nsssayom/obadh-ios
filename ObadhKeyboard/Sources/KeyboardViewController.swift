@@ -50,6 +50,25 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var activeTouchKey: KeyboardKey?
     private var keyPreviewDismissal: DispatchWorkItem?
     private var shifted = false
+    /// iPad caps lock. Distinct from `shifted`: it survives a keypress, and the
+    /// key draws a filled glyph. Only ever laid out on iPad (see PadFamily).
+    private var capsLocked = false
+
+    private var isPadIdiom: Bool {
+        traitCollection.userInterfaceIdiom == .pad
+    }
+
+    /// The width the layout is being built for. `view.bounds` is zero before the
+    /// first layout pass, which would resolve every iPad to the compact family, so
+    /// fall back to the screen's shorter side.
+    private var layoutWidth: CGFloat {
+        let bounds = view.bounds.width
+        guard bounds > 1 else {
+            let screen = view.window?.windowScene?.screen.bounds.size ?? UIScreen.main.bounds.size
+            return min(screen.width, screen.height)
+        }
+        return bounds
+    }
     private var keyboardMode: KeyboardMode = .letters
     private var previousKeyWasSpace = false
     /// Native's double-space shortcut is a QUICK double-tap, not "any two spaces":
@@ -831,12 +850,35 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let leadingConstraint = keyLayoutAnchor.leadingAnchor.constraint(equalTo: view.leadingAnchor)
         let trailingConstraint = keyLayoutAnchor.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         let topConstraint = keyLayoutAnchor.topAnchor.constraint(equalTo: suggestionBar.bottomAnchor, constant: insets.top)
-        let bottomConstraint = keyLayoutAnchor.bottomAnchor.constraint(
-            lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor,
-            constant: -insets.bottom
-        )
+        // iPhone's bottom inset (3/6pt) was calibrated WITH the safe-area guide in
+        // the chain, so it stays on the guide. iPad's measured 28pt is from the
+        // SCREEN edge — native draws its bottom row into the home-indicator band —
+        // and anchoring it to the safe area instead lifted the whole key block 25pt.
+        // Which edge drives the key block differs by idiom, and this matters more
+        // than it looks. iPhone positions from the TOP (strip height + inset), which
+        // is how its geometry was calibrated. iPad cannot: the system hands the
+        // extension a view TALLER than the height we request — it adds the bottom
+        // safe area — so a top-driven block floats ~20pt above where native's sits.
+        // Native's 28pt is measured from the screen edge, so anchor to it and let
+        // the strip above absorb whatever height the system actually gave us.
+        let bottomConstraint = isPadIdiom
+            ? keyLayoutAnchor.bottomAnchor.constraint(
+                equalTo: view.bottomAnchor,
+                constant: -insets.bottom
+            )
+            : keyLayoutAnchor.bottomAnchor.constraint(
+                lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor,
+                constant: -insets.bottom
+            )
+        if isPadIdiom {
+            bottomConstraint.priority = UILayoutPriority(999)
+        }
         let heightConstraint = keyLayoutAnchor.heightAnchor.constraint(equalToConstant: keyRowsHeight(for: metrics))
         heightConstraint.priority = UILayoutPriority(999)
+        // On iPad the bottom edge wins; the top constraint only takes up slack.
+        if isPadIdiom {
+            topConstraint.priority = UILayoutPriority(250)
+        }
         keyboardStackLeadingConstraint = leadingConstraint
         keyboardStackTrailingConstraint = trailingConstraint
         keyboardStackTopConstraint = topConstraint
@@ -904,7 +946,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             view.removeFromSuperview()
         }
 
-        let rows = KeyboardLayoutProvider.rows(for: keyboardMode, includesGlobeKey: needsInputModeSwitchKey)
+        let rows = KeyboardLayoutProvider.rows(
+            for: keyboardMode,
+            includesGlobeKey: needsInputModeSwitchKey,
+            isPad: isPadIdiom,
+            width: Double(layoutWidth)
+        )
         for row in rows {
             let rowView = KeyboardRowView()
             rowView.translatesAutoresizingMaskIntoConstraints = false
@@ -913,12 +960,17 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
             for key in row.keys {
                 let button = KeyboardKeyButton(key: key)
+                // Only the letters page carries flick-down glyphs, and only on the
+                // families where native shows them: the extended layout has a real
+                // number row, so its letters are bare exactly like native's.
+                button.showsSecondaryLabel = isPadIdiom && keyboardMode == .letters
                 button.updateAppearance(
                     shifted: shifted,
                     traitCollection: traitCollection,
                     metrics: metrics,
                     showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive,
-                    spaceCaption: spaceCaption
+                    spaceCaption: spaceCaption,
+                    capsLocked: capsLocked
                 )
                 rowButtons.append(button)
                 keyButtons.append(button)
@@ -926,7 +978,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
             rowView.configure(row: row, buttons: rowButtons, metrics: metrics)
             keyboardStack.addArrangedSubview(rowView)
-            let heightConstraint = rowView.heightAnchor.constraint(equalToConstant: metrics.minimumKeyHeight)
+            let heightConstraint = rowView.heightAnchor.constraint(
+                equalToConstant: rowHeight(atIndex: keyboardStack.arrangedSubviews.count - 1, metrics: metrics)
+            )
             heightConstraint.priority = UILayoutPriority(999)
             heightConstraint.isActive = true
             rowHeightConstraints.append(heightConstraint)
@@ -956,6 +1010,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private struct KeyboardAppearanceState: Equatable {
         let shifted: Bool
+        let capsLocked: Bool
         let mode: KeyboardMode
         let showsSpaceIntro: Bool
         let spaceCaption: String
@@ -971,6 +1026,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private func updateKeyAppearanceIfNeeded(metrics: KeyboardMetrics) {
         let state = KeyboardAppearanceState(
             shifted: shifted,
+            capsLocked: capsLocked,
             mode: keyboardMode,
             showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive,
             spaceCaption: spaceCaption,
@@ -986,7 +1042,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 traitCollection: traitCollection,
                 metrics: metrics,
                 showsSpaceIntro: state.showsSpaceIntro,
-                spaceCaption: state.spaceCaption
+                spaceCaption: state.spaceCaption,
+                capsLocked: state.capsLocked
             )
         }
     }
@@ -1200,7 +1257,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             shifted.toggle()
         case let .modeSwitch(value):
             switch value {
-            case "123":
+            case "123", ".?123":
                 keyboardMode = .numbers
             case "#+=":
                 keyboardMode = .symbols
@@ -1208,11 +1265,19 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 keyboardMode = .letters
             }
             shifted = false
+            capsLocked = false
             reloadKeyboardRows()
         case .emoji:
             showEmojiPanel()
         case .globe:
             advanceToNextInputMode()
+        case .tab:
+            textDocumentProxy.insertText("\t")
+        case .capsLock:
+            capsLocked.toggle()
+            shifted = capsLocked
+        case .hideKeyboard:
+            dismissKeyboard()
         }
         previousKeyWasSpace = key == .space
         refreshKeyboard()
@@ -1278,8 +1343,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 emojiSearchQuery.append(" ")
                 syncEmojiSearchQuery()
             }
-        case .returnKey, .emoji, .globe:
+        case .returnKey, .emoji, .globe, .hideKeyboard:
             exitEmojiSearch()
+        case .tab, .capsLock:
+            break
         case .backspace:
             if emojiSearchQuery.isEmpty {
                 exitEmojiSearch()
@@ -1291,7 +1358,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             shifted.toggle()
         case let .modeSwitch(value):
             switch value {
-            case "123":
+            case "123", ".?123":
                 keyboardMode = .numbers
             case "#+=":
                 keyboardMode = .symbols
@@ -1694,8 +1761,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             rowView.metrics = metrics
             rowView.setNeedsLayout()
         }
-        for constraint in rowHeightConstraints {
-            constraint.constant = metrics.minimumKeyHeight
+        for (index, constraint) in rowHeightConstraints.enumerated() {
+            constraint.constant = rowHeight(atIndex: index, metrics: metrics)
         }
         for button in keyButtons {
             button.updateAppearance(
@@ -1726,10 +1793,24 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         return targetTop - metrics.suggestionHeight
     }
 
+    /// Row heights are uniform everywhere except the 13-inch iPad's number row,
+    /// which native draws 15.5pt shorter than the letter rows below it.
+    private func rowHeight(atIndex index: Int, metrics: KeyboardMetrics) -> CGFloat {
+        index == 0 && metrics.padNumberRowHeight > 0
+            ? metrics.padNumberRowHeight
+            : metrics.minimumKeyHeight
+    }
+
     private func keyRowsHeight(for metrics: KeyboardMetrics) -> CGFloat {
-        let rowCount = CGFloat(KeyboardLayoutProvider.rows(for: keyboardMode, includesGlobeKey: needsInputModeSwitchKey).count)
-        guard rowCount > 0 else { return 0 }
-        return rowCount * metrics.minimumKeyHeight + max(0, rowCount - 1) * metrics.rowSpacing
+        let count = KeyboardLayoutProvider.rows(
+            for: keyboardMode,
+            includesGlobeKey: needsInputModeSwitchKey,
+            isPad: isPadIdiom,
+            width: Double(layoutWidth)
+        ).count
+        guard count > 0 else { return 0 }
+        let keys = (0..<count).reduce(CGFloat(0)) { $0 + rowHeight(atIndex: $1, metrics: metrics) }
+        return keys + CGFloat(count - 1) * metrics.rowSpacing
     }
 
     private func updateKeyboardHeightConstraintIfReady() {
@@ -1909,6 +1990,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         keyboardTouchSurface.keyRows = rows
         // The full-bleed surface must not eat suggestion-bar taps.
         keyboardTouchSurface.keyAreaTop = suggestionBar.frame.maxY
+        // Flick-down is an iPad affordance only, and only where a secondary is
+        // actually drawn — see `showsSecondaryLabel`. A third of the key height
+        // is far enough to be deliberate and short enough to stay on the key.
+        keyboardTouchSurface.flickThreshold = isPadIdiom && keyboardMode == .letters
+            ? currentMetrics.minimumKeyHeight / 3
+            : 0
     }
 }
 
@@ -1921,7 +2008,18 @@ extension KeyboardViewController: KeyboardTouchSurfaceViewDelegate {
         moveTouch(to: key)
     }
 
-    func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didEnd key: KeyboardKey?) {
+    func keyboardTouchSurface(
+        _ view: KeyboardTouchSurfaceView,
+        didEnd key: KeyboardKey?,
+        flickedDown: Bool
+    ) {
+        // A flick on a key that has a secondary inserts the secondary instead of
+        // the primary. Keys without one fall through to the normal tap so a
+        // slightly downward press never becomes a dead touch.
+        if flickedDown, let key, let secondary = key.padSecondary {
+            endTouch(on: .symbol(secondary))
+            return
+        }
         endTouch(on: key)
     }
 

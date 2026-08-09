@@ -178,6 +178,60 @@ def fit(geometries: list[tuple[str, Geometry]]) -> None:
         )
 
 
+def compare(shots: Path, tolerance: float) -> int:
+    """Diff Obadh against the stored native reference on every fleet width.
+
+    Expects `<shots>/<label>-obadh.png` alongside the reference captures. Returns
+    a non-zero exit status if anything is outside tolerance, so this can gate a
+    merge the way the iPhone parity suite does.
+    """
+    failures = 0
+    for name, width, devices in FLEET:
+        label = name.replace("-native.png", "")
+        candidate = shots / f"{label}-obadh.png"
+        if not candidate.exists():
+            print(f"\n=== {label} ({width:g}pt) — NO CAPTURE, skipped")
+            continue
+        native = measure(REFERENCE / name, width)
+        ours = measure(candidate, width)
+        print(f"\n=== {label} ({width:g}pt) — {devices}")
+        problems: list[str] = []
+
+        for field in ("margin", "gap", "pitch", "key_top", "key_bottom"):
+            n, o = getattr(native, field), getattr(ours, field)
+            flag = "" if abs(o - n) <= tolerance else "  <-- OUT OF TOLERANCE"
+            if flag:
+                problems.append(f"{field} {o - n:+.2f}pt")
+            print(f"  {field:<11} native {n:8.2f}   obadh {o:8.2f}   {o - n:+7.2f}{flag}")
+
+        if len(native.rows) != len(ours.rows):
+            problems.append(f"row count {len(ours.rows)} vs {len(native.rows)}")
+            print(f"  ROW COUNT native {len(native.rows)} obadh {len(ours.rows)}")
+        for i, (rn, ro) in enumerate(zip(native.rows, ours.rows), 1):
+            if rn.n != ro.n:
+                problems.append(f"row {i} has {ro.n} keys, native has {rn.n}")
+                print(f"  row {i}: KEY COUNT native {rn.n} obadh {ro.n}")
+                continue
+            deltas = [b - a for a, b in zip(rn.widths, ro.widths)]
+            worst = max(deltas, key=abs)
+            flag = "" if abs(worst) <= tolerance else "  <-- OUT OF TOLERANCE"
+            if flag:
+                problems.append(f"row {i} key width {worst:+.2f}pt")
+            print(
+                f"  row {i}: n={rn.n:2d}  h {rn.height:5.1f}/{ro.height:5.1f}  "
+                f"worst key {worst:+.2f}pt{flag}"
+            )
+
+        if problems:
+            failures += 1
+            print(f"  FAIL: {'; '.join(problems)}")
+        else:
+            print(f"  PASS (everything within {tolerance:g}pt)")
+
+    print(f"\n{'ALL PASS' if not failures else f'{failures} device(s) FAILED'}")
+    return 1 if failures else 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -185,11 +239,16 @@ def main() -> None:
     m.add_argument("image", type=Path)
     m.add_argument("width", type=float)
     sub.add_parser("fit")
+    c = sub.add_parser("compare")
+    c.add_argument("shots", type=Path, help="directory holding <label>-obadh.png")
+    c.add_argument("--tolerance", type=float, default=2.0)
     args = parser.parse_args()
 
     if args.cmd == "measure":
         print(json.dumps(asdict(measure(args.image, args.width)), indent=2))
         return
+    if args.cmd == "compare":
+        raise SystemExit(compare(args.shots, args.tolerance))
 
     fit([(name, measure(REFERENCE / name, width)) for name, width, _ in FLEET])
 

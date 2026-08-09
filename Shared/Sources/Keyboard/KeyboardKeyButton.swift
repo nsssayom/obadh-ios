@@ -2,11 +2,17 @@ import UIKit
 
 final class KeyboardKeyButton: UIButton {
     let key: KeyboardKey
+    /// iPad draws a flick-down glyph above the primary one. Set by the controller
+    /// from the idiom, so iPhone keys never grow a second label.
+    var showsSecondaryLabel = false
     private let spaceLanguageLabel = UILabel()
+    private let secondaryLabel = UILabel()
     private var keyPreviewText: String?
     private var currentMetrics = KeyboardTheme.defaultMetrics
     private var spaceLanguageTrailingConstraint: NSLayoutConstraint?
     private var spaceLanguageBottomConstraint: NSLayoutConstraint?
+    private var secondaryTopConstraint: NSLayoutConstraint?
+    private var titleVerticalOffset: CGFloat = 0
     /// iOS 26+ Liquid Glass backing (a backmost, non-interactive glass view).
     /// nil below iOS 26, where the solid `backgroundColor` fill is used instead.
     /// Touches are owned entirely by `KeyboardTouchSurfaceView`, so this is purely
@@ -30,7 +36,8 @@ final class KeyboardKeyButton: UIButton {
         metrics: KeyboardMetrics,
         showsSpaceIntro: Bool = false,
         spaceIntroText: String = "বাংলা (অবাধ)",
-        spaceCaption: String = "বাংলা"
+        spaceCaption: String = "বাংলা",
+        capsLocked: Bool = false
     ) {
         currentMetrics = metrics
         layer.cornerRadius = metrics.keyCornerRadius
@@ -105,7 +112,45 @@ final class KeyboardKeyButton: UIButton {
                 for: .normal
             )
             keyPreviewText = nil
+        case .tab:
+            setTitle(nil, for: .normal)
+            setImage(UIImage(systemName: "arrow.right.to.line.compact"), for: .normal)
+            keyPreviewText = nil
+        case .capsLock:
+            setTitle(nil, for: .normal)
+            setImage(UIImage(systemName: capsLocked ? "capslock.fill" : "capslock"), for: .normal)
+            keyPreviewText = nil
+        case .hideKeyboard:
+            setTitle(nil, for: .normal)
+            setImage(UIImage(systemName: "keyboard.chevron.compact.down"), for: .normal)
+            keyPreviewText = nil
         }
+
+        updateSecondaryLabel(traitCollection: traitCollection, metrics: metrics)
+    }
+
+    /// The iPad flick-down glyph, drawn small in the top-left the way native does.
+    /// Nothing is drawn when the key has no secondary, which is every key on
+    /// iPhone and every command key everywhere.
+    private func updateSecondaryLabel(traitCollection: UITraitCollection, metrics: KeyboardMetrics) {
+        guard showsSecondaryLabel, let secondary = key.padSecondary else {
+            secondaryLabel.isHidden = true
+            titleVerticalOffset = 0
+            return
+        }
+        secondaryLabel.isHidden = false
+        secondaryLabel.text = secondary.label
+        secondaryLabel.font = .systemFont(ofSize: metrics.padSecondaryFontSize, weight: .regular)
+        secondaryLabel.textColor = KeyboardTheme.secondaryTextColor(for: traitCollection)
+        secondaryTopConstraint?.constant = metrics.padSecondaryTopInset
+        // Native centres the primary glyph at ~68% of the key height rather than
+        // at 50%, which is what makes room for the secondary without shrinking it.
+        titleVerticalOffset = metrics.minimumKeyHeight * 0.185
+        setNeedsLayout()
+    }
+
+    override func titleRect(forContentRect contentRect: CGRect) -> CGRect {
+        super.titleRect(forContentRect: contentRect).offsetBy(dx: 0, dy: titleVerticalOffset)
     }
 
     var previewText: String? {
@@ -153,6 +198,21 @@ final class KeyboardKeyButton: UIButton {
             }
         }
 
+        // Native iPad prints the flick-down glyph horizontally CENTRED near the top
+        // of the key (not in a corner — verified by zooming the reference capture),
+        // in the secondary text colour, with the primary glyph pushed below centre.
+        secondaryLabel.translatesAutoresizingMaskIntoConstraints = false
+        secondaryLabel.textAlignment = .center
+        secondaryLabel.isUserInteractionEnabled = false
+        secondaryLabel.isHidden = true
+        addSubview(secondaryLabel)
+        let secondaryTop = secondaryLabel.topAnchor.constraint(equalTo: topAnchor, constant: 6)
+        secondaryTopConstraint = secondaryTop
+        NSLayoutConstraint.activate([
+            secondaryLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
+            secondaryTop
+        ])
+
         spaceLanguageLabel.translatesAutoresizingMaskIntoConstraints = false
         spaceLanguageLabel.font = .systemFont(
             ofSize: KeyboardTheme.defaultMetrics.spaceLanguageFontSize,
@@ -187,7 +247,8 @@ final class KeyboardKeyButton: UIButton {
             highlighted
                 ? KeyboardTheme.highlightedPrimaryKeyColor(for: traitCollection)
                 : KeyboardTheme.primaryKeyColor(for: traitCollection)
-        case .shift, .backspace, .modeSwitch, .emoji, .globe, .returnKey:
+        case .shift, .backspace, .modeSwitch, .emoji, .globe, .returnKey,
+             .tab, .capsLock, .hideKeyboard:
             highlighted
                 ? KeyboardTheme.highlightedUtilityKeyColor(for: traitCollection)
                 : KeyboardTheme.utilityKeyColor(for: traitCollection)

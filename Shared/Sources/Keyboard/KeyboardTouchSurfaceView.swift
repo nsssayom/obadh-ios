@@ -4,12 +4,23 @@ import UIKit
 protocol KeyboardTouchSurfaceViewDelegate: AnyObject {
     func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didBegin key: KeyboardKey)
     func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didMoveTo key: KeyboardKey)
-    func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didEnd key: KeyboardKey?)
+    /// `flickedDown` is the iPad secondary-glyph gesture: the touch was dragged
+    /// downward far enough before lifting, without leaving the key.
+    func keyboardTouchSurface(
+        _ view: KeyboardTouchSurfaceView,
+        didEnd key: KeyboardKey?,
+        flickedDown: Bool
+    )
     func keyboardTouchSurfaceDidCancel(_ view: KeyboardTouchSurfaceView)
 }
 
 final class KeyboardTouchSurfaceView: UIView {
     weak var delegate: KeyboardTouchSurfaceViewDelegate?
+    /// Downward travel that turns a tap into a secondary-glyph insert. Zero
+    /// disables the gesture entirely, which is what iPhone uses — no iPhone key
+    /// has a secondary, so a flick there would be a mystery keystroke.
+    var flickThreshold: CGFloat = 0
+    private var touchBeganLocation: CGPoint = .zero
 
     var keyRows: [[KeyboardTouchKeyRegion]] = [] {
         didSet {
@@ -44,6 +55,7 @@ final class KeyboardTouchSurfaceView: UIView {
             return
         }
         activeRegion = region
+        touchBeganLocation = touch.location(in: self)
         delegate?.keyboardTouchSurface(self, didBegin: region.key)
     }
 
@@ -61,16 +73,24 @@ final class KeyboardTouchSurfaceView: UIView {
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touch(from: touches) else { return }
-        let region = resolve(touch.location(in: self)) ?? activeRegion
+        let end = touch.location(in: self)
+        let region = resolve(end) ?? activeRegion
+        // A flick only counts when the finger never left the key it started on:
+        // sliding across keys is already "retarget", and must not also insert.
+        let flicked = flickThreshold > 0
+            && region?.key == activeRegion?.key
+            && (end.y - touchBeganLocation.y) >= flickThreshold
         activeTouch = nil
         activeRegion = nil
-        delegate?.keyboardTouchSurface(self, didEnd: region?.key)
+        touchBeganLocation = .zero
+        delegate?.keyboardTouchSurface(self, didEnd: region?.key, flickedDown: flicked)
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard touch(from: touches) != nil else { return }
         activeTouch = nil
         activeRegion = nil
+        touchBeganLocation = .zero
         delegate?.keyboardTouchSurfaceDidCancel(self)
     }
 
