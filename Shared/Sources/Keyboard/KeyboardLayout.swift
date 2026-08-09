@@ -18,6 +18,11 @@ enum KeyboardKey: Equatable {
     /// the row below our view, but on iPad it does not, which left no way out of
     /// Obadh at all.
     case globe
+    /// iPad-only keys, mirroring the native iPad key set. iPhone never lays these
+    /// out, so its rows are untouched.
+    case tab
+    case capsLock
+    case hideKeyboard
     case space
     case returnKey
 
@@ -27,7 +32,7 @@ enum KeyboardKey: Equatable {
             5.0
         case .returnKey:
             2.25
-        case .modeSwitch, .emoji, .globe:
+        case .modeSwitch, .emoji, .globe, .tab, .capsLock, .hideKeyboard:
             1.25
         case .shift, .backspace:
             1.35
@@ -139,8 +144,66 @@ enum KeyboardLayoutProvider {
         KeyboardRow(keys: leading + (includesGlobeKey ? [.globe] : []) + [.space, .returnKey])
     }
 
-    static func rows(for mode: KeyboardMode, includesGlobeKey: Bool = false) -> [KeyboardRow] {
+    /// Native iPad key widths, measured on an iPad Pro 11-inch (M4) portrait
+    /// (834pt) and expressed as multiples of the 56.3pt standard key, so they hold
+    /// at any iPad width: tab/backspace 72.6, caps 92.6, return 118.6, left shift
+    /// 121.6, right shift 89.0, and a bottom row of 59.3/59.9/59.9/409.2/88.4/89.0.
+    private enum PadGeometry {
+        static let standard: Double = 56.3
+        static let row1 = [72.6 / standard] + Array(repeating: 1.0, count: 10) + [72.6 / standard]
+        static let row2 = [92.6 / standard] + Array(repeating: 1.0, count: 9) + [118.6 / standard]
+        static let row3 = [121.6 / standard] + Array(repeating: 1.0, count: 9) + [89.0 / standard]
+        static let row4 = [59.3, 59.9, 59.9, 409.2, 88.4, 89.0].map { $0 / standard }
+    }
+
+    /// The native iPad set: a tab and caps key, punctuation on the lower row, shift
+    /// on BOTH sides, and a bottom row of emoji / .?123 / globe / space / .?123 /
+    /// hide-keyboard. Native puts dictation where the globe sits here; we have no
+    /// dictation, and the globe has to live somewhere the system does not provide it.
+    private static func padRows(for mode: KeyboardMode) -> [KeyboardRow] {
+        let bottom = KeyboardRow(
+            keys: [.emoji, .modeSwitch(mode == .letters ? "123" : "ABC"), .globe, .space,
+                   .modeSwitch(mode == .letters ? "123" : "ABC"), .hideKeyboard],
+            keyWeights: PadGeometry.row4
+        )
         switch mode {
+        case .letters:
+            return [
+                KeyboardRow(keys: [.tab] + "qwertyuiop".map { .character(String($0)) } + [.backspace],
+                            keyWeights: PadGeometry.row1),
+                KeyboardRow(keys: [.capsLock] + "asdfghjkl".map { .character(String($0)) } + [.returnKey],
+                            keyWeights: PadGeometry.row2),
+                KeyboardRow(keys: [.shift] + "zxcvbnm".map { .character(String($0)) }
+                                + [.symbol(.terminator("!")), .symbol(.terminator("?")), .shift],
+                            keyWeights: PadGeometry.row3),
+                bottom
+            ]
+        case .numbers, .symbols:
+            let top = mode == .numbers
+                ? ["১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯", "০"]
+                : ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="]
+            let middle = mode == .numbers
+                ? ["-", "/", ":", ";", "(", ")", "৳", "&", "@"]
+                : ["_", "\\", "|", "~", "<", ">", "€", "£", "¥"]
+            return [
+                KeyboardRow(keys: [.tab] + top.map { .symbol(.literal($0)) } + [.backspace],
+                            keyWeights: PadGeometry.row1),
+                KeyboardRow(keys: [.capsLock] + middle.map { .symbol(.literal($0)) } + [.returnKey],
+                            keyWeights: PadGeometry.row2),
+                KeyboardRow(keys: [.modeSwitch(mode == .numbers ? "#+=" : "123")]
+                                + [.symbol(.dari), .symbol(.literal(".")), .symbol(.literal(",")),
+                                   .symbol(.literal("'")), .symbol(.literal("\"")), .symbol(.literal("*")),
+                                   .symbol(.terminator("!")), .symbol(.terminator("?"))]
+                                + [.modeSwitch(mode == .numbers ? "#+=" : "123")],
+                            keyWeights: PadGeometry.row3),
+                bottom
+            ]
+        }
+    }
+
+    static func rows(for mode: KeyboardMode, includesGlobeKey: Bool = false, isPad: Bool = false) -> [KeyboardRow] {
+        if isPad { return padRows(for: mode) }
+        return switch mode {
         case .letters:
             [
                 KeyboardRow(keys: "qwertyuiop".map { .character(String($0)) }),

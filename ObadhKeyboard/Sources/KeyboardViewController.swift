@@ -904,7 +904,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             view.removeFromSuperview()
         }
 
-        let rows = KeyboardLayoutProvider.rows(for: keyboardMode, includesGlobeKey: needsInputModeSwitchKey)
+        let rows = KeyboardLayoutProvider.rows(for: keyboardMode, includesGlobeKey: needsInputModeSwitchKey, isPad: traitCollection.userInterfaceIdiom == .pad)
         for row in rows {
             let rowView = KeyboardRowView()
             rowView.translatesAutoresizingMaskIntoConstraints = false
@@ -1213,6 +1213,13 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             showEmojiPanel()
         case .globe:
             advanceToNextInputMode()
+        case .tab:
+            performTextUpdate { textDocumentProxy.insertText("\t") }
+        case .capsLock:
+            shifted.toggle()
+            reloadKeyboardRows()
+        case .hideKeyboard:
+            dismissKeyboard()
         }
         previousKeyWasSpace = key == .space
         refreshKeyboard()
@@ -1278,7 +1285,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 emojiSearchQuery.append(" ")
                 syncEmojiSearchQuery()
             }
-        case .returnKey, .emoji, .globe:
+        case .returnKey, .emoji, .globe, .tab, .capsLock, .hideKeyboard:
             exitEmojiSearch()
         case .backspace:
             if emojiSearchQuery.isEmpty {
@@ -1727,7 +1734,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     private func keyRowsHeight(for metrics: KeyboardMetrics) -> CGFloat {
-        let rowCount = CGFloat(KeyboardLayoutProvider.rows(for: keyboardMode, includesGlobeKey: needsInputModeSwitchKey).count)
+        let rowCount = CGFloat(KeyboardLayoutProvider.rows(for: keyboardMode, includesGlobeKey: needsInputModeSwitchKey, isPad: traitCollection.userInterfaceIdiom == .pad).count)
         guard rowCount > 0 else { return 0 }
         return rowCount * metrics.minimumKeyHeight + max(0, rowCount - 1) * metrics.rowSpacing
     }

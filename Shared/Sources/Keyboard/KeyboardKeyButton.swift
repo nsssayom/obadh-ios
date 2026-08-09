@@ -92,6 +92,24 @@ final class KeyboardKeyButton: UIButton {
             setTitle(nil, for: .normal)
             setImage(nativeEmojiGlyph(pointSize: metrics.commandFontSize + 2), for: .normal)
             keyPreviewText = nil
+        case .tab, .capsLock, .hideKeyboard:
+            setTitle(nil, for: .normal)
+            let symbol = switch key {
+            case .tab: "arrow.right.to.line"
+            case .capsLock: "capslock"
+            default: "keyboard.chevron.compact.down"
+            }
+            setImage(
+                UIImage(
+                    systemName: symbol,
+                    withConfiguration: UIImage.SymbolConfiguration(
+                        pointSize: metrics.commandFontSize,
+                        weight: .regular
+                    )
+                ),
+                for: .normal
+            )
+            keyPreviewText = nil
         case .globe:
             setTitle(nil, for: .normal)
             setImage(
@@ -187,7 +205,7 @@ final class KeyboardKeyButton: UIButton {
             highlighted
                 ? KeyboardTheme.highlightedPrimaryKeyColor(for: traitCollection)
                 : KeyboardTheme.primaryKeyColor(for: traitCollection)
-        case .shift, .backspace, .modeSwitch, .emoji, .globe, .returnKey:
+        case .shift, .backspace, .modeSwitch, .emoji, .globe, .returnKey, .tab, .capsLock, .hideKeyboard:
             highlighted
                 ? KeyboardTheme.highlightedUtilityKeyColor(for: traitCollection)
                 : KeyboardTheme.utilityKeyColor(for: traitCollection)
