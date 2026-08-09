@@ -27,6 +27,7 @@
 		4D1233218307DF3CA79F70A2 /* LearnedWordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */; };
 		4DFAA32AC12C80F82CE9685F /* KeyboardRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0BBF67DE16D8B78659884D /* KeyboardRowView.swift */; };
 		4E738FFD5303B413000562DA /* LearnedWordStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */; };
+		4F65984C21604C7C16DB0884 /* LexiconKeepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A89772E8E7EF78DA65F08EB0 /* LexiconKeepTests.swift */; };
 		540C97813BB8F24D92201AD1 /* BackspaceRepeatPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A336B255A6B67149C800BD9 /* BackspaceRepeatPolicy.swift */; };
 		559D0ED2E1C5928B2ED01064 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9ADB202376C34EB2B402A81 /* AboutView.swift */; };
 		663F2946392A763E3794E421 /* SmartPunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08118AF11C65C61B57AA1DA /* SmartPunctuation.swift */; };
@@ -149,6 +150,7 @@
 		A47007187215709D9F7A376C /* KeyboardTouchSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchSurfaceView.swift; sourceTree = "<group>"; };
 		A59039DE8C56C0B58461FC9C /* ObadhEngineIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhEngineIntegrationTests.swift; sourceTree = "<group>"; };
 		A861B35EEA4DB2BBF06DA7ED /* EmojiDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiDataStore.swift; sourceTree = "<group>"; };
+		A89772E8E7EF78DA65F08EB0 /* LexiconKeepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LexiconKeepTests.swift; sourceTree = "<group>"; };
 		ACDD5C1AACA44AA367113C3B /* KeyboardDebugChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDebugChannel.swift; sourceTree = "<group>"; };
 		AE6E31FCBD5AF7A602623C33 /* KeyboardTestViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTestViewController.swift; sourceTree = "<group>"; };
 		B47B4FBE29952F82295D4290 /* KeyboardLayoutGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayoutGeometry.swift; sourceTree = "<group>"; };
@@ -306,6 +308,7 @@
 			isa = PBXGroup;
 			children = (
 				9A52704B5167E0CA0199DD32 /* EngineContentionTests.swift */,
+				A89772E8E7EF78DA65F08EB0 /* LexiconKeepTests.swift */,
 				A59039DE8C56C0B58461FC9C /* ObadhEngineIntegrationTests.swift */,
 			);
 			name = ObadhEngineTests;
@@ -537,6 +540,7 @@
 				F0DC104698DCC75ED181ED27 /* AutoInsertGate.swift in Sources */,
 				B5D10ABF89C16613E608FF31 /* BanglaTypingEngine.swift in Sources */,
 				D9898295627BD68B1CEE24AD /* EngineContentionTests.swift in Sources */,
+				4F65984C21604C7C16DB0884 /* LexiconKeepTests.swift in Sources */,
 				C81FA0BE1D4BB10FA5B42FBA /* ObadhBridgeClient.swift in Sources */,
 				1211B381465DA94D85B78236 /* ObadhEngineIntegrationTests.swift in Sources */,
 			);
