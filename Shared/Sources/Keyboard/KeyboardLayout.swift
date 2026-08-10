@@ -169,24 +169,20 @@ enum KeyboardLayoutProvider {
         static let keyboardSideInset = 6.67
         static let homeRowScreenIndent = 28.0
         static let homeRowInternalIndent = homeRowScreenIndent - keyboardSideInset
-        static let commandKeyWidth = 48.0
         static let spaceKeyWidth = 210.67
         static let returnKeyWidth = 102.33
         static let edgeCommandKeyWidth = 50.33
         static let edgeBackspaceKeyWidth = 50.33
         static let rowThreeSideGap = 14.67
         static let punctuationSymbolKeyWidth = 54.53
-        static let commandRowWeights = [
-            commandKeyWidth,
-            commandKeyWidth,
-            spaceKeyWidth,
-            returnKeyWidth
-        ]
-        static let punctuationCommandRowWeights = [
-            returnKeyWidth,
-            spaceKeyWidth,
-            returnKeyWidth
-        ]
+        /// Native's single leading command key, measured 102.0 at 440pt against a
+        /// 102.33 return — the row is very nearly symmetric. Whatever we put there
+        /// (mode switch, emoji, our own globe) shares exactly this span including
+        /// the gaps between them, so the count of leading keys never reaches space
+        /// or return. Two keys therefore come out at exactly 48.0 each.
+        static let leadingCommandBlockWidth = 102.0
+        /// The gap between keys inside that block, at the 440pt reference.
+        static let commandBlockGap = 6.0
 
         static let lowerRowWeights = [edgeCommandKeyWidth / standardKeyWidth]
             + Array(repeating: 1.0, count: 7)
@@ -212,8 +208,28 @@ enum KeyboardLayoutProvider {
     /// we add our own (see `KeyboardKey.globe`). No explicit weights: each key's own
     /// `weight` applies, so space keeps its 5.0 share and the row re-proportions
     /// itself around the extra key instead of being hand-tuned per variant.
+    /// The bottom command row, on native's measured widths.
+    ///
+    /// Native's row is one leading key, then space, then return. We put more than
+    /// one key in that leading position — the emoji key always, and our own globe
+    /// key when the system withholds its next-keyboard key — so the block is
+    /// SUBDIVIDED rather than allowed to push the others aside. Space and return
+    /// are the two widths actually measured off native (210.67 / 102.33 at the
+    /// 440pt reference), and they stay put no matter how many keys lead.
+    ///
+    /// This used to fall back to each key's intrinsic `weight` on the theory that
+    /// the row would re-proportion itself around the extra key. It does, but not
+    /// onto native's numbers: measured on the simulator that put space at 209.6
+    /// and shrank return to 94.3 against native's 102.3, on every iPhone width.
     private static func commandRow(leading: [KeyboardKey], includesGlobeKey: Bool) -> KeyboardRow {
-        KeyboardRow(keys: leading + (includesGlobeKey ? [.globe] : []) + [.space, .returnKey])
+        let leadingKeys = leading + (includesGlobeKey ? [.globe] : [])
+        let interiorGaps = Double(leadingKeys.count - 1) * NativeGeometry.commandBlockGap
+        let each = (NativeGeometry.leadingCommandBlockWidth - interiorGaps) / Double(leadingKeys.count)
+        return KeyboardRow(
+            keys: leadingKeys + [.space, .returnKey],
+            keyWeights: Array(repeating: each, count: leadingKeys.count)
+                + [NativeGeometry.spaceKeyWidth, NativeGeometry.returnKeyWidth]
+        )
     }
 
     // MARK: - iPad

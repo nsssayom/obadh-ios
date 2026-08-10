@@ -18,6 +18,9 @@ APP_MODERN=$ROOT/build/DerivedData/Build/Products/Debug-iphonesimulator/Obadh.ap
 APP_LEGACY=$ROOT/build/DerivedData/Build/Products/Debug-Legacy-iphonesimulator/Obadh.app
 RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-26-5
 APP_ID=$("$ROOT/scripts/bundle-id.sh")
+# Never proceed on an empty id: it produces a keyboard called ".keyboard", which
+# the daemon quietly ignores, and every capture is then of the system keyboard.
+[[ -n "$APP_ID" ]] || { echo "sweep: bundle-id.sh returned nothing"; exit 2; }
 KB_ID=$APP_ID.keyboard
 mkdir -p "$OUT"
 
@@ -66,12 +69,31 @@ for NAME in "$@"; do
   udid=$(ensure_device "$NAME")
   [[ -z "$udid" ]] && { echo "SKIP $NAME (device type unavailable)"; continue; }
   xcrun simctl shutdown booted 2>/dev/null || true
+  # Erase before every sweep. A simulator that has already presented a keyboard
+  # ignores the `AppleKeyboards` / `KeyboardLastUsed` writes below, so Obadh is
+  # never selected and all eight captures are of the SYSTEM keyboard — which the
+  # measurement then compares against itself and reports as an incomplete cell.
+  # The sweep used to work only because these devices happened to carry the right
+  # state from earlier runs; that made the gate silently dependent on history.
+  xcrun simctl erase "$udid" 2>/dev/null || true
   xcrun simctl boot "$udid" 2>/dev/null || true
   xcrun simctl bootstatus "$udid" >/dev/null 2>&1
   sleep 3
   xcrun simctl spawn "$udid" defaults write .GlobalPreferences AppleKeyboards -array \
     "en_US@sw=QWERTY;hw=Automatic" "$KB_ID" "emoji@sw=Emoji" \
     "bn-Translit@sw=QWERTY-Bengali;hw=Automatic" || true
+
+  # Suppress the one-time keyboard tutorials. The QuickPath sheet ("Speed up your
+  # typing by sliding your finger…") covers the WHOLE keyboard, so a device that
+  # has not already dismissed it yields eight screenshots of the sheet and 24
+  # INCOMPLETE cells. This used to pass only because the sweep devices were
+  # long-lived and had been through it; erase one and the whole gate silently
+  # measures nothing.
+  for domain in com.apple.Preferences com.apple.keyboard.preferences .GlobalPreferences; do
+    xcrun simctl spawn "$udid" defaults write "$domain" DidShowContinuousPathIntroduction -bool true 2>/dev/null || true
+    xcrun simctl spawn "$udid" defaults write "$domain" UIKeyboardDidShowContinuousPathIntroduction -bool true 2>/dev/null || true
+    xcrun simctl spawn "$udid" defaults write "$domain" DidShowGestureKeyboardIntroduction -bool true 2>/dev/null || true
+  done
 
   xcrun simctl install "$udid" "$APP_MODERN"
   capture_appearance "$udid" "$slug" modern light

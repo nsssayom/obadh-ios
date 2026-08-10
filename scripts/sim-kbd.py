@@ -47,12 +47,16 @@ from PIL import Image
 def _bundle_id() -> str:
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     try:
-        return subprocess.run(
+        value = subprocess.run(
             [os.path.join(root, "scripts", "bundle-id.sh")],
             capture_output=True, text=True, check=True,
         ).stdout.strip()
     except Exception:
-        return "com.nsssayom.obadh"
+        value = ""
+    # An empty answer is a failure, not an id. Letting it through once produced a
+    # keyboard identifier of ".keyboard", which the daemon ignores, so every
+    # `select-obadh` silently left the SYSTEM keyboard on screen.
+    return value or "com.nsssayom.obadh"
 
 
 OBADH_APP = os.environ.get("OBADH_APP") or _bundle_id()

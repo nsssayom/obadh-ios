@@ -212,41 +212,76 @@ extension KeyboardComposerTests {
         return composer
     }
 
+    /// A correction the gate accepts on its own terms: a confident channel, a
+    /// one-unit slip, and a common enough word. These tests are about what the
+    /// COMPOSER does with a gate decision — the policy itself is AutoInsertGate's
+    /// to test — so the correction is held constant and the baseline is what moves.
+    private func confidentCorrection(
+        _ text: String,
+        frequency: UInt64 = 5_000
+    ) -> DetailedCorrection {
+        DetailedCorrection(
+            text: text,
+            source: DetailedCorrection.Source.editDistance,
+            editCost: 1,
+            romanRepairCost: nil,
+            frequency: frequency
+        )
+    }
+
     /// Feature off: no target, so space commits exactly what is shown.
     func testNoAutocorrectTargetWhenFeatureOff() {
         let composer = composerWithCorrection()
         composer.resolveAutocorrectTarget(
             autoInsertEnabled: false,
-            deterministicIsLexiconWord: false,
+            baselineFrequency: 0,
+            detailedCorrections: [confidentCorrection("বাংলা")],
             isProtectedWord: { _ in false }
         )
         XCTAssertNil(composer.autocorrectTarget)
         XCTAssertEqual(composer.commitText, composer.preview) // the deterministic
     }
 
-    /// Feature on, typed word isn't real, a correction exists: space commits the
-    /// correction, and the shown deterministic word is what gets quoted.
+    /// Feature on, typed word isn't in the lexicon at all (baseline frequency 0),
+    /// a correction exists: space commits the correction, and the shown
+    /// deterministic word is what gets quoted.
     func testAutocorrectTargetIsTheTopCorrectionForAnUnknownWord() {
         let composer = composerWithCorrection()
         composer.resolveAutocorrectTarget(
             autoInsertEnabled: true,
-            deterministicIsLexiconWord: false,
+            baselineFrequency: 0,
+            detailedCorrections: [confidentCorrection("বাংলা")],
             isProtectedWord: { _ in false }
         )
         XCTAssertEqual(composer.autocorrectTarget, "বাংলা")
         XCTAssertEqual(composer.commitText, "বাংলা")
     }
 
-    /// The typed word is already a real word: never second-guessed, even with the
-    /// feature on.
-    func testNoTargetWhenShownWordIsALexiconWord() {
+    /// The typed word is itself a common lexicon word: the frequency-ratio rule
+    /// declines, so it is not second-guessed even with the feature on.
+    func testNoTargetWhenShownWordIsACommonLexiconWord() {
         let composer = composerWithCorrection()
         composer.resolveAutocorrectTarget(
             autoInsertEnabled: true,
-            deterministicIsLexiconWord: true,
+            baselineFrequency: 5_000,
+            detailedCorrections: [confidentCorrection("বাংলা")],
             isProtectedWord: { _ in false }
         )
         XCTAssertNil(composer.autocorrectTarget)
+    }
+
+    /// A lexicon word so much rarer than the correction that the user almost
+    /// surely meant the common one — the case that fixes manus→মানুষ. The composer
+    /// must pass the baseline through rather than treating "is a word" as final.
+    func testTargetOverridesALexiconWordThatIsFarRarer() {
+        let composer = composerWithCorrection()
+        composer.resolveAutocorrectTarget(
+            autoInsertEnabled: true,
+            baselineFrequency: 10,
+            detailedCorrections: [confidentCorrection("বাংলা")],
+            isProtectedWord: { _ in false }
+        )
+        XCTAssertEqual(composer.autocorrectTarget, "বাংলা")
     }
 
     /// A word the user has established is protected: no correction.
@@ -254,8 +289,22 @@ extension KeyboardComposerTests {
         let composer = composerWithCorrection()
         composer.resolveAutocorrectTarget(
             autoInsertEnabled: true,
-            deterministicIsLexiconWord: false,
+            baselineFrequency: 0,
+            detailedCorrections: [confidentCorrection("বাংলা")],
             isProtectedWord: { $0 == composer.preview }
+        )
+        XCTAssertNil(composer.autocorrectTarget)
+    }
+
+    /// Only corrections the bar is actually showing may be committed: the strip has
+    /// to display what space will insert.
+    func testNoTargetWhenTheCorrectionIsNotOffered() {
+        let composer = composerWithCorrection()
+        composer.resolveAutocorrectTarget(
+            autoInsertEnabled: true,
+            baselineFrequency: 0,
+            detailedCorrections: [confidentCorrection("অন্যকিছু")],
+            isProtectedWord: { _ in false }
         )
         XCTAssertNil(composer.autocorrectTarget)
     }
@@ -265,7 +314,8 @@ extension KeyboardComposerTests {
         let composer = composerWithCorrection()
         composer.resolveAutocorrectTarget(
             autoInsertEnabled: true,
-            deterministicIsLexiconWord: false,
+            baselineFrequency: 0,
+            detailedCorrections: [confidentCorrection("বাংলা")],
             isProtectedWord: { _ in false }
         )
         XCTAssertNotNil(composer.autocorrectTarget)
