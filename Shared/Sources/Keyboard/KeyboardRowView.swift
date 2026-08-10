@@ -8,7 +8,7 @@ final class KeyboardRowView: UIView {
     }
 
     private var row: KeyboardRow?
-    private var keyButtons: [KeyboardKeyButton] = []
+    private(set) var keyButtons: [KeyboardKeyButton] = []
 
     func configure(row: KeyboardRow, buttons: [KeyboardKeyButton], metrics: KeyboardMetrics) {
         keyButtons.forEach { $0.removeFromSuperview() }

@@ -164,7 +164,22 @@ final class KeyboardTestViewController: UIViewController {
         textView.autocorrectionType = .yes
         textView.spellCheckingType = .yes
         textView.keyboardType = .alphabet
-        textView.text = ""
+        // `--seed=<text>` prefills the field. The native keyboard's prediction row
+        // is only populated when there is context, and `simctl` has no tap
+        // primitive, so this is the only way to capture native predictions as a
+        // reference for our own strip.
+        let seedPrefix = "--seed="
+        textView.text = ProcessInfo.processInfo.arguments
+            .first { $0.hasPrefix(seedPrefix) }
+            .map { String($0.dropFirst(seedPrefix.count)) } ?? ""
+        // `--no-shortcuts` empties the iPad shortcuts bar's button groups, which is
+        // what a host app does when it does not want one. Our strip has to look
+        // right both with the system bar above it and without, and this is how that
+        // second case gets measured rather than assumed.
+        if ProcessInfo.processInfo.arguments.contains("--no-shortcuts") {
+            textView.inputAssistantItem.leadingBarButtonGroups = []
+            textView.inputAssistantItem.trailingBarButtonGroups = []
+        }
         textView.accessibilityLabel = "Obadh keyboard test field"
         if let accessoryHeight {
             let bar = UIToolbar(frame: CGRect(x: 0, y: 0, width: 320, height: accessoryHeight))

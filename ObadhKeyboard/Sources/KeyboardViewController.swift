@@ -9,8 +9,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private let engine = ObadhBridgeClient.shared
     private lazy var composer = KeyboardComposer(
         engine: ObadhBridgeClient.shared,
-        emojiSuggester: BanglaEmojiSuggestionStore(bundle: Bundle(for: KeyboardViewController.self))
+        emojiSuggester: BanglaEmojiSuggestionStore(bundle: Bundle(for: KeyboardViewController.self)),
+        compositionSuggestionLimit: suggestionSlotCount
     )
+    /// How many text candidates the strip can show. Three on iPhone, up to six on
+    /// iPad — see `PadAxisMetrics.suggestionSlotCount`. Read from the same metrics
+    /// the bar lays itself out from, so the two cannot disagree.
+    private var suggestionSlotCount: Int {
+        currentMetrics.suggestionSlotCount
+    }
     private let compositionController = TextCompositionController()
     private let personalAutosuggestStore = PersonalAutosuggestStore()
     /// Words the user has committed, protected from auto-insert corrections.
@@ -968,11 +975,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             margin: Double(metrics.keyboardInsets.left),
             gap: Double(metrics.keySpacing)
         )
-        for row in rows {
+        for (rowIndex, row) in rows.enumerated() {
             let rowView = KeyboardRowView()
             rowView.translatesAutoresizingMaskIntoConstraints = false
             var rowButtons: [KeyboardKeyButton] = []
             rowButtons.reserveCapacity(row.keys.count)
+            let heightOfRow = rowHeight(atIndex: rowIndex, metrics: metrics)
 
             for key in row.keys {
                 let button = KeyboardKeyButton(key: key)
@@ -980,6 +988,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 // families where native shows them: the extended layout has a real
                 // number row, so its letters are bare exactly like native's.
                 button.showsSecondaryLabel = isPadIdiom && keyboardMode == .letters
+                // Lets a short row size its type to itself. Only the 13-inch
+                // number row is short; everywhere else this equals minimumKeyHeight.
+                button.rowHeight = heightOfRow
                 button.updateAppearance(
                     shifted: shifted,
                     traitCollection: traitCollection,
@@ -994,9 +1005,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
             rowView.configure(row: row, buttons: rowButtons, metrics: metrics)
             keyboardStack.addArrangedSubview(rowView)
-            let heightConstraint = rowView.heightAnchor.constraint(
-                equalToConstant: rowHeight(atIndex: keyboardStack.arrangedSubviews.count - 1, metrics: metrics)
-            )
+            let heightConstraint = rowView.heightAnchor.constraint(equalToConstant: heightOfRow)
             heightConstraint.priority = UILayoutPriority(999)
             heightConstraint.isActive = true
             rowHeightConstraints.append(heightConstraint)
@@ -1136,11 +1145,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let contextAfterInput = textDocumentProxy.documentContextAfterInput ?? ""
         if let cursorWord = CursorWordDetector.wordAtCursor(before: contextBeforeInput, after: contextAfterInput) {
             activeCursorWord = cursorWord
+            let slots = suggestionSlotCount
             scheduleSuggestionQuery { [weak self] in
                 let alternatives = engine
-                    .wordAlternatives(for: cursorWord.word, limit: 4)
+                    .wordAlternatives(for: cursorWord.word, limit: slots + 1)
                     .filter { !$0.isEmpty && $0 != cursorWord.word }
-                    .prefix(3)
+                    .prefix(slots)
                     .map { KeyboardSuggestion(text: $0, source: .autocorrect) }
                 Task { @MainActor in
                     guard let self, self.suggestionGeneration == generation else { return }
@@ -1155,23 +1165,27 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // So it's only trustworthy at the end of the text. With the cursor moved into
         // earlier text, it buries the cursor-accurate context lookup — use that alone.
         let cursorAtEnd = (textDocumentProxy.documentContextAfterInput ?? "").isEmpty
+        let slots = suggestionSlotCount
+        // Fetch a little deeper than the strip can show so dedup between the session
+        // and context sources still leaves a full row.
+        let fetchLimit = slots * 2
         scheduleSuggestionQuery { [weak self] in
             let contextSuggestions = engine
-                .autosuggestSuggestions(for: contextBeforeInput, limit: 6)
+                .autosuggestSuggestions(for: contextBeforeInput, limit: fetchLimit)
                 .filter { !$0.isEmpty }
                 .map { KeyboardSuggestion(text: $0, source: .autosuggest) }
             let merged: [KeyboardSuggestion]
             if cursorAtEnd {
                 let sessionSuggestions = engine
-                    .autosuggestSessionSuggestions(limit: 6)
+                    .autosuggestSessionSuggestions(limit: fetchLimit)
                     .map { KeyboardSuggestion(text: $0, source: .autosuggest) }
                 merged = KeyboardComposer.mergeSuggestions(
                     primary: sessionSuggestions,
                     fallback: contextSuggestions,
-                    limit: 3
+                    limit: slots
                 )
             } else {
-                merged = Array(contextSuggestions.prefix(3))
+                merged = Array(contextSuggestions.prefix(slots))
             }
             Task { @MainActor in
                 guard let self, self.suggestionGeneration == generation else { return }
@@ -1717,7 +1731,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let value = KeyboardTheme.metrics(
             for: size,
             traitCollection: traitCollection,
-            padPortraitWidth: min(screenSize.width, screenSize.height)
+            screenSize: screenSize
         )
         metricsCache = (key, value)
         return value
@@ -1770,6 +1784,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         keyboardStackHeightConstraint?.constant = keyRowsHeight(for: metrics)
         view.backgroundColor = .clear
         suggestionBar.applyMetrics(metrics)
+        // Rotating an iPad can move it to a layout family with a different slot
+        // count, so the composer's candidate limit follows the strip.
+        composer.compositionSuggestionLimit = metrics.suggestionSlotCount
 
         if shouldReloadRows {
             reloadKeyboardRows()
@@ -1783,6 +1800,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
         for (index, constraint) in rowHeightConstraints.enumerated() {
             constraint.constant = rowHeight(atIndex: index, metrics: metrics)
+        }
+        // Row heights can change under the same set of buttons (rotation), and a
+        // short row sizes its type to itself, so refresh that before redrawing.
+        for (index, subview) in keyboardStack.arrangedSubviews.enumerated() {
+            guard let rowView = subview as? KeyboardRowView else { continue }
+            let heightOfRow = rowHeight(atIndex: index, metrics: metrics)
+            for button in rowView.keyButtons {
+                button.rowHeight = heightOfRow
+            }
         }
         for button in keyButtons {
             button.updateAppearance(

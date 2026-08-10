@@ -157,10 +157,11 @@ moves by 0.5pt and total height by 3pt. Treat both as constants:
 * 4-row families: key height **55.3**, row spacing **8.9**, bottom inset **28**.
 * 5-row family: key height **61.0** (number row **45.5**), spacing **7.12**, inset **24**.
 
-The residual 45.4pt (43.5pt on family C) between the container top and the first
-key row is the **system shortcut bar** — `UITextInputAssistantItem`, drawn by iOS
+The residual 45.5pt (43.5pt on family C) between the container top and the first
+key row is the **system shortcuts bar** — `UITextInputAssistantItem`, drawn by iOS
 above the extension on iPad, carrying undo/redo/paste and the prediction chips. It
-is not ours to draw and not part of our requested height.
+is not ours to draw and not part of our requested height. See "The suggestion
+ribbon" below for what that costs us and what we do about it.
 
 ## The 20pt band below an iPad input view
 
@@ -275,6 +276,93 @@ iPadOS 26 ignores in-app orientation locks (iPad apps are resizable), so
 * Launch the app **before** rotating; rotating SpringBoard alone did not stick.
 * `simctl io screenshot` returns the raw display buffer, which keeps the panel's
   portrait shape with the UI rotated inside it. De-rotate the PNG afterwards.
+
+## The suggestion ribbon
+
+iPadOS draws the shortcuts bar above **every** keyboard, ours included. For the
+system keyboard it holds undo / redo / paste on the left and three predictions on
+the right. For a third-party keyboard the prediction half is simply empty: the bar
+belongs to the host's responder, and an extension "can draw only within the primary
+view of its UIInputViewController object". An Apple frameworks engineer put it
+plainly: *"3rd party keyboards can't affect the content of the Shortcuts bar — the
+content is primarily reserved for the frontmost app"*
+([developer.apple.com/forums/thread/7420](https://developer.apple.com/forums/thread/7420)).
+Still true through iPadOS 26. It cannot be filled and it cannot be removed, and the
+user can independently minimise it or switch Shortcuts off entirely, so we cannot
+depend on it either. Our own strip is the only place Obadh suggestions can live.
+That question is settled; it does not need asking again.
+
+### What the band is made of
+
+Measured on an iPad Pro 11-inch, both keyboards on the same screen, in points below
+the keyboard container's top edge:
+
+| | native | Obadh (before) | Obadh (now) |
+|---|---|---|---|
+| shortcuts bar | 45.5 | 45.5 | 45.5 |
+| our strip | — | 26.0 | 45.5 |
+| band above the keys | 45.5 | 71.5 | 91.0 |
+| total container | 322.5 | 347.5 | 367.0 |
+
+Native's 45.5pt bar is **27.5pt of content flush with the top edge, then 18pt of
+clearance** before the first key row. Its separators run the full 27.5pt and its
+prediction text is centred in that box, 15.5pt of ink.
+
+Ours was 12pt of content in a 26pt strip, 9.5pt of ink, hard against the bar above
+it — a sliver wedged under the system's row rather than a row of its own. So the
+strip now takes the shortcuts bar's own height and fills it the same way the bar
+above fills itself: a 27.5pt content block at the top, the same clearance beneath.
+The two read as a pair of equal rows.
+
+That costs 19.5pt. It buys a legible row, and it is 1.6% of an iPad Pro 11-inch's
+1194pt screen. **When the host suppresses the shortcuts bar** — many do, and it is
+one line on a text view — the whole picture changes: the container comes out at
+329pt against native's 322.5, and our strip is the only ribbon on screen. The
+doubling is the system's, not ours.
+
+### Asking for a strip and getting one
+
+Sweeping the asked height 283 → 323pt on an iPad Pro 11-inch showed the container
+settles us **short by a constant**, and that every extra point asked for lands 1:1
+in the strip while the key rows do not move at all. The deficit measured equal to
+our own `bottomInset`: 8pt on a 4-row portrait iPad and 11pt in landscape, both
+exact. The 13-inch is the one that misses, landing 2pt short.
+
+Getting this wrong only flexes the strip. The key block is bottom-anchored, so
+nothing the parity gate measures can drift — `ipad-geometry.py compare` still
+reports ALL PASS on all five devices with the taller strip.
+
+### Slot count
+
+Native shows exactly three predictions at every iPad width, but it draws them in a
+fixed block centred in the bar — measured pitch 147pt on a mini, 155pt everywhere
+else — and leaves the rest empty. Our strip spans the full width, so at three slots
+each suggestion got 248-344pt: two to three times native's density, three words
+adrift in a wide band.
+
+So the count comes from native's density instead, at one slot per 165pt of layout
+width, floored at three and capped at six:
+
+| | 744 | 820 / 834 | 1024 / 1032 | landscape 1133-1376 |
+|---|---|---|---|---|
+| slots | 5 | 5 | 6 | 6 |
+| pt per slot | 148.8 | 164.0 / 166.8 | 170.7 / 172.0 | 188.8 - 229.3 |
+
+iPhone is excluded by the `isPad` guard and stays at three. The cap is a reading
+limit, not a spatial one — a rotated 13-inch has room for nine.
+
+Emoji keep the trailing slot, native-style, so a full row of them costs one text
+candidate rather than a third of the strip. Three is the ceiling in the compiled
+`emoji-bn.bin`, which stores at most three per word; showing more is a dataset
+decision, not a layout one.
+
+### Suggestion text colour
+
+Native draws prediction text at black 0.76 (light) / white 0.64 (dark), measured
+identically on iPhone and iPad. We were drawing it at 0.48 / 0.56 — the same tone
+as the assistant glyphs beside it, which made suggestions read as chrome rather
+than as something to tap. Now matched, on both idioms; it is a colour change only,
+so the geometry suites are unaffected.
 
 ## Where Obadh stood before this work
 

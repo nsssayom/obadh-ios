@@ -12,6 +12,11 @@ struct OnboardingView: View {
         case done
     }
 
+    /// Onboarding is a single centred column on every device. iPad does not get a
+    /// wider one: this is a few lines of copy and one button, and stretching that
+    /// across a 13-inch screen reads as an iPhone app that was never looked at.
+    private static let contentColumnWidth: CGFloat = 460
+
     let install: KeyboardInstallState
     let onFinish: () -> Void
 
@@ -53,7 +58,7 @@ struct OnboardingView: View {
                 // Pad first, then fill. The other order expands the content to the full
                 // width and *then* insets the result, pushing text off both edges.
                 .padding(.horizontal, 30)
-                .frame(maxWidth: 460)
+                .frame(maxWidth: Self.contentColumnWidth)
                 .frame(maxWidth: .infinity)
                 // Recreating on `step` is what drives the transition below.
                 .id(step)
@@ -66,7 +71,13 @@ struct OnboardingView: View {
         }
         .safeAreaInset(edge: .bottom) {
             actions
+                // Same column as the content above. Without it the buttons track the
+                // window instead: `BrandButtonStyle` fills its container, so on a
+                // 13-inch iPad in landscape "Get Started" became a 1316pt capsule
+                // while the text it sat under was 460pt wide.
                 .padding(.horizontal, 30)
+                .frame(maxWidth: Self.contentColumnWidth)
+                .frame(maxWidth: .infinity)
                 .padding(.bottom, 14)
                 .reveal(5, isVisible: isRevealed)
         }

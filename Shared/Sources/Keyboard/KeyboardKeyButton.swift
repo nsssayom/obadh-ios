@@ -5,6 +5,13 @@ final class KeyboardKeyButton: UIButton {
     /// iPad draws a flick-down glyph above the primary one. Set by the controller
     /// from the idiom, so iPhone keys never grow a second label.
     var showsSecondaryLabel = false
+    /// This key's row height, when the row is shorter than `minimumKeyHeight`.
+    /// Only the 13-inch iPad's number row is (45.5pt against 61pt letter rows, 59
+    /// against 79 in landscape); zero everywhere else, meaning "no adjustment".
+    /// Type is scaled by the ratio, because `characterFontSize` is derived from the
+    /// LETTER key — a 31.2pt Bangla digit in a 45.5pt key gave 19.5pt of ink where
+    /// native's digit is 10pt, and no vertical placement rescues a glyph that size.
+    var rowHeight: CGFloat = 0
     private let spaceLanguageLabel = UILabel()
     private let secondaryLabel = UILabel()
     private var keyPreviewText: String?
@@ -12,7 +19,7 @@ final class KeyboardKeyButton: UIButton {
     private var spaceLanguageTrailingConstraint: NSLayoutConstraint?
     private var spaceLanguageBottomConstraint: NSLayoutConstraint?
     private var secondaryTopConstraint: NSLayoutConstraint?
-    private var titleVerticalOffset: CGFloat = 0
+    private var titleOffsetRatio: CGFloat = 0
     /// iOS 26+ Liquid Glass backing (a backmost, non-interactive glass view).
     /// nil below iOS 26, where the solid `backgroundColor` fill is used instead.
     /// Touches are owned entirely by `KeyboardTouchSurfaceView`, so this is purely
@@ -40,6 +47,9 @@ final class KeyboardKeyButton: UIButton {
         capsLocked: Bool = false
     ) {
         currentMetrics = metrics
+        let typeScale = rowHeight > 0 && metrics.minimumKeyHeight > 0
+            ? rowHeight / metrics.minimumKeyHeight
+            : 1
         layer.cornerRadius = metrics.keyCornerRadius
         layer.shadowRadius = metrics.keyShadowRadius
         layer.shadowOffset = metrics.keyShadowOffset
@@ -64,12 +74,12 @@ final class KeyboardKeyButton: UIButton {
             let displayText = shifted ? value.uppercased() : value
             setTitle(displayText, for: .normal)
             setImage(nil, for: .normal)
-            titleLabel?.font = .systemFont(ofSize: metrics.characterFontSize, weight: .regular)
+            titleLabel?.font = .systemFont(ofSize: metrics.characterFontSize * typeScale, weight: .regular)
             keyPreviewText = displayText
         case let .symbol(symbol):
             setTitle(symbol.label, for: .normal)
             setImage(nil, for: .normal)
-            titleLabel?.font = .systemFont(ofSize: metrics.symbolFontSize, weight: .regular)
+            titleLabel?.font = .systemFont(ofSize: metrics.symbolFontSize * typeScale, weight: .regular)
             keyPreviewText = symbol.label
         case .space:
             setTitle(showsSpaceIntro ? spaceIntroText : nil, for: .normal)
@@ -126,31 +136,42 @@ final class KeyboardKeyButton: UIButton {
             keyPreviewText = nil
         }
 
-        updateSecondaryLabel(traitCollection: traitCollection, metrics: metrics)
+        updateSecondaryLabel(traitCollection: traitCollection, metrics: metrics, typeScale: typeScale)
     }
 
     /// The iPad flick-down glyph, drawn small in the top-left the way native does.
     /// Nothing is drawn when the key has no secondary, which is every key on
     /// iPhone and every command key everywhere.
-    private func updateSecondaryLabel(traitCollection: UITraitCollection, metrics: KeyboardMetrics) {
+    private func updateSecondaryLabel(
+        traitCollection: UITraitCollection,
+        metrics: KeyboardMetrics,
+        typeScale: CGFloat
+    ) {
         guard showsSecondaryLabel, let secondary = key.padSecondary else {
             secondaryLabel.isHidden = true
-            titleVerticalOffset = 0
+            titleOffsetRatio = 0
             return
         }
         secondaryLabel.isHidden = false
         secondaryLabel.text = secondary.label
-        secondaryLabel.font = .systemFont(ofSize: metrics.padSecondaryFontSize, weight: .regular)
+        secondaryLabel.font = .systemFont(ofSize: metrics.padSecondaryFontSize * typeScale, weight: .regular)
         secondaryLabel.textColor = KeyboardTheme.secondaryTextColor(for: traitCollection)
-        secondaryTopConstraint?.constant = metrics.padSecondaryTopInset
-        // Native centres the primary glyph at ~68% of the key height rather than
-        // at 50%, which is what makes room for the secondary without shrinking it.
-        titleVerticalOffset = metrics.minimumKeyHeight * 0.185
+        secondaryTopConstraint?.constant = metrics.padSecondaryTopInset * typeScale
+        // Native centres the primary glyph at ~70% of the key height rather than at
+        // 50%, which is what makes room for the secondary without shrinking it.
+        titleOffsetRatio = 0.185
         setNeedsLayout()
     }
 
+    /// Offset the primary glyph by a fraction of THIS key's height, not of
+    /// `minimumKeyHeight`. The two are the same on every row except the 13-inch
+    /// iPad's number row, which native draws 45.5pt tall against 61pt letter rows
+    /// (59 against 79 in landscape). Measuring from the letter-row height there
+    /// pushed the digit to 78% of its key with the ink flush against the bottom
+    /// edge, where native sits at 70.3% with 8.5pt of clearance.
     override func titleRect(forContentRect contentRect: CGRect) -> CGRect {
-        super.titleRect(forContentRect: contentRect).offsetBy(dx: 0, dy: titleVerticalOffset)
+        super.titleRect(forContentRect: contentRect)
+            .offsetBy(dx: 0, dy: contentRect.height * titleOffsetRatio)
     }
 
     var previewText: String? {
