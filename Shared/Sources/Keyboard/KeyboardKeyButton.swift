@@ -4,6 +4,27 @@ final class KeyboardKeyButton: UIButton {
     let key: KeyboardKey
     /// iPad draws a flick-down glyph above the primary one. Set by the controller
     /// from the idiom, so iPhone keys never grow a second label.
+    /// Where a command key's glyph sits inside its key.
+    ///
+    /// Native iPadOS does NOT centre them: it pins each one to the key's
+    /// bottom-OUTER corner, so the row's modifiers hug the outside edges of the
+    /// keyboard. Measured on an iPad Pro 11-inch, in points from the key's edges:
+    ///
+    /// | key | left | right | bottom |
+    /// |---|---|---|---|
+    /// | tab, caps lock, left shift, globe, mic | 6.5 | — | 6.0 |
+    /// | backspace, return, right shift, hide | — | 8.0 | 6.0 |
+    /// | `.?123` (text rather than a symbol) | 8.0 | 9.0 | 9.0 |
+    ///
+    /// We centred all of them, which is the single loudest reason the keyboard
+    /// read as "not native" next to Apple's.
+    enum GlyphAlignment {
+        case centred
+        case bottomLeading
+        case bottomTrailing
+    }
+
+    var glyphAlignment: GlyphAlignment = .centred
     var showsSecondaryLabel = false
     /// This key's row height, when the row is shorter than `minimumKeyHeight`.
     /// Only the 13-inch iPad's number row is (45.5pt against 61pt letter rows, 59
@@ -12,6 +33,18 @@ final class KeyboardKeyButton: UIButton {
     /// LETTER key — a 31.2pt Bangla digit in a 45.5pt key gave 19.5pt of ink where
     /// native's digit is 10pt, and no vertical placement rescues a glyph that size.
     var rowHeight: CGFloat = 0
+    /// 0...1 through a downward flick. Native's Key Flicks animate the secondary
+    /// glyph INTO the primary's place while the primary sinks and fades, so the key
+    /// shows you what it is about to type before you commit. iPadOS does that in a
+    /// private layer, so this reproduces it with plain transforms: the secondary
+    /// travels to the primary's centre and grows to its size, the primary slides
+    /// down and dissolves. Reset to 0 when the touch ends, whichever way it went.
+    var flickProgress: CGFloat = 0 {
+        didSet {
+            guard oldValue != flickProgress else { return }
+            applyFlickProgress()
+        }
+    }
     private let spaceLanguageLabel = UILabel()
     private let secondaryLabel = UILabel()
     private var keyPreviewText: String?
@@ -20,6 +53,14 @@ final class KeyboardKeyButton: UIButton {
     private var spaceLanguageBottomConstraint: NSLayoutConstraint?
     private var secondaryTopConstraint: NSLayoutConstraint?
     private var titleOffsetRatio: CGFloat = 0
+    /// Resting colours, captured so the flick can interpolate between them and
+    /// restore exactly what was there — resolved for the current trait collection,
+    /// since both are dynamic.
+    private var restingSecondaryColor: UIColor = .secondaryLabel
+    private var restingTitleColor: UIColor = .label
+    /// How far down the resting (small) secondary is scaled from the size it is
+    /// actually rendered at.
+    private var secondaryRestScale: CGFloat = 1
     /// iOS 26+ Liquid Glass backing (a backmost, non-interactive glass view).
     /// nil below iOS 26, where the solid `backgroundColor` fill is used instead.
     /// Touches are owned entirely by `KeyboardTouchSurfaceView`, so this is purely
@@ -154,12 +195,25 @@ final class KeyboardKeyButton: UIButton {
         }
         secondaryLabel.isHidden = false
         secondaryLabel.text = secondary.label
-        secondaryLabel.font = .systemFont(ofSize: metrics.padSecondaryFontSize * typeScale, weight: .regular)
-        secondaryLabel.textColor = KeyboardTheme.secondaryTextColor(for: traitCollection)
+        // Rendered at the PRIMARY size and scaled DOWN to rest. The flick then
+        // scales toward 1.0, where the glyph is drawn at its native resolution.
+        // Rendering small and scaling UP is what made it look zoomed and soft — a
+        // 2x raster upscale of an 11.8pt glyph.
+        let restFont = metrics.padSecondaryFontSize * typeScale
+        let fullFont = metrics.characterFontSize * typeScale
+        secondaryRestScale = fullFont > 0 ? restFont / fullFont : 1
+        secondaryLabel.font = .systemFont(ofSize: fullFont, weight: .regular)
+        restingSecondaryColor = KeyboardTheme.padSecondaryTextColor(for: traitCollection)
+        restingTitleColor = KeyboardTheme.textColor(for: traitCollection)
+        secondaryLabel.textColor = restingSecondaryColor
         secondaryTopConstraint?.constant = metrics.padSecondaryTopInset * typeScale
+            + UIFont.systemFont(ofSize: restFont).lineHeight / 2
         // Native centres the primary glyph at ~70% of the key height rather than at
         // 50%, which is what makes room for the secondary without shrinking it.
         titleOffsetRatio = 0.185
+        if flickProgress == 0 {
+            secondaryLabel.transform = restTransform
+        }
         setNeedsLayout()
     }
 
@@ -169,9 +223,106 @@ final class KeyboardKeyButton: UIButton {
     /// (59 against 79 in landscape). Measuring from the letter-row height there
     /// pushed the digit to 78% of its key with the ink flush against the bottom
     /// edge, where native sits at 70.3% with 8.5pt of clearance.
+    /// Both labels are laid out at progress 0 and then transformed, so the resting
+    /// geometry stays the single source of truth and nothing re-lays-out mid-drag.
+    private func applyFlickProgress() {
+        guard showsSecondaryLabel, !secondaryLabel.isHidden, let title = titleLabel else { return }
+        let t = max(0, min(1, flickProgress))
+        guard t > 0 else {
+            secondaryLabel.transform = restTransform
+            secondaryLabel.textColor = restingSecondaryColor
+            title.alpha = 1
+            return
+        }
+        // Ends at the KEY's centre, not the primary's. The primary rests at ~70% of
+        // the key height to leave room for this label above it; sending the glyph
+        // there left it sitting low. A key showing one glyph centres it, and that is
+        // what this becomes.
+        let rise = bounds.midY - secondaryLabel.center.y
+        let scale = secondaryRestScale + (1 - secondaryRestScale) * t
+        secondaryLabel.transform = CGAffineTransform(translationX: 0, y: rise * t)
+            .scaledBy(x: scale, y: scale)
+        // Size AND colour. Without the colour it grows into a big faint grey glyph
+        // that never actually becomes the primary — the morph is what sells the
+        // gesture, and half a morph reads as a bug.
+        secondaryLabel.textColor = Self.blend(restingSecondaryColor, restingTitleColor, t)
+        // The primary only fades; it does NOT move. Translating it as well meant a
+        // half-transparent glyph visibly sliding back up on release, which is the
+        // "awkward" part — there is nothing to slide back if it never left.
+        title.alpha = 1 - t
+    }
+
+    /// Put the key back to rest with no animation, cancelling any spring-back in
+    /// flight. Used when the flick COMMITS: the character is already in the
+    /// document, so animating the old glyph back would show the key un-typing
+    /// itself for the length of the animation.
+    func snapFlickToRest() {
+        secondaryLabel.layer.removeAllAnimations()
+        titleLabel?.layer.removeAllAnimations()
+        flickProgress = 0
+        secondaryLabel.transform = restTransform
+        secondaryLabel.textColor = restingSecondaryColor
+        titleLabel?.alpha = 1
+    }
+
+    private var restTransform: CGAffineTransform {
+        CGAffineTransform(scaleX: secondaryRestScale, y: secondaryRestScale)
+    }
+
+    private static func blend(_ from: UIColor, _ to: UIColor, _ t: CGFloat) -> UIColor {
+        var fr: CGFloat = 0, fg: CGFloat = 0, fb: CGFloat = 0, fa: CGFloat = 0
+        var tr: CGFloat = 0, tg: CGFloat = 0, tb: CGFloat = 0, ta: CGFloat = 0
+        guard from.getRed(&fr, green: &fg, blue: &fb, alpha: &fa),
+              to.getRed(&tr, green: &tg, blue: &tb, alpha: &ta) else { return to }
+        return UIColor(
+            red: fr + (tr - fr) * t,
+            green: fg + (tg - fg) * t,
+            blue: fb + (tb - fb) * t,
+            alpha: fa + (ta - fa) * t
+        )
+    }
+
     override func titleRect(forContentRect contentRect: CGRect) -> CGRect {
-        super.titleRect(forContentRect: contentRect)
+        let rect = super.titleRect(forContentRect: contentRect)
             .offsetBy(dx: 0, dy: contentRect.height * titleOffsetRatio)
+        // Text glyphs (`.?123`) sit a point further in and a point lower than the
+        // symbols do — measured 8.0/9.0 against the symbols' 6.5/8.0 and 6.0.
+        return align(rect, in: contentRect, textGlyph: true)
+    }
+
+    override func imageRect(forContentRect contentRect: CGRect) -> CGRect {
+        align(super.imageRect(forContentRect: contentRect), in: contentRect, textGlyph: false)
+    }
+
+    /// The insets here are the RECT's, not the ink's. An SF Symbol's visible ink
+    /// sits inside its image rect by a couple of points, and a title rect carries
+    /// its font's leading, so these are native's measured ink insets less that
+    /// padding: aligning the rects to native's numbers directly put every glyph
+    /// 2-3pt too far into the key.
+    private func align(_ rect: CGRect, in contentRect: CGRect, textGlyph: Bool) -> CGRect {
+        // nil insets means this family centres its command glyphs, which the iPad
+        // mini does and every larger iPad does not.
+        guard glyphAlignment != .centred, let ink = currentMetrics.padGlyphInsets else {
+            return rect
+        }
+        // Native's numbers are INK insets; an SF Symbol's ink sits inside its image
+        // rect and a title rect carries its font's leading, so back that padding out
+        // or every glyph lands 2-3pt further into the key than it should.
+        let padding: CGFloat = textGlyph ? 0.5 : 2
+        let leading = max(0, ink.left - padding)
+        let trailing = max(0, ink.right - padding)
+        let bottom = max(0, ink.bottom - (textGlyph ? 4.5 : 2.5))
+        var aligned = rect
+        aligned.origin.y = contentRect.maxY - bottom - rect.height
+        switch glyphAlignment {
+        case .bottomLeading:
+            aligned.origin.x = contentRect.minX + leading
+        case .bottomTrailing:
+            aligned.origin.x = contentRect.maxX - trailing - rect.width
+        case .centred:
+            break
+        }
+        return aligned
     }
 
     var previewText: String? {
@@ -227,11 +378,13 @@ final class KeyboardKeyButton: UIButton {
         secondaryLabel.isUserInteractionEnabled = false
         secondaryLabel.isHidden = true
         addSubview(secondaryLabel)
-        let secondaryTop = secondaryLabel.topAnchor.constraint(equalTo: topAnchor, constant: 6)
-        secondaryTopConstraint = secondaryTop
+        // Pinned by its CENTRE, not its top: the flick scales this label about its
+        // centre, and a top-pinned label would drift as it grew.
+        let secondaryCentre = secondaryLabel.centerYAnchor.constraint(equalTo: topAnchor, constant: 14)
+        secondaryTopConstraint = secondaryCentre
         NSLayoutConstraint.activate([
             secondaryLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
-            secondaryTop
+            secondaryCentre
         ])
 
         spaceLanguageLabel.translatesAutoresizingMaskIntoConstraints = false

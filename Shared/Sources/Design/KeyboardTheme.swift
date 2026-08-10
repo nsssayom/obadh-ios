@@ -61,6 +61,9 @@ struct KeyboardMetrics {
     /// (45.5pt against 61pt). Zero means "every row is `minimumKeyHeight`",
     /// which is every other layout we ship.
     var padNumberRowHeight: CGFloat = 0
+    /// Ink insets for a command key's glyph from its key edges, or nil to centre
+    /// it. Per iPad family — the mini centres, larger iPads anchor. See KeyType.
+    var padGlyphInsets: UIEdgeInsets?
     /// How many suggestion slots the strip lays out. Three everywhere on iPhone —
     /// that is the shipped, parity-gated layout — and more on iPad, which is wide
     /// enough to hold them at native's own slot density. See `suggestionSlotCount`.
@@ -84,7 +87,18 @@ struct KeyboardMetrics {
         guard suggestionContentHeight > 0 else {
             return max(-7, suggestionHeight / 2 - 26)
         }
-        return (suggestionContentHeight - suggestionHeight) / 2
+        // Centred in the strip, with a floor so it can never ride up into the
+        // system's shortcuts bar.
+        //
+        // Plain centring is right at every height we actually ask for, and it is
+        // what the strip looks wrong without. But the strip is the flex element: on
+        // an iPad rotated to landscape and back, the system lays us out at 353pt on
+        // the way to 309 and the strip absorbs all 44pt of that. Centred content in
+        // a 96pt strip sits 48pt down from a top that is momentarily behind the
+        // shortcuts bar, which is how the suggestions ended up drawn across
+        // undo/redo/paste. Past ~54pt the content stops rising and simply stays
+        // above the keys.
+        return max(0, suggestionHeight / 2 - 38)
     }
 }
 
@@ -118,6 +132,63 @@ struct PadAxisMetrics {
 
     /// The band the system keeps below an iPad input view.
     static let systemBottomBand: CGFloat = 20
+
+    /// Native iPad key type, measured from the reference captures and confirmed
+    /// against a real iPad Pro 11-inch.
+    ///
+    /// The headline: the letter font is a per-ORIENTATION CONSTANT — 22.2pt in
+    /// portrait and 28.0 in landscape — on every family, whether the key is 55.3pt
+    /// tall or 61. It does not scale with the key at all. We were deriving it as
+    /// `23 * keyHeight / 45`, which gave 28.3 portrait and 37.7 landscape: letters
+    /// 27% and 43% too large. On a real device that is the difference between
+    /// "looks like Apple's" and "looks like an imitation".
+    ///
+    /// The flick label goes the other way — native draws it BIGGER than we did
+    /// (11.8 / 14.6 against our 10 / 11) and at half the opacity, so the pair reads
+    /// as one key with a hint rather than two competing glyphs.
+    struct KeyType {
+        let letter: CGFloat
+        let secondary: CGFloat
+        let secondaryTop: CGFloat
+        /// SF Symbol point size for the command keys. Native's symbols measured
+        /// consistently 0.87-0.88 of ours across globe, shift, backspace and hide.
+        let command: CGFloat
+        /// `.?123`, which is text rather than a symbol.
+        let modeSwitch: CGFloat
+        /// Where the command glyph sits in its key, as INK insets from the key's
+        /// edges. `nil` means centred.
+        ///
+        /// This is per-FAMILY, which is easy to get wrong: an iPad mini centres its
+        /// command glyphs (measured 23.0 left against 22.0 right in portrait, 38.0
+        /// against 37.5 in landscape) while every larger iPad pins them to the
+        /// bottom-outer corner. Taking a Pro 11-inch's anchoring and applying it
+        /// everywhere would have put the mini's glyphs against the wrong edge.
+        let glyphInsets: UIEdgeInsets?
+
+        static func of(
+            _ family: KeyboardLayoutProvider.PadFamily,
+            landscape: Bool
+        ) -> KeyType {
+            let insets: UIEdgeInsets?
+            switch (family, landscape) {
+            case (.compact, _):
+                insets = nil
+            case (.standard, false):
+                insets = UIEdgeInsets(top: 0, left: 7, bottom: 6, right: 7.5)
+            case (.standard, true):
+                insets = UIEdgeInsets(top: 0, left: 10, bottom: 10, right: 11)
+            case (.extended, false):
+                insets = UIEdgeInsets(top: 0, left: 14, bottom: 10, right: 15)
+            case (.extended, true):
+                insets = UIEdgeInsets(top: 0, left: 17, bottom: 11.5, right: 17.75)
+            }
+            return landscape
+                ? KeyType(letter: 28, secondary: 14.6, secondaryTop: 12.5,
+                          command: 28.5, modeSwitch: 17.5, glyphInsets: insets)
+                : KeyType(letter: 22.2, secondary: 11.8, secondaryTop: 8.7,
+                          command: 22.5, modeSwitch: 14, glyphInsets: insets)
+        }
+    }
 
     /// Content block inside one suggestion row. Native's prediction separators run
     /// 27.5pt from the container's top edge on every iPad in both orientations,
@@ -526,6 +597,7 @@ enum KeyboardTheme {
         let padIsLandscape = isPad && bounds.width > portraitWidth + 1
         let padMetrics = padFamily.map { PadAxisMetrics.of($0, landscape: padIsLandscape, portraitWidth: portraitWidth) }
         let padTypeScale: CGFloat = padMetrics.map { $0.keyHeight / 45.0 } ?? 1
+        let padType = padFamily.map { PadAxisMetrics.KeyType.of($0, landscape: padIsLandscape) }
         // The gap between keys is a per-family CONSTANT on iPad (12 / 10 / 7),
         // measured off native — not a scaled version of the phone's 6pt.
         let keySpacing = padMetrics?.gap ?? clamp(6 * scale, min: 5.25, max: 6)
@@ -592,11 +664,13 @@ enum KeyboardTheme {
                 bottom: bottomInset,
                 right: padMetrics?.margin ?? clamp(6.67 * scale, min: 5.87, max: 6.67)
             ),
-            characterFontSize: 23 * scale * padTypeScale,
-            symbolFontSize: 21 * scale * padTypeScale,
+            // iPad type comes from PadAxisMetrics.Type — measured constants per
+            // orientation — not from scaling the phone's. See that type for why.
+            characterFontSize: padType.map(\.letter) ?? 23 * scale,
+            symbolFontSize: padType.map { $0.letter * 0.91 } ?? 21 * scale,
             keyPreviewFontSize: 32 * scale,
-            commandFontSize: 21 * scale * padTypeScale,
-            modeSwitchFontSize: 17 * scale * padTypeScale,
+            commandFontSize: padType.map(\.command) ?? 21 * scale,
+            modeSwitchFontSize: padType.map(\.modeSwitch) ?? 17 * scale,
             spaceIntroFontSize: 18,
             spaceLanguageFontSize: 11,
             // Suggestion type scales with the iPad key like every other glyph does.
@@ -605,9 +679,10 @@ enum KeyboardTheme {
             // read as a sliver.
             suggestionFontSize: 15 * padTypeScale,
             deterministicSuggestionFontSize: 15 * padTypeScale,
-            padSecondaryFontSize: padFamily == .extended ? 11 : 10,
-            padSecondaryTopInset: padFamily == .extended ? 9 : 8,
+            padSecondaryFontSize: padType?.secondary ?? 10,
+            padSecondaryTopInset: padType?.secondaryTop ?? 8,
             padNumberRowHeight: padMetrics?.numberRowHeight ?? 0,
+            padGlyphInsets: padType?.glyphInsets,
             suggestionSlotCount: PadAxisMetrics.suggestionSlotCount(
                 forLayoutWidth: bounds.width, isPad: isPad
             ),
@@ -781,6 +856,18 @@ enum KeyboardTheme {
             return UIColor.white.withAlphaComponent(0.56)
         }
         return UIColor.black.withAlphaComponent(0.48)
+    }
+
+    /// The iPad flick label. Measured off native: white 0.30 in dark, black 0.25 in
+    /// light — half the weight of `secondaryTextColor`, which it used to borrow.
+    /// At 0.56 the hint competed with the letter instead of sitting under it, and
+    /// combined with our undersized glyph it inverted native's relationship
+    /// entirely: native's flick label is BIGGER and FAINTER than ours was.
+    static func padSecondaryTextColor(for traitCollection: UITraitCollection) -> UIColor {
+        if traitCollection.userInterfaceStyle == .dark {
+            return UIColor.white.withAlphaComponent(0.30)
+        }
+        return UIColor.black.withAlphaComponent(0.25)
     }
 
     /// Suggestion text. Deliberately darker than `secondaryTextColor`, which the

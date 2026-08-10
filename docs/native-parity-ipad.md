@@ -277,6 +277,87 @@ iPadOS 26 ignores in-app orientation locks (iPad apps are resizable), so
 * `simctl io screenshot` returns the raw display buffer, which keeps the panel's
   portrait shape with the UI rotated inside it. De-rotate the PNG afterwards.
 
+## What is drawn inside the keys
+
+The geometry above is about key RECTANGLES, and it passed on a real iPad while the
+keyboard still read as an imitation. Everything wrong was inside the keys, and no
+gate looked there. `scripts/parity/ipad-type.py` now does, across all five
+families and both orientations.
+
+### Type is a per-orientation constant
+
+Native's letter font does not scale with the key. It is **22.2pt in portrait and
+28.0 in landscape**, on every family, whether the key is 55.3pt tall or 61. We
+derived it as `23 * keyHeight / 45`, which gave 28.3 and 37.7 — letters 27% and
+43% too large.
+
+| | letter | flick label | flick alpha |
+|---|---|---|---|
+| portrait | 22.2 | 11.8 | 0.30 dark / 0.25 light |
+| landscape | 28.0 | 14.6 | 0.30 dark / 0.25 light |
+
+The flick label ran the other way: native draws it BIGGER than we did (11.8
+against 10) and at HALF the opacity (0.30 against the 0.56 it borrowed from
+`secondaryTextColor`). We had the relationship inverted — ours was small and
+bright, competing with the letter instead of sitting under it.
+
+**The 13-inch draws no flick labels at all.** It has a real number row, so its
+letters are bare. Measured 0 ink on both extended references against our 7.5pt.
+
+### Command glyphs are anchored, and it is per family
+
+Native pins a command key's glyph to its bottom-OUTER corner: left-hand keys hug
+the left edge, right-hand keys the right, all a fixed distance off the bottom.
+That is why a left shift and a right shift — the same key — point at opposite
+edges. We centred all of them, which was the loudest single reason the keyboard
+looked wrong beside Apple's.
+
+It is **not** uniform across the fleet, and taking one device's numbers fleet-wide
+is exactly the trap this document was written about:
+
+| family | portrait (globe L / bottom) | landscape | behaviour |
+|---|---|---|---|
+| compact (mini) | 16.5 / 16.5 | 32.0 / 25.0 | **centred** |
+| standard | 7.0 / 6.0 | 10.0 / 10.0 | anchored |
+| extended | 14.0 / 12.0 | 17.0 / 14.0 | anchored |
+
+An iPad mini centres its command glyphs. Every larger iPad anchors them. Applying
+a Pro 11-inch's anchoring everywhere puts the mini's glyphs against the wrong edge.
+
+Two caveats when reading these numbers. They are INK insets; an SF Symbol's ink
+sits inside its image rect and a title rect carries its font's leading, so the
+button backs that padding out. And the tool only checks the side a glyph is
+anchored to — the opposite inset is just "key width minus glyph width" and moves
+with the symbol's own size.
+
+## Key flicks
+
+iPadOS animates Key Flicks in a private layer no extension can reach, so ours is
+rebuilt from touch tracking and plain transforms. Native's behaviour: as the
+finger travels, the secondary glyph rises into the primary's place and grows to
+its size while the primary fades out.
+
+Three things that each looked like a bug on their own:
+
+* **It lands at the KEY's centre, not the primary's.** The primary rests at ~70%
+  of the key height precisely to leave room for the flick label above it, so
+  sending the glyph there left it sitting low. A key showing one glyph centres it.
+* **The label is rendered at the PRIMARY's point size and scaled down to rest**,
+  so the flick only ever scales toward 1.0. Rendering it small and scaling up is a
+  2x raster upscale, and it looked zoomed and soft. It is therefore positioned by
+  its centre, not its top, or it would drift as it grew.
+* **Colour morphs with size.** Interpolating only the transform grows a large faint
+  grey glyph that never becomes the primary; half a morph reads as a defect.
+
+The primary only fades — it does not move. Translating it as well meant a
+half-transparent glyph visibly sliding back up on release. And a flick that
+COMMITS snaps to rest rather than animating, because the character is already in
+the document and animating would show the key un-typing itself.
+
+iPad also draws **no key-press callout**. The popover is an iPhone affordance,
+where the finger covers the key it is pressing; iPad keys are wide enough to read
+around a fingertip, and the flick is what a key does under the finger there.
+
 ## The suggestion ribbon
 
 iPadOS draws the shortcuts bar above **every** keyboard, ours included. For the

@@ -982,15 +982,24 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             rowButtons.reserveCapacity(row.keys.count)
             let heightOfRow = rowHeight(atIndex: rowIndex, metrics: metrics)
 
-            for key in row.keys {
+            for (keyIndex, key) in row.keys.enumerated() {
                 let button = KeyboardKeyButton(key: key)
                 // Only the letters page carries flick-down glyphs, and only on the
                 // families where native shows them: the extended layout has a real
                 // number row, so its letters are bare exactly like native's.
-                button.showsSecondaryLabel = isPadIdiom && keyboardMode == .letters
+                // The 13-inch has a real number row, so native leaves its letters
+                // BARE — measured 0 flick ink on both extended references, against
+                // our 7.5pt. The comment here has always said so; the condition
+                // never checked the family.
+                button.showsSecondaryLabel = isPadIdiom
+                    && keyboardMode == .letters
+                    && padFamily != .extended
                 // Lets a short row size its type to itself. Only the 13-inch
                 // number row is short; everywhere else this equals minimumKeyHeight.
                 button.rowHeight = heightOfRow
+                button.glyphAlignment = padGlyphAlignment(
+                    for: key, at: keyIndex, of: row.keys.count
+                )
                 button.updateAppearance(
                     shifted: shifted,
                     traitCollection: traitCollection,
@@ -1866,6 +1875,29 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         return targetTop - metrics.suggestionHeight
     }
 
+    /// Where a command key's glyph sits inside its key on iPad.
+    ///
+    /// Native pins them to the bottom-OUTER corner, so the modifiers hug the
+    /// outside edges of the keyboard: the side is simply which half of the row the
+    /// key is in, which is what makes a left shift and a right shift — the same
+    /// key — point their glyphs at opposite edges. Letters and symbols are never
+    /// moved; they stay centred with the flick offset applied.
+    private func padGlyphAlignment(
+        for key: KeyboardKey,
+        at index: Int,
+        of count: Int
+    ) -> KeyboardKeyButton.GlyphAlignment {
+        guard isPadIdiom else { return .centred }
+        switch key {
+        case .character, .symbol, .space:
+            return .centred
+        default:
+            // The index, not the key: a left shift and a right shift are the same
+            // key and must point their glyphs at opposite edges.
+            return Double(index) >= Double(count) / 2 ? .bottomTrailing : .bottomLeading
+        }
+    }
+
     /// Row heights are uniform everywhere except the 13-inch iPad's number row,
     /// which native draws 15.5pt shorter than the letter rows below it.
     private func rowHeight(atIndex index: Int, metrics: KeyboardMetrics) -> CGFloat {
@@ -1962,6 +1994,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private func showKeyPreview(for button: KeyboardKeyButton) {
         keyPreviewDismissal?.cancel()
         keyPreviewDismissal = nil
+
+        // iPad draws no key-press callout. Native does not: the popover is an
+        // iPhone affordance, where the finger covers the key it is pressing. iPad
+        // keys are wide enough to read around a fingertip, and the flick animation
+        // is what a key does under the finger there instead.
+        guard !isPadIdiom else { return }
 
         let metrics = currentMetrics
         guard
@@ -2070,8 +2108,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // Flick-down is an iPad affordance only, and only where a secondary is
         // actually drawn — see `showsSecondaryLabel`. A third of the key height
         // is far enough to be deliberate and short enough to stay on the key.
+        // A sixth of the key, not a third. At a third this was 18.5pt in portrait
+        // and 24.7 in landscape — roughly twice what native asks for, far enough
+        // that the gesture reads as broken rather than absent.
         keyboardTouchSurface.flickThreshold = isPadIdiom && keyboardMode == .letters
-            ? currentMetrics.minimumKeyHeight / 3
+            ? currentMetrics.minimumKeyHeight / 6
             : 0
     }
 }
@@ -2087,6 +2128,25 @@ extension KeyboardViewController: KeyboardTouchSurfaceViewDelegate {
 
     func keyboardTouchSurface(
         _ view: KeyboardTouchSurfaceView,
+        didUpdateFlickProgress progress: CGFloat,
+        on key: KeyboardKey
+    ) {
+        guard let button = keyButtons.first(where: { $0.key == key }) else { return }
+        // Driven straight off the finger while dragging, so it tracks 1:1. Only the
+        // release is animated, and only back to rest — a flick that fires replaces
+        // the glyph anyway, and animating that would show the wrong character for
+        // the length of the animation.
+        if progress > 0 {
+            button.flickProgress = progress
+        } else if button.flickProgress != 0 {
+            UIView.animate(withDuration: 0.14, delay: 0, options: [.allowUserInteraction, .curveEaseOut]) {
+                button.flickProgress = 0
+            }
+        }
+    }
+
+    func keyboardTouchSurface(
+        _ view: KeyboardTouchSurfaceView,
         didEnd key: KeyboardKey?,
         flickedDown: Bool
     ) {
@@ -2094,6 +2154,7 @@ extension KeyboardViewController: KeyboardTouchSurfaceViewDelegate {
         // the primary. Keys without one fall through to the normal tap so a
         // slightly downward press never becomes a dead touch.
         if flickedDown, let key, let secondary = key.padSecondary {
+            keyButtons.first { $0.key == key }?.snapFlickToRest()
             endTouch(on: .symbol(secondary))
             return
         }
