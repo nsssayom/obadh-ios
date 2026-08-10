@@ -278,6 +278,26 @@ enum KeyboardLayoutProvider {
     /// `extended` (excluding the space bar, which absorbs the row remainder by
     /// construction and lands within 2.3pt).
     private enum PadWeight {
+        /// Landscape command rows. The letter-row weights are orientation
+        /// independent (every one reproduces within 0.01 of the portrait fit), but
+        /// the command row is not: landscape gives the space bar more and the side
+        /// keys less. Measured on 1133 / 1180 / 1210 / 1366 / 1376.
+        enum Landscape {
+            static let compactCommand = 1.021
+            static let compactSpace = 5.770
+            static let compactWide = 1.612
+            static let standardCommand = 1.007
+            static let standardSpace = 7.617
+            static let standardWide = 1.503
+            /// The 13-inch command row is absolute in landscape too.
+            static let extendedSides: [Double] = [124, 123.5, 124, 191.5, 191.5]
+            static let extendedSidesNoGlobe: [Double] = [123.5, 124, 191.5, 191.5]
+            /// The compact home row is both less indented and has a shorter return
+            /// key in landscape than in portrait.
+            static let compactHomeRowIndent = 0.466
+            static let compactReturn = 1.931
+        }
+
         enum Compact {
             static let backspace = 1.239
             static let returnKey = 1.972
@@ -326,6 +346,9 @@ enum KeyboardLayoutProvider {
         modeLabel: String,
         family: PadFamily,
         width: Double,
+        margin: Double,
+        gap: Double,
+        landscape: Bool,
         includesGlobeKey: Bool
     ) -> KeyboardRow {
         // The 13-inch command row is the one place a proportional fit is provably
@@ -335,11 +358,13 @@ enum KeyboardLayoutProvider {
         // weights are absolute widths, which sum to the content width and so
         // resolve to a unit of 1. Proportional weights here sat 3pt off native.
         if family == .extended {
-            let sides: [Double] = includesGlobeKey
-                ? [93.5, 93.5, 94, 145, 145]
-                : [93.5, 94, 145, 145]
+            let sides: [Double] = landscape
+                ? (includesGlobeKey ? PadWeight.Landscape.extendedSides
+                                    : PadWeight.Landscape.extendedSidesNoGlobe)
+                : (includesGlobeKey ? [93.5, 93.5, 94, 145, 145]
+                                    : [93.5, 94, 145, 145])
             let keyCount = sides.count + 1
-            let content = width - 2 * family.margin - Double(keyCount - 1) * family.gap
+            let content = width - 2 * margin - Double(keyCount - 1) * gap
             let space = max(1, content - sides.reduce(0, +))
             var keys: [KeyboardKey] = includesGlobeKey ? [.globe] : []
             keys += [.modeSwitch(modeLabel), .emoji, .space, .modeSwitch(modeLabel), .hideKeyboard]
@@ -349,11 +374,20 @@ enum KeyboardLayoutProvider {
 
         var keys: [KeyboardKey] = []
         var weights: [Double] = []
-        let (narrow, space, wide, hide): (Double, Double, Double, Double) = family == .compact
-            ? (PadWeight.Compact.command, PadWeight.Compact.space,
-               PadWeight.Compact.commandWide, PadWeight.Compact.commandWide)
-            : (PadWeight.Standard.command, PadWeight.Standard.space,
-               PadWeight.Standard.modeSwitchRight, PadWeight.Standard.hide)
+        let (narrow, space, wide, hide): (Double, Double, Double, Double) = switch (family, landscape) {
+        case (.compact, false):
+            (PadWeight.Compact.command, PadWeight.Compact.space,
+             PadWeight.Compact.commandWide, PadWeight.Compact.commandWide)
+        case (.compact, true):
+            (PadWeight.Landscape.compactCommand, PadWeight.Landscape.compactSpace,
+             PadWeight.Landscape.compactWide, PadWeight.Landscape.compactWide)
+        case (_, true):
+            (PadWeight.Landscape.standardCommand, PadWeight.Landscape.standardSpace,
+             PadWeight.Landscape.standardWide, PadWeight.Landscape.standardWide)
+        case (_, false):
+            (PadWeight.Standard.command, PadWeight.Standard.space,
+             PadWeight.Standard.modeSwitchRight, PadWeight.Standard.hide)
+        }
 
         if includesGlobeKey {
             keys.append(.globe)
@@ -379,7 +413,14 @@ enum KeyboardLayoutProvider {
         .symbol(.dari)
     ]
 
-    private static func padLetterRows(family: PadFamily, width: Double, includesGlobeKey: Bool) -> [KeyboardRow] {
+    private static func padLetterRows(
+        family: PadFamily,
+        width: Double,
+        margin: Double,
+        gap: Double,
+        landscape: Bool,
+        includesGlobeKey: Bool
+    ) -> [KeyboardRow] {
         let top = "qwertyuiop".map(character)
         let home = "asdfghjkl".map(character)
         let lower = "zxcvbnm".map(character)
@@ -393,8 +434,11 @@ enum KeyboardLayoutProvider {
                 ),
                 KeyboardRow(
                     keys: home + [.returnKey],
-                    keyWeights: Array(repeating: 1.0, count: 9) + [PadWeight.Compact.returnKey],
-                    leadingFlex: PadWeight.Compact.homeRowIndent
+                    keyWeights: Array(repeating: 1.0, count: 9)
+                        + [landscape ? PadWeight.Landscape.compactReturn : PadWeight.Compact.returnKey],
+                    leadingFlex: landscape
+                        ? PadWeight.Landscape.compactHomeRowIndent
+                        : PadWeight.Compact.homeRowIndent
                 ),
                 KeyboardRow(
                     keys: [.shift] + lower + padRowThreeTail + [.shift],
@@ -402,7 +446,8 @@ enum KeyboardLayoutProvider {
                         + Array(repeating: 1.0, count: 9)
                         + [PadWeight.Compact.rightShift]
                 ),
-                padCommandRow(modeLabel: "123", family: family, width: width, includesGlobeKey: includesGlobeKey)
+                padCommandRow(modeLabel: "123", family: family, width: width, margin: margin,
+                              gap: gap, landscape: landscape, includesGlobeKey: includesGlobeKey)
             ]
         case .standard:
             return [
@@ -424,7 +469,8 @@ enum KeyboardLayoutProvider {
                         + Array(repeating: 1.0, count: 9)
                         + [PadWeight.Standard.rightShift]
                 ),
-                padCommandRow(modeLabel: ".?123", family: family, width: width, includesGlobeKey: includesGlobeKey)
+                padCommandRow(modeLabel: ".?123", family: family, width: width, margin: margin,
+                              gap: gap, landscape: landscape, includesGlobeKey: includesGlobeKey)
             ]
         case .extended:
             return [padNumberRow()] + [
@@ -444,7 +490,8 @@ enum KeyboardLayoutProvider {
                         + Array(repeating: 1.0, count: 10)
                         + [PadWeight.Extended.shift]
                 ),
-                padCommandRow(modeLabel: ".?123", family: .extended, width: width, includesGlobeKey: includesGlobeKey)
+                padCommandRow(modeLabel: ".?123", family: .extended, width: width, margin: margin,
+                              gap: gap, landscape: landscape, includesGlobeKey: includesGlobeKey)
             ]
         }
     }
@@ -472,6 +519,9 @@ enum KeyboardLayoutProvider {
     private static func padSymbolRows(
         family: PadFamily,
         width: Double,
+        margin: Double,
+        gap: Double,
+        landscape: Bool,
         includesGlobeKey: Bool,
         modeLabel: String,
         firstRow: [KeyboardKey],
@@ -528,6 +578,9 @@ enum KeyboardLayoutProvider {
             modeLabel: "ABC",
             family: family,
             width: width,
+            margin: margin,
+            gap: gap,
+            landscape: landscape,
             includesGlobeKey: includesGlobeKey
         ))
         return rows
@@ -539,15 +592,22 @@ enum KeyboardLayoutProvider {
         for mode: KeyboardMode,
         width: Double,
         family: PadFamily,
+        margin: Double,
+        gap: Double,
+        landscape: Bool,
         includesGlobeKey: Bool
     ) -> [KeyboardRow] {
         switch mode {
         case .letters:
-            return padLetterRows(family: family, width: width, includesGlobeKey: includesGlobeKey)
+            return padLetterRows(family: family, width: width, margin: margin, gap: gap,
+                                 landscape: landscape, includesGlobeKey: includesGlobeKey)
         case .numbers:
             return padSymbolRows(
                 family: family,
                 width: width,
+                margin: margin,
+                gap: gap,
+                landscape: landscape,
                 includesGlobeKey: includesGlobeKey,
                 modeLabel: "#+=",
                 firstRow: ["১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯", "০"]
@@ -561,6 +621,9 @@ enum KeyboardLayoutProvider {
             return padSymbolRows(
                 family: family,
                 width: width,
+                margin: margin,
+                gap: gap,
+                landscape: landscape,
                 includesGlobeKey: includesGlobeKey,
                 modeLabel: "123",
                 firstRow: ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="]
@@ -578,10 +641,21 @@ enum KeyboardLayoutProvider {
         includesGlobeKey: Bool = false,
         isPad: Bool = false,
         width: Double = 0,
-        family: PadFamily = .standard
+        family: PadFamily = .standard,
+        landscape: Bool = false,
+        margin: Double = 0,
+        gap: Double = 0
     ) -> [KeyboardRow] {
         if isPad, width > 0 {
-            return padRows(for: mode, width: width, family: family, includesGlobeKey: includesGlobeKey)
+            return padRows(
+                for: mode,
+                width: width,
+                family: family,
+                margin: margin > 0 ? margin : family.margin,
+                gap: gap > 0 ? gap : family.gap,
+                landscape: landscape,
+                includesGlobeKey: includesGlobeKey
+            )
         }
         return phoneRows(for: mode, includesGlobeKey: includesGlobeKey)
     }

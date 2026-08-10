@@ -75,6 +75,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var padFamily: KeyboardLayoutProvider.PadFamily {
         KeyboardLayoutProvider.PadFamily.forScreen(screenSize)
     }
+
+    /// Our own bounds are always wider than tall, so orientation comes from the
+    /// layout width against the device's portrait width — never from our aspect.
+    private var padIsLandscape: Bool {
+        isPadIdiom && layoutWidth > min(screenSize.width, screenSize.height) + 1
+    }
     private var keyboardMode: KeyboardMode = .letters
     private var previousKeyWasSpace = false
     /// Native's double-space shortcut is a QUICK double-tap, not "any two spaces":
@@ -957,7 +963,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             includesGlobeKey: needsInputModeSwitchKey,
             isPad: isPadIdiom,
             width: Double(layoutWidth),
-            family: padFamily
+            family: padFamily,
+            landscape: padIsLandscape,
+            margin: Double(metrics.keyboardInsets.left),
+            gap: Double(metrics.keySpacing)
         )
         for row in rows {
             let rowView = KeyboardRowView()
@@ -1708,7 +1717,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let value = KeyboardTheme.metrics(
             for: size,
             traitCollection: traitCollection,
-            padFamily: isPadIdiom ? padFamily : nil
+            padPortraitWidth: min(screenSize.width, screenSize.height)
         )
         metricsCache = (key, value)
         return value
@@ -1818,7 +1827,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             includesGlobeKey: needsInputModeSwitchKey,
             isPad: isPadIdiom,
             width: Double(layoutWidth),
-            family: padFamily
+            family: padFamily,
+            landscape: padIsLandscape,
+            margin: Double(metrics.keyboardInsets.left),
+            gap: Double(metrics.keySpacing)
         ).count
         guard count > 0 else { return 0 }
         let keys = (0..<count).reduce(CGFloat(0)) { $0 + rowHeight(atIndex: $1, metrics: metrics) }

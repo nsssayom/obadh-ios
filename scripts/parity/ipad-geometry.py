@@ -50,6 +50,17 @@ FLEET = [
     ("pro13-native.png", 1032.0, "iPad Pro 13-inch"),
 ]
 
+# Landscape widths for the same five devices, and their own reference captures.
+# The layout family does NOT change with orientation — an iPad Pro 11-inch is
+# 1210pt wide in landscape and native still draws it the 4-row standard layout.
+FLEET_LANDSCAPE = [
+    ("mini-native.png", 1133.0, "iPad mini — landscape"),
+    ("ipad-native.png", 1180.0, "iPad (A16) — landscape"),
+    ("pro11-native.png", 1210.0, "iPad Pro 11-inch — landscape"),
+    ("air13-native.png", 1366.0, "iPad Air 13-inch — landscape"),
+    ("pro13-native.png", 1376.0, "iPad Pro 13-inch — landscape"),
+]
+
 
 @dataclass
 class Row:
@@ -74,19 +85,40 @@ class Geometry:
     rows: list[Row]
 
 
+def container_top(px: np.ndarray, scale: float) -> int:
+    """First row, scanning down the bottom half, where a column just inside the
+    screen edge departs from the host app's background. That is the keyboard
+    container's top edge — it sits left of every key, so only the backdrop and the
+    host background are ever sampled."""
+    h = px.shape[0]
+    column = px[:, int(2 * scale), :].mean(axis=1)
+    background = float(np.median(column[int(h * 0.2):int(h * 0.35)]))
+    for y in range(int(h * 0.30), h):
+        if abs(column[y] - background) > 6:
+            return y
+    return int(h * 0.55)
+
+
 def measure(path: Path, logical_width: float) -> Geometry:
     px = np.array(Image.open(path).convert("RGB")).astype(float)
     h, w, _ = px.shape
     scale = w / logical_width
     gray = px.mean(axis=2)
 
-    y0 = int(h * 0.55)
+    # Start at the keyboard container's top edge rather than a fixed fraction of
+    # the screen. A fraction cannot work for both orientations: too low and the top
+    # key row is clipped, too high and the host's white text field gets counted as
+    # a key (which it was, in landscape).
+    y0 = container_top(px, scale)
     labels, _ = ndimage.label(gray[y0:] > 233)
     boxes = []
     for index, sl in enumerate(ndimage.find_objects(labels), 1):
         ys, xs = sl
         kw, kh = xs.stop - xs.start, ys.stop - ys.start
-        if kw < 30 * scale or kh < 20 * scale:
+        # 45pt floor: the narrowest real key anywhere in the fleet is 54.5pt
+        # (portrait mini), while glyph-split fragments come in at 30-37pt and were
+        # being counted as extra keys in landscape.
+        if kw < 45 * scale or kh < 30 * scale:
             continue
         if (labels[sl] == index).sum() / (kw * kh) < 0.6:
             continue
@@ -178,7 +210,7 @@ def fit(geometries: list[tuple[str, Geometry]]) -> None:
         )
 
 
-def compare(shots: Path, tolerance: float) -> int:
+def compare(shots: Path, tolerance: float, landscape: bool = False) -> int:
     """Diff Obadh against the stored native reference on every fleet width.
 
     Expects `<shots>/<label>-obadh.png` alongside the reference captures. Returns
@@ -186,13 +218,15 @@ def compare(shots: Path, tolerance: float) -> int:
     merge the way the iPhone parity suite does.
     """
     failures = 0
-    for name, width, devices in FLEET:
+    fleet = FLEET_LANDSCAPE if landscape else FLEET
+    reference = REFERENCE / "landscape" if landscape else REFERENCE
+    for name, width, devices in fleet:
         label = name.replace("-native.png", "")
         candidate = shots / f"{label}-obadh.png"
         if not candidate.exists():
             print(f"\n=== {label} ({width:g}pt) — NO CAPTURE, skipped")
             continue
-        native = measure(REFERENCE / name, width)
+        native = measure(reference / name, width)
         ours = measure(candidate, width)
         print(f"\n=== {label} ({width:g}pt) — {devices}")
         problems: list[str] = []
@@ -242,15 +276,20 @@ def main() -> None:
     c = sub.add_parser("compare")
     c.add_argument("shots", type=Path, help="directory holding <label>-obadh.png")
     c.add_argument("--tolerance", type=float, default=2.0)
+    c.add_argument("--landscape", action="store_true")
     args = parser.parse_args()
 
     if args.cmd == "measure":
         print(json.dumps(asdict(measure(args.image, args.width)), indent=2))
         return
     if args.cmd == "compare":
-        raise SystemExit(compare(args.shots, args.tolerance))
+        raise SystemExit(compare(args.shots, args.tolerance, args.landscape))
 
     fit([(name, measure(REFERENCE / name, width)) for name, width, _ in FLEET])
+    fit([
+        (f"landscape {name}", measure(REFERENCE / "landscape" / name, width))
+        for name, width, _ in FLEET_LANDSCAPE
+    ])
 
 
 if __name__ == "__main__":

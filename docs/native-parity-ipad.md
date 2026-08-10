@@ -246,8 +246,19 @@ Key height in landscape tracks the device's portrait width within a family —
 72.5/820 = 0.0884 against 74/834 = 0.0887 — rather than being the flat constant it
 is in portrait.
 
-**Not yet implemented.** These numbers are measured and stored; the layout code
-still runs landscape through the old heuristics. See the handoff note below.
+All of the above is implemented and verified —
+`ipad-geometry.py compare <shots> --landscape` reports **PASS on all five**, worst
+key error 2pt.
+
+Two things bit during implementation and are worth keeping in mind:
+
+* Margin and gap are per-**orientation**, so anything computing absolute widths
+  (the 13-inch command row) has to be handed the live values, not
+  `PadFamily.margin` / `.gap`, which are the portrait constants. Reading the
+  portrait ones there put the space bar 10pt out.
+* The compact home row is both less indented (0.466·u against 0.486) and has a
+  shorter return key (1.931 against 1.972) in landscape. It is the only letter row
+  whose weights are not orientation-independent.
 
 ### Capturing landscape
 
