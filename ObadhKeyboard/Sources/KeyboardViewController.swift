@@ -1347,6 +1347,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         emojiPanelView.setSearchActive(true)
         syncEmojiSearchQuery()
         reloadKeyboardRows()
+        // Search needs a taller keyboard than browsing does — it draws the whole
+        // alphabetic keyboard below the results — and nothing here was asking for
+        // it. The panel kept the browsing height, the keyboard took what it needed
+        // from the bottom, and the results grid was left with 63..63: zero points.
+        updateKeyboardHeightConstraintIfReady()
+        applyLayoutMetricsIfNeeded(force: true)
     }
 
     private func exitEmojiSearch() {
@@ -1357,6 +1363,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         keyboardMode = .letters
         shifted = false
         reloadKeyboardRows()
+        updateKeyboardHeightConstraintIfReady()
+        applyLayoutMetricsIfNeeded(force: true)
     }
 
     private func handleEmojiSearchKeyPress(_ key: KeyboardKey) {
@@ -1752,6 +1760,21 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         #endif
         let screenSize = view.window?.screen.bounds.size ?? UIScreen.main.bounds.size
         if showsEmojiPanel {
+            // Search mode draws the alphabetic keyboard inside the panel, so the
+            // results only exist in whatever height is left over. Ask for the
+            // keyboard PLUS the search field and one row of results, rather than
+            // letting the results be the remainder — on iPad the remainder was
+            // 10pt and the panel showed no results at all.
+            if isEmojiSearchActive {
+                // Search swaps the suggestion strip for a search field plus a row of
+                // results, and draws the whole alphabetic keyboard below them. Asking
+                // for the browsing height left the results grid at 63..63 — literally
+                // zero points — on an iPhone, and 10pt on an iPad.
+                return KeyboardTheme.preferredKeyboardHeight(
+                    for: screenSize,
+                    traitCollection: traitCollection
+                ) + EmojiPanelView.searchChromeHeight - currentMetrics.suggestionHeight
+            }
             return KeyboardTheme.preferredEmojiKeyboardHeight(
                 for: screenSize,
                 traitCollection: traitCollection
@@ -1832,8 +1855,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
 
         let keyRowsHeight = keyRowsHeight(for: metrics)
+        // The floor is what emoji SEARCH needs above the keys: the search field and
+        // one row of results. It used to be `suggestionHeight + top`, which is the
+        // strip search doesn't draw — so the keys were free to sit directly under
+        // the field and the results grid got zero height.
         let targetTop = max(
-            metrics.suggestionHeight + metrics.keyboardInsets.top,
+            EmojiPanelView.searchChromeHeight,
             view.bounds.height - keyRowsHeight - metrics.keyboardInsets.bottom
         )
         return targetTop - metrics.suggestionHeight
@@ -2354,6 +2381,18 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             switch argument {
             case "close": hideEmojiPanel()
             default: showEmojiPanel()
+            }
+            refreshKeyboard()
+        case "emojisearch":
+            // Emoji search is entered by tapping the search field, which cannot be
+            // scripted, so it was the one surface the capture matrix could not
+            // reach — and it is where a real clipping bug was reported. Opens the
+            // panel, enters search, and types the query through the production key
+            // path: `emojisearch:smile`.
+            showEmojiPanel()
+            enterEmojiSearch()
+            for character in argument ?? "" {
+                handleEmojiSearchKeyPress(.character(String(character)))
             }
             refreshKeyboard()
         case "dump":

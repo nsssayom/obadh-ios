@@ -21,8 +21,14 @@ struct OnboardingView: View {
     let onFinish: () -> Void
 
     @Environment(\.colorScheme) private var scheme
+    /// Regular width means iPad. There the page is tall enough that pinning the
+    /// button to the bottom edge leaves more than half the screen empty between it
+    /// and the content, so the two are grouped instead.
+    @Environment(\.horizontalSizeClass) private var widthClass
     @State private var step: Step
     @State private var isRevealed = false
+
+    private var isRoomy: Bool { widthClass == .regular }
 
     init(install: KeyboardInstallState, onFinish: @escaping () -> Void) {
         self.install = install
@@ -54,32 +60,36 @@ struct OnboardingView: View {
         ZStack {
             BrandBackground()
 
-            content
-                // Pad first, then fill. The other order expands the content to the full
-                // width and *then* insets the result, pushing text off both edges.
-                .padding(.horizontal, 30)
-                .frame(maxWidth: Self.contentColumnWidth)
-                .frame(maxWidth: .infinity)
-                // Recreating on `step` is what drives the transition below.
-                .id(step)
-                .transition(
-                    .asymmetric(
-                        insertion: .opacity.combined(with: .offset(y: 18)),
-                        removal: .opacity.combined(with: .offset(y: -14))
+            VStack(spacing: 0) {
+                content
+                    // Pad first, then fill. The other order expands the content to the
+                    // full width and *then* insets the result, pushing text off both
+                    // edges.
+                    .padding(.horizontal, 30)
+                    .frame(maxWidth: Self.contentColumnWidth)
+                    .frame(maxWidth: .infinity)
+                    // Recreating on `step` is what drives the transition below.
+                    .id(step)
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: 18)),
+                            removal: .opacity.combined(with: .offset(y: -14))
+                        )
                     )
-                )
+
+                // On iPad the button belongs WITH the content, not at the far edge of
+                // a 1194pt page: pinned to the bottom it left 55% of the screen empty
+                // between the two, which reads as a layout nobody looked at.
+                if isRoomy {
+                    actionsColumn.padding(.top, 48)
+                }
+            }
         }
         .safeAreaInset(edge: .bottom) {
-            actions
-                // Same column as the content above. Without it the buttons track the
-                // window instead: `BrandButtonStyle` fills its container, so on a
-                // 13-inch iPad in landscape "Get Started" became a 1316pt capsule
-                // while the text it sat under was 460pt wide.
-                .padding(.horizontal, 30)
-                .frame(maxWidth: Self.contentColumnWidth)
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 14)
-                .reveal(5, isVisible: isRevealed)
+            if !isRoomy {
+                actionsColumn
+                    .padding(.bottom, 14)
+            }
         }
         .onAppear { isRevealed = true }
         .onChange(of: install) { _, state in
@@ -172,6 +182,18 @@ struct OnboardingView: View {
     }
 
     // MARK: - Actions
+
+    /// The buttons, in the same column as the content. Without the width cap they
+    /// track the window instead: `BrandButtonStyle` fills its container, so on a
+    /// 13-inch iPad in landscape "Get Started" became a 1316pt capsule under text
+    /// that was 460pt wide.
+    private var actionsColumn: some View {
+        actions
+            .padding(.horizontal, 30)
+            .frame(maxWidth: Self.contentColumnWidth)
+            .frame(maxWidth: .infinity)
+            .reveal(5, isVisible: isRevealed)
+    }
 
     @ViewBuilder
     private var actions: some View {

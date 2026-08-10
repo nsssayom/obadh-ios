@@ -14,6 +14,27 @@ protocol EmojiPanelViewDelegate: AnyObject {
 final class EmojiPanelView: UIView {
     weak var delegate: EmojiPanelViewDelegate?
 
+    /// The extra height emoji SEARCH needs over a plain keyboard: one full row of
+    /// results, section insets included.
+    ///
+    /// Search draws the whole alphabetic keyboard *inside* the panel, so the
+    /// results are only ever what is left over after the search field and the
+    /// keyboard. On an iPad that remainder was 10pt — the panel showed a search
+    /// field with the keys directly beneath it and no results at all. Asking for
+    /// one row more makes the results a first-class part of the layout instead of
+    /// a leftover.
+    static var searchResultsRowHeight: CGFloat {
+        6 + Metrics.maximumEmojiCellSize + 6
+    }
+
+    /// Everything search puts above the keyboard: the field, the gap under it, and
+    /// one row of results. The caller subtracts the suggestion strip this replaces,
+    /// which is the only part that varies by device.
+    static var searchChromeHeight: CGFloat {
+        Metrics.searchTop + Metrics.searchHeight
+            + Metrics.collectionTopSpacing + searchResultsRowHeight
+    }
+
     private enum Metrics {
         static let searchTop: CGFloat = 10
         static let searchHorizontalInset: CGFloat = 14
@@ -115,7 +136,12 @@ final class EmojiPanelView: UIView {
     #if DEBUG
     /// Panel state for the DEBUG-only control channel. Never compiled into Release.
     var debugStateSummary: String {
-        "category=\(selectedCategory.rawValue) recents=\(recentEmojis.count) sections=\(sectionCategories.map(\.rawValue).joined(separator: ","))"
+        let layout = collectionView.collectionViewLayout as? UICollectionViewFlowLayout
+        return "category=\(selectedCategory.rawValue) recents=\(recentEmojis.count)"
+            + " sections=\(sectionCategories.map(\.rawValue).joined(separator: ","))"
+            + " panel=\(Int(bounds.height)) search=\(Int(searchChrome.frame.maxY))"
+            + " grid=\(Int(collectionView.frame.minY))..\(Int(collectionView.frame.maxY))"
+            + " cell=\(Int(layout?.itemSize.height ?? 0))"
     }
     #endif
 
