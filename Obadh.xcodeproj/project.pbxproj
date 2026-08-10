@@ -17,6 +17,7 @@
 		1F7E4C37A232069143660A4B /* AppBuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */; };
 		254F7FB13B4E81C2E797AB2A /* BanglaTypingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CDAB14409BFF075910B4EC0 /* BanglaTypingEngine.swift */; };
 		25F729B7F7D81E02CCB72A55 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75AF0050088171853CB3E184 /* OnboardingView.swift */; };
+		27E17BC7CD3C83289FF7293A /* ObadhIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A511810E19849BD6B9BE166E /* ObadhIdentity.swift */; };
 		2A00711A40148437E3B9C247 /* EmojiGridMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413422FB16F61F3C4CEE3424 /* EmojiGridMetrics.swift */; };
 		2A349223A6F87CA10A88D189 /* ObadhBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */; };
 		2E19839B4C6301EBEF3AFDFD /* KeyboardTouchSurfaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47007187215709D9F7A376C /* KeyboardTouchSurfaceView.swift */; };
@@ -47,6 +48,7 @@
 		9634DBB4043CE304AF279075 /* AppBuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E75F5DA9835F870053E7D8 /* AppBuildInfo.swift */; };
 		9FEAF3B40EDF24742EB4A431 /* PersonalAutosuggestStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD0D70EB7425ABE2D8E949A /* PersonalAutosuggestStore.swift */; };
 		A02B5F9B3F2E94C08578F017 /* ObadhKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9BFF57B1CEF3C39D97D6A19D /* ObadhKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A4277D06FDFA6F535C37F12E /* ObadhIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A511810E19849BD6B9BE166E /* ObadhIdentity.swift */; };
 		A4DF455A569C77774B98E25D /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 2DD1FF9151E1C74445AC2D0C /* Settings.bundle */; };
 		A596F803163521C139657F2F /* BackspaceRepeatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1485BB6F35E3728758EB63 /* BackspaceRepeatController.swift */; };
 		A77F9145A5A4B4447B936400 /* Brand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200997DA7CAB0B7076B91A93 /* Brand.swift */; };
@@ -148,6 +150,7 @@
 		A08118AF11C65C61B57AA1DA /* SmartPunctuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPunctuation.swift; sourceTree = "<group>"; };
 		A140FAB27D1F3192798424FA /* ObadhBridge.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = ObadhBridge.xcframework; path = Frameworks/ObadhBridge.xcframework; sourceTree = "<group>"; };
 		A47007187215709D9F7A376C /* KeyboardTouchSurfaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTouchSurfaceView.swift; sourceTree = "<group>"; };
+		A511810E19849BD6B9BE166E /* ObadhIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhIdentity.swift; sourceTree = "<group>"; };
 		A59039DE8C56C0B58461FC9C /* ObadhEngineIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObadhEngineIntegrationTests.swift; sourceTree = "<group>"; };
 		A861B35EEA4DB2BBF06DA7ED /* EmojiDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiDataStore.swift; sourceTree = "<group>"; };
 		A89772E8E7EF78DA65F08EB0 /* LexiconKeepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LexiconKeepTests.swift; sourceTree = "<group>"; };
@@ -262,6 +265,7 @@
 				6A54E6808E9AB6949BF32A08 /* KeyboardSizingLog.swift */,
 				3C69984AC573FFF5A2CC2467 /* KeystrokeProfile.swift */,
 				DF186A27FCD23F8BE66D60EC /* LearnedWordStore.swift */,
+				A511810E19849BD6B9BE166E /* ObadhIdentity.swift */,
 			);
 			name = Settings;
 			path = Shared/Sources/Settings;
@@ -526,6 +530,7 @@
 				82B24D2169B92E97FB63BF21 /* KeystrokeProfile.swift in Sources */,
 				4E738FFD5303B413000562DA /* LearnedWordStore.swift in Sources */,
 				D860BD2B5831772819AA47F3 /* ObadhBridgeClient.swift in Sources */,
+				27E17BC7CD3C83289FF7293A /* ObadhIdentity.swift in Sources */,
 				9FEAF3B40EDF24742EB4A431 /* PersonalAutosuggestStore.swift in Sources */,
 				663F2946392A763E3794E421 /* SmartPunctuation.swift in Sources */,
 				1E29DA45C1A8A352AD8EB170 /* SuggestionBarView.swift in Sources */,
@@ -562,6 +567,7 @@
 				000D3A3BE86A5EEC9A576F17 /* KeystrokeProfile.swift in Sources */,
 				4D1233218307DF3CA79F70A2 /* LearnedWordStore.swift in Sources */,
 				F83228BAD4E6CD8BA52B592F /* ObadhApp.swift in Sources */,
+				A4277D06FDFA6F535C37F12E /* ObadhIdentity.swift in Sources */,
 				25F729B7F7D81E02CCB72A55 /* OnboardingView.swift in Sources */,
 				674A3D80E9A858C5E01BBF9A /* PersonalAutosuggestStore.swift in Sources */,
 				AF5C07DA637C7FFF9E24DD28 /* PrivacyView.swift in Sources */,
@@ -597,7 +603,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh.enginetests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID).enginetests";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -619,7 +625,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh.keyboard;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID).keyboard";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -641,7 +647,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh.keyboard;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID).keyboard";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -661,7 +667,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh.enginetests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID).enginetests";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -680,7 +686,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID)";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -764,7 +770,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID)";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -784,7 +790,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh.enginetests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID).enginetests";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -806,7 +812,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh.keyboard;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID).keyboard";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -883,7 +889,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.nsssayom.obadh;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(OBADH_APP_BUNDLE_ID)";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

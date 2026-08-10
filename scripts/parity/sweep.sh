@@ -17,6 +17,8 @@ OUT=$1; shift
 APP_MODERN=$ROOT/build/DerivedData/Build/Products/Debug-iphonesimulator/Obadh.app
 APP_LEGACY=$ROOT/build/DerivedData/Build/Products/Debug-Legacy-iphonesimulator/Obadh.app
 RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-26-5
+APP_ID=$("$ROOT/scripts/bundle-id.sh")
+KB_ID=$APP_ID.keyboard
 mkdir -p "$OUT"
 
 devtype_id() {
@@ -68,7 +70,7 @@ for NAME in "$@"; do
   xcrun simctl bootstatus "$udid" >/dev/null 2>&1
   sleep 3
   xcrun simctl spawn "$udid" defaults write .GlobalPreferences AppleKeyboards -array \
-    "en_US@sw=QWERTY;hw=Automatic" "com.nsssayom.obadh.keyboard" "emoji@sw=Emoji" \
+    "en_US@sw=QWERTY;hw=Automatic" "$KB_ID" "emoji@sw=Emoji" \
     "bn-Translit@sw=QWERTY-Bengali;hw=Automatic" || true
 
   xcrun simctl install "$udid" "$APP_MODERN"

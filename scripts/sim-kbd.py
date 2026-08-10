@@ -41,9 +41,21 @@ import time
 import numpy as np
 from PIL import Image
 
-# Overridable so the tooling still works when the bundle id is temporarily bumped
-# (e.g. OBADH_APP=com.nsssayom.obadhdev while a provisioning quota is cleared).
-OBADH_APP = os.environ.get("OBADH_APP", "com.nsssayom.obadh")
+# The bundle id comes from Config/Identity.xcconfig (via scripts/bundle-id.sh),
+# so a local override for a provisioning quota is picked up automatically instead
+# of having to be repeated here. OBADH_APP still wins if it is set.
+def _bundle_id() -> str:
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        return subprocess.run(
+            [os.path.join(root, "scripts", "bundle-id.sh")],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except Exception:
+        return "com.nsssayom.obadh"
+
+
+OBADH_APP = os.environ.get("OBADH_APP") or _bundle_id()
 OBADH_KB = os.environ.get("OBADH_KB", OBADH_APP + ".keyboard")
 LOG_PREDICATE = 'subsystem == "com.nsssayom.obadh.keyboard"'
 DEVICE_W_PT = 440.0

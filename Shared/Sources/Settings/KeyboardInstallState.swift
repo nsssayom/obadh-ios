@@ -23,7 +23,7 @@ struct KeyboardInstallState: Equatable {
 /// can revocation be detected, since a keyboard without access cannot write to clear
 /// the stamp. UI must therefore say "unconfirmed", never "off".
 struct KeyboardInstallStateReader {
-    static let keyboardBundleIdentifier = "com.nsssayom.obadh.keyboard"
+    static var keyboardBundleIdentifier: String { ObadhIdentity.keyboardBundleID }
     private static let appleKeyboardsKey = "AppleKeyboards"
 
     private let enabledKeyboardIdentifiers: () -> [String]
