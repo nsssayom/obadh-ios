@@ -8,6 +8,31 @@ iOS 27 device, and is enforced by the parity suite
 those measurements produced, kept because iOS gives keyboard extensions no API
 for any of it.
 
+## What the gates cover, and what they do not
+
+`scripts/parity/all.sh` runs every gate serially and reports one verdict.
+
+| gate | devices | what it checks |
+|---|---|---|
+| `run.sh` | 6 iPhones x modern/legacy host x light/dark | zone height, q-row position, key fill, panel, glyph and strip **colour** |
+| `iphone-landscape.py compare` | 6 iPhones | side inset, key height, pitch, key top/bottom |
+| `ipad-geometry.py compare` | 5 iPads | margin, gap, pitch, key top/bottom, per-row key widths |
+| `ipad-geometry.py compare --landscape` | 5 iPads | as above, landscape |
+
+Honest gaps, so nobody reads a green run as more than it is:
+
+* **Colour is gated on iPhone portrait only.** The iPad and landscape gates are
+  geometry. Dark mode on those surfaces has been checked by eye, not measured.
+* **The command row is not measured by any gate.** Its widths are covered by
+  `KeyboardLayoutProviderTests` against the measured native table instead, which
+  is why the regression in 7a7bc5f survived: those tests could not compile, and
+  no pixel gate looks at the bottom row.
+* **The emoji panel and emoji search are not gated at all.** Both are captured
+  and inspected manually (`capture-emoji.sh`); the panel reports its own
+  geometry through the debug channel's `dump`.
+* Simulator only. The physical-device findings in this document were taken by
+  hand.
+
 ## How iOS presents a third-party keyboard
 
 - The extension declares its height with a single Auto Layout constraint on
