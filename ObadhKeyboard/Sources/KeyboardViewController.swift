@@ -9,8 +9,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private let engine = ObadhBridgeClient.shared
     private lazy var composer = KeyboardComposer(
         engine: ObadhBridgeClient.shared,
-        emojiSuggester: BanglaEmojiSuggestionStore(bundle: Bundle(for: KeyboardViewController.self))
+        emojiSuggester: BanglaEmojiSuggestionStore(bundle: Bundle(for: KeyboardViewController.self)),
+        compositionSuggestionLimit: suggestionSlotCount
     )
+    /// How many text candidates the strip can show. Three on iPhone, up to six on
+    /// iPad — see `PadAxisMetrics.suggestionSlotCount`. Read from the same metrics
+    /// the bar lays itself out from, so the two cannot disagree.
+    private var suggestionSlotCount: Int {
+        currentMetrics.suggestionSlotCount
+    }
     private let compositionController = TextCompositionController()
     private let personalAutosuggestStore = PersonalAutosuggestStore()
     /// Words the user has committed, protected from auto-insert corrections.
@@ -50,6 +57,37 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private var activeTouchKey: KeyboardKey?
     private var keyPreviewDismissal: DispatchWorkItem?
     private var shifted = false
+    /// iPad caps lock. Distinct from `shifted`: it survives a keypress, and the
+    /// key draws a filled glyph. Only ever laid out on iPad (see PadFamily).
+    private var capsLocked = false
+
+    private var isPadIdiom: Bool {
+        traitCollection.userInterfaceIdiom == .pad
+    }
+
+    /// The width the layout is being built for. `view.bounds` is zero before the
+    /// first layout pass, so fall back to the screen's shorter side.
+    private var layoutWidth: CGFloat {
+        let bounds = view.bounds.width
+        guard bounds > 1 else { return min(screenSize.width, screenSize.height) }
+        return bounds
+    }
+
+    private var screenSize: CGSize {
+        view.window?.windowScene?.screen.bounds.size ?? UIScreen.main.bounds.size
+    }
+
+    /// The layout family, which is a property of the DEVICE and so must not move
+    /// when the iPad rotates. See PadFamily.forPortraitWidth.
+    private var padFamily: KeyboardLayoutProvider.PadFamily {
+        KeyboardLayoutProvider.PadFamily.forScreen(screenSize)
+    }
+
+    /// Our own bounds are always wider than tall, so orientation comes from the
+    /// layout width against the device's portrait width — never from our aspect.
+    private var padIsLandscape: Bool {
+        isPadIdiom && layoutWidth > min(screenSize.width, screenSize.height) + 1
+    }
     private var keyboardMode: KeyboardMode = .letters
     private var previousKeyWasSpace = false
     /// Native's double-space shortcut is a QUICK double-tap, not "any two spaces":
@@ -831,12 +869,35 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let leadingConstraint = keyLayoutAnchor.leadingAnchor.constraint(equalTo: view.leadingAnchor)
         let trailingConstraint = keyLayoutAnchor.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         let topConstraint = keyLayoutAnchor.topAnchor.constraint(equalTo: suggestionBar.bottomAnchor, constant: insets.top)
-        let bottomConstraint = keyLayoutAnchor.bottomAnchor.constraint(
-            lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor,
-            constant: -insets.bottom
-        )
+        // iPhone's bottom inset (3/6pt) was calibrated WITH the safe-area guide in
+        // the chain, so it stays on the guide. iPad's measured 28pt is from the
+        // SCREEN edge — native draws its bottom row into the home-indicator band —
+        // and anchoring it to the safe area instead lifted the whole key block 25pt.
+        // Which edge drives the key block differs by idiom, and this matters more
+        // than it looks. iPhone positions from the TOP (strip height + inset), which
+        // is how its geometry was calibrated. iPad cannot: the system hands the
+        // extension a view TALLER than the height we request — it adds the bottom
+        // safe area — so a top-driven block floats ~20pt above where native's sits.
+        // Native's 28pt is measured from the screen edge, so anchor to it and let
+        // the strip above absorb whatever height the system actually gave us.
+        let bottomConstraint = isPadIdiom
+            ? keyLayoutAnchor.bottomAnchor.constraint(
+                equalTo: view.bottomAnchor,
+                constant: -insets.bottom
+            )
+            : keyLayoutAnchor.bottomAnchor.constraint(
+                lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor,
+                constant: -insets.bottom
+            )
+        if isPadIdiom {
+            bottomConstraint.priority = UILayoutPriority(999)
+        }
         let heightConstraint = keyLayoutAnchor.heightAnchor.constraint(equalToConstant: keyRowsHeight(for: metrics))
         heightConstraint.priority = UILayoutPriority(999)
+        // On iPad the bottom edge wins; the top constraint only takes up slack.
+        if isPadIdiom {
+            topConstraint.priority = UILayoutPriority(250)
+        }
         keyboardStackLeadingConstraint = leadingConstraint
         keyboardStackTrailingConstraint = trailingConstraint
         keyboardStackTopConstraint = topConstraint
@@ -904,21 +965,48 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             view.removeFromSuperview()
         }
 
-        let rows = KeyboardLayoutProvider.rows(for: keyboardMode, includesGlobeKey: needsInputModeSwitchKey)
-        for row in rows {
+        let rows = KeyboardLayoutProvider.rows(
+            for: keyboardMode,
+            includesGlobeKey: needsInputModeSwitchKey,
+            isPad: isPadIdiom,
+            width: Double(layoutWidth),
+            family: padFamily,
+            landscape: padIsLandscape,
+            margin: Double(metrics.keyboardInsets.left),
+            gap: Double(metrics.keySpacing)
+        )
+        for (rowIndex, row) in rows.enumerated() {
             let rowView = KeyboardRowView()
             rowView.translatesAutoresizingMaskIntoConstraints = false
             var rowButtons: [KeyboardKeyButton] = []
             rowButtons.reserveCapacity(row.keys.count)
+            let heightOfRow = rowHeight(atIndex: rowIndex, metrics: metrics)
 
-            for key in row.keys {
+            for (keyIndex, key) in row.keys.enumerated() {
                 let button = KeyboardKeyButton(key: key)
+                // Only the letters page carries flick-down glyphs, and only on the
+                // families where native shows them: the extended layout has a real
+                // number row, so its letters are bare exactly like native's.
+                // The 13-inch has a real number row, so native leaves its letters
+                // BARE — measured 0 flick ink on both extended references, against
+                // our 7.5pt. The comment here has always said so; the condition
+                // never checked the family.
+                button.showsSecondaryLabel = isPadIdiom
+                    && keyboardMode == .letters
+                    && padFamily != .extended
+                // Lets a short row size its type to itself. Only the 13-inch
+                // number row is short; everywhere else this equals minimumKeyHeight.
+                button.rowHeight = heightOfRow
+                button.glyphAlignment = padGlyphAlignment(
+                    for: key, at: keyIndex, of: row.keys.count
+                )
                 button.updateAppearance(
                     shifted: shifted,
                     traitCollection: traitCollection,
                     metrics: metrics,
                     showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive,
-                    spaceCaption: spaceCaption
+                    spaceCaption: spaceCaption,
+                    capsLocked: capsLocked
                 )
                 rowButtons.append(button)
                 keyButtons.append(button)
@@ -926,7 +1014,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
             rowView.configure(row: row, buttons: rowButtons, metrics: metrics)
             keyboardStack.addArrangedSubview(rowView)
-            let heightConstraint = rowView.heightAnchor.constraint(equalToConstant: metrics.minimumKeyHeight)
+            let heightConstraint = rowView.heightAnchor.constraint(equalToConstant: heightOfRow)
             heightConstraint.priority = UILayoutPriority(999)
             heightConstraint.isActive = true
             rowHeightConstraints.append(heightConstraint)
@@ -956,6 +1044,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     private struct KeyboardAppearanceState: Equatable {
         let shifted: Bool
+        let capsLocked: Bool
         let mode: KeyboardMode
         let showsSpaceIntro: Bool
         let spaceCaption: String
@@ -971,6 +1060,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private func updateKeyAppearanceIfNeeded(metrics: KeyboardMetrics) {
         let state = KeyboardAppearanceState(
             shifted: shifted,
+            capsLocked: capsLocked,
             mode: keyboardMode,
             showsSpaceIntro: showsSpaceLanguageIntro && !isEmojiSearchActive,
             spaceCaption: spaceCaption,
@@ -986,7 +1076,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 traitCollection: traitCollection,
                 metrics: metrics,
                 showsSpaceIntro: state.showsSpaceIntro,
-                spaceCaption: state.spaceCaption
+                spaceCaption: state.spaceCaption,
+                capsLocked: state.capsLocked
             )
         }
     }
@@ -1063,11 +1154,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let contextAfterInput = textDocumentProxy.documentContextAfterInput ?? ""
         if let cursorWord = CursorWordDetector.wordAtCursor(before: contextBeforeInput, after: contextAfterInput) {
             activeCursorWord = cursorWord
+            let slots = suggestionSlotCount
             scheduleSuggestionQuery { [weak self] in
                 let alternatives = engine
-                    .wordAlternatives(for: cursorWord.word, limit: 4)
+                    .wordAlternatives(for: cursorWord.word, limit: slots + 1)
                     .filter { !$0.isEmpty && $0 != cursorWord.word }
-                    .prefix(3)
+                    .prefix(slots)
                     .map { KeyboardSuggestion(text: $0, source: .autocorrect) }
                 Task { @MainActor in
                     guard let self, self.suggestionGeneration == generation else { return }
@@ -1082,23 +1174,27 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         // So it's only trustworthy at the end of the text. With the cursor moved into
         // earlier text, it buries the cursor-accurate context lookup — use that alone.
         let cursorAtEnd = (textDocumentProxy.documentContextAfterInput ?? "").isEmpty
+        let slots = suggestionSlotCount
+        // Fetch a little deeper than the strip can show so dedup between the session
+        // and context sources still leaves a full row.
+        let fetchLimit = slots * 2
         scheduleSuggestionQuery { [weak self] in
             let contextSuggestions = engine
-                .autosuggestSuggestions(for: contextBeforeInput, limit: 6)
+                .autosuggestSuggestions(for: contextBeforeInput, limit: fetchLimit)
                 .filter { !$0.isEmpty }
                 .map { KeyboardSuggestion(text: $0, source: .autosuggest) }
             let merged: [KeyboardSuggestion]
             if cursorAtEnd {
                 let sessionSuggestions = engine
-                    .autosuggestSessionSuggestions(limit: 6)
+                    .autosuggestSessionSuggestions(limit: fetchLimit)
                     .map { KeyboardSuggestion(text: $0, source: .autosuggest) }
                 merged = KeyboardComposer.mergeSuggestions(
                     primary: sessionSuggestions,
                     fallback: contextSuggestions,
-                    limit: 3
+                    limit: slots
                 )
             } else {
-                merged = Array(contextSuggestions.prefix(3))
+                merged = Array(contextSuggestions.prefix(slots))
             }
             Task { @MainActor in
                 guard let self, self.suggestionGeneration == generation else { return }
@@ -1200,7 +1296,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             shifted.toggle()
         case let .modeSwitch(value):
             switch value {
-            case "123":
+            case "123", ".?123":
                 keyboardMode = .numbers
             case "#+=":
                 keyboardMode = .symbols
@@ -1208,11 +1304,19 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 keyboardMode = .letters
             }
             shifted = false
+            capsLocked = false
             reloadKeyboardRows()
         case .emoji:
             showEmojiPanel()
         case .globe:
             advanceToNextInputMode()
+        case .tab:
+            textDocumentProxy.insertText("\t")
+        case .capsLock:
+            capsLocked.toggle()
+            shifted = capsLocked
+        case .hideKeyboard:
+            dismissKeyboard()
         }
         previousKeyWasSpace = key == .space
         refreshKeyboard()
@@ -1252,6 +1356,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         emojiPanelView.setSearchActive(true)
         syncEmojiSearchQuery()
         reloadKeyboardRows()
+        // Search needs a taller keyboard than browsing does — it draws the whole
+        // alphabetic keyboard below the results — and nothing here was asking for
+        // it. The panel kept the browsing height, the keyboard took what it needed
+        // from the bottom, and the results grid was left with 63..63: zero points.
+        updateKeyboardHeightConstraintIfReady()
+        applyLayoutMetricsIfNeeded(force: true)
     }
 
     private func exitEmojiSearch() {
@@ -1262,6 +1372,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         keyboardMode = .letters
         shifted = false
         reloadKeyboardRows()
+        updateKeyboardHeightConstraintIfReady()
+        applyLayoutMetricsIfNeeded(force: true)
     }
 
     private func handleEmojiSearchKeyPress(_ key: KeyboardKey) {
@@ -1278,8 +1390,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                 emojiSearchQuery.append(" ")
                 syncEmojiSearchQuery()
             }
-        case .returnKey, .emoji, .globe:
+        case .returnKey, .emoji, .globe, .hideKeyboard:
             exitEmojiSearch()
+        case .tab, .capsLock:
+            break
         case .backspace:
             if emojiSearchQuery.isEmpty {
                 exitEmojiSearch()
@@ -1291,7 +1405,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             shifted.toggle()
         case let .modeSwitch(value):
             switch value {
-            case "123":
+            case "123", ".?123":
                 keyboardMode = .numbers
             case "#+=":
                 keyboardMode = .symbols
@@ -1631,7 +1745,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         if let cached = metricsCache, cached.key == key {
             return cached.value
         }
-        let value = KeyboardTheme.metrics(for: size, traitCollection: traitCollection)
+        let value = KeyboardTheme.metrics(
+            for: size,
+            traitCollection: traitCollection,
+            screenSize: screenSize
+        )
         metricsCache = (key, value)
         return value
     }
@@ -1651,6 +1769,21 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         #endif
         let screenSize = view.window?.screen.bounds.size ?? UIScreen.main.bounds.size
         if showsEmojiPanel {
+            // Search mode draws the alphabetic keyboard inside the panel, so the
+            // results only exist in whatever height is left over. Ask for the
+            // keyboard PLUS the search field and one row of results, rather than
+            // letting the results be the remainder — on iPad the remainder was
+            // 10pt and the panel showed no results at all.
+            if isEmojiSearchActive {
+                // Search swaps the suggestion strip for a search field plus a row of
+                // results, and draws the whole alphabetic keyboard below them. Asking
+                // for the browsing height left the results grid at 63..63 — literally
+                // zero points — on an iPhone, and 10pt on an iPad.
+                return KeyboardTheme.preferredKeyboardHeight(
+                    for: screenSize,
+                    traitCollection: traitCollection
+                ) + EmojiPanelView.searchChromeHeight - currentMetrics.suggestionHeight
+            }
             return KeyboardTheme.preferredEmojiKeyboardHeight(
                 for: screenSize,
                 traitCollection: traitCollection
@@ -1683,6 +1816,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         keyboardStackHeightConstraint?.constant = keyRowsHeight(for: metrics)
         view.backgroundColor = .clear
         suggestionBar.applyMetrics(metrics)
+        // Rotating an iPad can move it to a layout family with a different slot
+        // count, so the composer's candidate limit follows the strip.
+        composer.compositionSuggestionLimit = metrics.suggestionSlotCount
 
         if shouldReloadRows {
             reloadKeyboardRows()
@@ -1694,8 +1830,17 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             rowView.metrics = metrics
             rowView.setNeedsLayout()
         }
-        for constraint in rowHeightConstraints {
-            constraint.constant = metrics.minimumKeyHeight
+        for (index, constraint) in rowHeightConstraints.enumerated() {
+            constraint.constant = rowHeight(atIndex: index, metrics: metrics)
+        }
+        // Row heights can change under the same set of buttons (rotation), and a
+        // short row sizes its type to itself, so refresh that before redrawing.
+        for (index, subview) in keyboardStack.arrangedSubviews.enumerated() {
+            guard let rowView = subview as? KeyboardRowView else { continue }
+            let heightOfRow = rowHeight(atIndex: index, metrics: metrics)
+            for button in rowView.keyButtons {
+                button.rowHeight = heightOfRow
+            }
         }
         for button in keyButtons {
             button.updateAppearance(
@@ -1719,17 +1864,62 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         }
 
         let keyRowsHeight = keyRowsHeight(for: metrics)
+        // The floor is what emoji SEARCH needs above the keys: the search field and
+        // one row of results. It used to be `suggestionHeight + top`, which is the
+        // strip search doesn't draw — so the keys were free to sit directly under
+        // the field and the results grid got zero height.
         let targetTop = max(
-            metrics.suggestionHeight + metrics.keyboardInsets.top,
+            EmojiPanelView.searchChromeHeight,
             view.bounds.height - keyRowsHeight - metrics.keyboardInsets.bottom
         )
         return targetTop - metrics.suggestionHeight
     }
 
+    /// Where a command key's glyph sits inside its key on iPad.
+    ///
+    /// Native pins them to the bottom-OUTER corner, so the modifiers hug the
+    /// outside edges of the keyboard: the side is simply which half of the row the
+    /// key is in, which is what makes a left shift and a right shift — the same
+    /// key — point their glyphs at opposite edges. Letters and symbols are never
+    /// moved; they stay centred with the flick offset applied.
+    private func padGlyphAlignment(
+        for key: KeyboardKey,
+        at index: Int,
+        of count: Int
+    ) -> KeyboardKeyButton.GlyphAlignment {
+        guard isPadIdiom else { return .centred }
+        switch key {
+        case .character, .symbol, .space:
+            return .centred
+        default:
+            // The index, not the key: a left shift and a right shift are the same
+            // key and must point their glyphs at opposite edges.
+            return Double(index) >= Double(count) / 2 ? .bottomTrailing : .bottomLeading
+        }
+    }
+
+    /// Row heights are uniform everywhere except the 13-inch iPad's number row,
+    /// which native draws 15.5pt shorter than the letter rows below it.
+    private func rowHeight(atIndex index: Int, metrics: KeyboardMetrics) -> CGFloat {
+        index == 0 && metrics.padNumberRowHeight > 0
+            ? metrics.padNumberRowHeight
+            : metrics.minimumKeyHeight
+    }
+
     private func keyRowsHeight(for metrics: KeyboardMetrics) -> CGFloat {
-        let rowCount = CGFloat(KeyboardLayoutProvider.rows(for: keyboardMode, includesGlobeKey: needsInputModeSwitchKey).count)
-        guard rowCount > 0 else { return 0 }
-        return rowCount * metrics.minimumKeyHeight + max(0, rowCount - 1) * metrics.rowSpacing
+        let count = KeyboardLayoutProvider.rows(
+            for: keyboardMode,
+            includesGlobeKey: needsInputModeSwitchKey,
+            isPad: isPadIdiom,
+            width: Double(layoutWidth),
+            family: padFamily,
+            landscape: padIsLandscape,
+            margin: Double(metrics.keyboardInsets.left),
+            gap: Double(metrics.keySpacing)
+        ).count
+        guard count > 0 else { return 0 }
+        let keys = (0..<count).reduce(CGFloat(0)) { $0 + rowHeight(atIndex: $1, metrics: metrics) }
+        return keys + CGFloat(count - 1) * metrics.rowSpacing
     }
 
     private func updateKeyboardHeightConstraintIfReady() {
@@ -1804,6 +1994,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private func showKeyPreview(for button: KeyboardKeyButton) {
         keyPreviewDismissal?.cancel()
         keyPreviewDismissal = nil
+
+        // iPad draws no key-press callout. Native does not: the popover is an
+        // iPhone affordance, where the finger covers the key it is pressing. iPad
+        // keys are wide enough to read around a fingertip, and the flick animation
+        // is what a key does under the finger there instead.
+        guard !isPadIdiom else { return }
 
         let metrics = currentMetrics
         guard
@@ -1909,6 +2105,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         keyboardTouchSurface.keyRows = rows
         // The full-bleed surface must not eat suggestion-bar taps.
         keyboardTouchSurface.keyAreaTop = suggestionBar.frame.maxY
+        // Flick-down is an iPad affordance only, and only where a secondary is
+        // actually drawn — see `showsSecondaryLabel`. A third of the key height
+        // is far enough to be deliberate and short enough to stay on the key.
+        // A sixth of the key, not a third. At a third this was 18.5pt in portrait
+        // and 24.7 in landscape — roughly twice what native asks for, far enough
+        // that the gesture reads as broken rather than absent.
+        keyboardTouchSurface.flickThreshold = isPadIdiom && keyboardMode == .letters
+            ? currentMetrics.minimumKeyHeight / 6
+            : 0
     }
 }
 
@@ -1921,7 +2126,38 @@ extension KeyboardViewController: KeyboardTouchSurfaceViewDelegate {
         moveTouch(to: key)
     }
 
-    func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didEnd key: KeyboardKey?) {
+    func keyboardTouchSurface(
+        _ view: KeyboardTouchSurfaceView,
+        didUpdateFlickProgress progress: CGFloat,
+        on key: KeyboardKey
+    ) {
+        guard let button = keyButtons.first(where: { $0.key == key }) else { return }
+        // Driven straight off the finger while dragging, so it tracks 1:1. Only the
+        // release is animated, and only back to rest — a flick that fires replaces
+        // the glyph anyway, and animating that would show the wrong character for
+        // the length of the animation.
+        if progress > 0 {
+            button.flickProgress = progress
+        } else if button.flickProgress != 0 {
+            UIView.animate(withDuration: 0.14, delay: 0, options: [.allowUserInteraction, .curveEaseOut]) {
+                button.flickProgress = 0
+            }
+        }
+    }
+
+    func keyboardTouchSurface(
+        _ view: KeyboardTouchSurfaceView,
+        didEnd key: KeyboardKey?,
+        flickedDown: Bool
+    ) {
+        // A flick on a key that has a secondary inserts the secondary instead of
+        // the primary. Keys without one fall through to the normal tap so a
+        // slightly downward press never becomes a dead touch.
+        if flickedDown, let key, let secondary = key.padSecondary {
+            keyButtons.first { $0.key == key }?.snapFlickToRest()
+            endTouch(on: .symbol(secondary))
+            return
+        }
         endTouch(on: key)
     }
 
@@ -2206,6 +2442,18 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             switch argument {
             case "close": hideEmojiPanel()
             default: showEmojiPanel()
+            }
+            refreshKeyboard()
+        case "emojisearch":
+            // Emoji search is entered by tapping the search field, which cannot be
+            // scripted, so it was the one surface the capture matrix could not
+            // reach — and it is where a real clipping bug was reported. Opens the
+            // panel, enters search, and types the query through the production key
+            // path: `emojisearch:smile`.
+            showEmojiPanel()
+            enterEmojiSearch()
+            for character in argument ?? "" {
+                handleEmojiSearchKeyPress(.character(String(character)))
             }
             refreshKeyboard()
         case "dump":

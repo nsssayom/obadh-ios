@@ -4,12 +4,36 @@ import UIKit
 protocol KeyboardTouchSurfaceViewDelegate: AnyObject {
     func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didBegin key: KeyboardKey)
     func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didMoveTo key: KeyboardKey)
-    func keyboardTouchSurface(_ view: KeyboardTouchSurfaceView, didEnd key: KeyboardKey?)
+    /// 0...1 of the way through a downward flick on `key`. Drives the animation
+    /// that lifts the secondary glyph into the primary's place as the finger
+    /// travels, which is the whole of what makes the gesture feel native — iPadOS
+    /// does it in a private layer no extension can reach.
+    func keyboardTouchSurface(
+        _ view: KeyboardTouchSurfaceView,
+        didUpdateFlickProgress progress: CGFloat,
+        on key: KeyboardKey
+    )
+    /// `flickedDown` is the iPad secondary-glyph gesture: the touch was dragged
+    /// downward far enough before lifting, without leaving the key.
+    func keyboardTouchSurface(
+        _ view: KeyboardTouchSurfaceView,
+        didEnd key: KeyboardKey?,
+        flickedDown: Bool
+    )
     func keyboardTouchSurfaceDidCancel(_ view: KeyboardTouchSurfaceView)
 }
 
 final class KeyboardTouchSurfaceView: UIView {
     weak var delegate: KeyboardTouchSurfaceViewDelegate?
+    /// Downward travel that turns a tap into a secondary-glyph insert. Zero
+    /// disables the gesture entirely, which is what iPhone uses — no iPhone key
+    /// has a secondary, so a flick there would be a mystery keystroke.
+    var flickThreshold: CGFloat = 0
+    private var touchBeganLocation: CGPoint = .zero
+    /// The key the touch STARTED on. A flick must insert this key's secondary, not
+    /// whatever the finger happens to be over when it lifts — dragging down far
+    /// enough to count as a flick is often far enough to reach the row below.
+    private var touchBeganKey: KeyboardKey?
 
     var keyRows: [[KeyboardTouchKeyRegion]] = [] {
         didSet {
@@ -44,12 +68,22 @@ final class KeyboardTouchSurfaceView: UIView {
             return
         }
         activeRegion = region
+        touchBeganLocation = touch.location(in: self)
+        touchBeganKey = region.key
         delegate?.keyboardTouchSurface(self, didBegin: region.key)
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touch(from: touches) else { return }
-        let region = resolve(touch.location(in: self))
+        let point = touch.location(in: self)
+        if flickThreshold > 0, let began = touchBeganKey {
+            delegate?.keyboardTouchSurface(
+                self,
+                didUpdateFlickProgress: max(0, min(1, (point.y - touchBeganLocation.y) / flickThreshold)),
+                on: began
+            )
+        }
+        let region = resolve(point)
         guard region?.key != activeRegion?.key else { return }
         activeRegion = region
         if let region {
@@ -61,16 +95,43 @@ final class KeyboardTouchSurfaceView: UIView {
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touch(from: touches) else { return }
-        let region = resolve(touch.location(in: self)) ?? activeRegion
+        let end = touch.location(in: self)
+        let region = resolve(end) ?? activeRegion
+        // Judged against the key the touch BEGAN on, and against nothing else.
+        //
+        // This used to require `region?.key == activeRegion?.key`, meaning "the
+        // finger never left the key" — but `touchesMoved` reassigns `activeRegion`
+        // as the finger travels, so that compared the end region against itself and
+        // was always true. Worse, the insert used the END key: a downward drag long
+        // enough to be a flick usually reaches the row below, so flicking `q` typed
+        // the secondary of `a`. Both halves are why this read as "doesn't work".
+        let began = touchBeganKey
+        let flicked = flickThreshold > 0
+            && began != nil
+            && (end.y - touchBeganLocation.y) >= flickThreshold
         activeTouch = nil
         activeRegion = nil
-        delegate?.keyboardTouchSurface(self, didEnd: region?.key)
+        touchBeganLocation = .zero
+        touchBeganKey = nil
+        if let began, flickThreshold > 0 {
+            delegate?.keyboardTouchSurface(self, didUpdateFlickProgress: 0, on: began)
+        }
+        delegate?.keyboardTouchSurface(
+            self,
+            didEnd: flicked ? began : region?.key,
+            flickedDown: flicked
+        )
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard touch(from: touches) != nil else { return }
+        if let began = touchBeganKey, flickThreshold > 0 {
+            delegate?.keyboardTouchSurface(self, didUpdateFlickProgress: 0, on: began)
+        }
         activeTouch = nil
         activeRegion = nil
+        touchBeganLocation = .zero
+        touchBeganKey = nil
         delegate?.keyboardTouchSurfaceDidCancel(self)
     }
 
@@ -98,7 +159,20 @@ final class KeyboardTouchSurfaceView: UIView {
         // land, but it is genuinely imperceptible (0.02 was ~5x too high and
         // read as a tint). Do NOT set to `.clear`.
         // Ref: https://developer.apple.com/forums/thread/702798
-        backgroundColor = UIColor.white.withAlphaComponent(0.004)
+        //
+        // The tint must follow the appearance. White at 0.004 over a DARK keyboard
+        // lifts it by 0.004 * 255 = 1.02, i.e. exactly one unit per channel — the
+        // key area measured [23,23,24] against [22,22,23] everywhere else on a real
+        // iPad, a visible seam between the keys and the strip above them. Black at
+        // the same alpha over dark takes it to 21.91, which rounds back to 22 and is
+        // genuinely invisible; light mode keeps white, where +0.13 of 223 is equally
+        // invisible. Either way the view still has a non-nil backgroundColor, which
+        // is the whole reason for doing this.
+        backgroundColor = UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor.black.withAlphaComponent(0.004)
+                : UIColor.white.withAlphaComponent(0.004)
+        }
         isOpaque = false
         isUserInteractionEnabled = true
         isMultipleTouchEnabled = false

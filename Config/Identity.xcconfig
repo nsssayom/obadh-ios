@@ -1,0 +1,28 @@
+// THE source of truth for who this app is. Nothing else may hardcode these.
+//
+// Everything downstream derives from OBADH_APP_BUNDLE_ID: the keyboard extension
+// appends `.keyboard`, the test bundle appends `.enginetests`, and the Swift side
+// reads it back off `Bundle.main` at runtime (see ObadhIdentity) rather than
+// repeating the string. Changing the product's domain should be a one-line edit
+// here plus `xcodegen generate`.
+//
+// Overriding it temporarily is legitimate — a free Personal Team runs out of App
+// ID registrations and the usual workaround is a throwaway id. Do that by
+// creating Config/Identity.local.xcconfig (gitignored, included below) with just:
+//
+//     OBADH_APP_BUNDLE_ID = com.example.obadhdev
+//
+// rather than editing this file, so the change cannot be committed by accident.
+// That is exactly what happened before this file existed: a bundle-id workaround
+// leaked into a staged project.pbxproj in nine places.
+
+OBADH_APP_BUNDLE_ID = com.nsssayom.obadh
+
+// The App Group is deliberately NOT derived from the bundle id. It is where the
+// user's learned words and preferences live, so renaming the app must not
+// silently point the app and the keyboard at a fresh, empty container. Change
+// this only when you intend to orphan existing user data, and never in a local
+// override.
+OBADH_APP_GROUP = group.com.nsssayom.obadh
+
+#include? "Identity.local.xcconfig"

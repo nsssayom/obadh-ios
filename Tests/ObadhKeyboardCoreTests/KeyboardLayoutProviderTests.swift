@@ -39,8 +39,11 @@ final class KeyboardLayoutProviderTests: XCTestCase {
         let numberBottom = KeyboardLayoutProvider.rows(for: .numbers)[3]
         let symbolBottom = KeyboardLayoutProvider.rows(for: .symbols)[3]
 
+        // The leading block is native's measured 102.0: one key takes all of it,
+        // two split it around a 6pt gap and land on 48.0 each. Space and return
+        // never move, whatever leads the row.
         XCTAssertEqual(letterBottom.keyWeights, [48.0, 48.0, 210.67, 102.33])
-        XCTAssertEqual(numberBottom.keyWeights, [102.33, 210.67, 102.33])
+        XCTAssertEqual(numberBottom.keyWeights, [102.0, 210.67, 102.33])
         XCTAssertEqual(symbolBottom.keyWeights, numberBottom.keyWeights)
     }
 
@@ -179,6 +182,12 @@ final class KeyboardLayoutProviderTests: XCTestCase {
         }
     }
 
+    /// The punctuation pages have a single leading key, so it takes the whole
+    /// leading block. Its width is native's measured 102.0 rather than a reuse of
+    /// `returnKeyWidth` (102.33), which is what these expectations used to encode:
+    /// the resulting space and return, 210.50 and 102.25, land closer to the
+    /// 210.7 / 102.3 measured off the native keyboard at this width than the old
+    /// 210.33 / 102.16 did.
     func testPunctuationCommandRowsResolveToMeasuredNativeFrames() {
         let availableWidth = phoneWidth - 2 * sideInset
         for mode in [KeyboardMode.numbers, .symbols] {
@@ -189,9 +198,9 @@ final class KeyboardLayoutProviderTests: XCTestCase {
             )
 
             XCTAssertEqual(frames.count, 3)
-            XCTAssertEqual(frames[0].width, 102.16, accuracy: 0.05)
-            XCTAssertEqual(frames[1].width, 210.33, accuracy: 0.05)
-            XCTAssertEqual(frames[2].width, 102.16, accuracy: 0.05)
+            XCTAssertEqual(frames[0].width, 101.92, accuracy: 0.05)
+            XCTAssertEqual(frames[1].width, 210.50, accuracy: 0.05)
+            XCTAssertEqual(frames[2].width, 102.25, accuracy: 0.05)
             XCTAssertEqual(frames[1].x - frames[0].x - frames[0].width, 6.0, accuracy: 0.01)
             XCTAssertEqual(frames[2].x - frames[1].x - frames[1].width, 6.0, accuracy: 0.01)
         }

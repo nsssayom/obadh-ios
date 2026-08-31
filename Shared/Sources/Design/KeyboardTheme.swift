@@ -52,6 +52,312 @@ struct KeyboardMetrics {
     let spaceLanguageFontSize: CGFloat
     let suggestionFontSize: CGFloat
     let deterministicSuggestionFontSize: CGFloat
+    /// iPad flick-down glyph. Measured off the reference capture: cap height 7pt
+    /// (so ~10pt SF) with its cap top 10pt below the key top. Defaulted so the
+    /// iPhone metrics and `defaultMetrics` need no change — they never draw it.
+    var padSecondaryFontSize: CGFloat = 10
+    var padSecondaryTopInset: CGFloat = 8
+    /// The 13-inch iPad draws its number row shorter than the letter rows
+    /// (45.5pt against 61pt). Zero means "every row is `minimumKeyHeight`",
+    /// which is every other layout we ship.
+    var padNumberRowHeight: CGFloat = 0
+    /// Ink insets for a command key's glyph from its key edges, or nil to centre
+    /// it. Per iPad family — the mini centres, larger iPads anchor. See KeyType.
+    var padGlyphInsets: UIEdgeInsets?
+    /// How many suggestion slots the strip lays out. Three everywhere on iPhone —
+    /// that is the shipped, parity-gated layout — and more on iPad, which is wide
+    /// enough to hold them at native's own slot density. See `suggestionSlotCount`.
+    var suggestionSlotCount: Int = 3
+    /// Height of the strip's content block: the slot separators, and the box the
+    /// suggestion text is centred in. Native gives its prediction row 27.5pt of
+    /// content flush with the top of the band and leaves the rest as clearance
+    /// above the keys. Zero keeps the legacy proportional rule (iPhone).
+    var suggestionContentHeight: CGFloat = 0
+
+    /// Where the strip's content sits relative to the strip's own centre, positive
+    /// = down. One rule for the separators and the labels, so they cannot drift.
+    ///
+    /// iPad pins a `suggestionContentHeight` block flush with the strip's top,
+    /// mirroring how native fills its shortcuts bar and leaving the same clearance
+    /// above the keys. iPhone keeps the measured rule it was tuned against: text
+    /// centres ~26pt above the strip's BOTTOM edge whatever the strip's height, so
+    /// a taller strip keeps the text near the keys; the -7 floor preserves the look
+    /// of the shortest (legacy 34pt) strip.
+    var suggestionContentOffset: CGFloat {
+        guard suggestionContentHeight > 0 else {
+            return max(-7, suggestionHeight / 2 - 26)
+        }
+        // Centred in the strip, with a floor so it can never ride up into the
+        // system's shortcuts bar.
+        //
+        // Plain centring is right at every height we actually ask for, and it is
+        // what the strip looks wrong without. But the strip is the flex element: on
+        // an iPad rotated to landscape and back, the system lays us out at 353pt on
+        // the way to 309 and the strip absorbs all 44pt of that. Centred content in
+        // a 96pt strip sits 48pt down from a top that is momentarily behind the
+        // shortcuts bar, which is how the suggestions ended up drawn across
+        // undo/redo/paste. Past ~54pt the content stops rising and simply stays
+        // above the keys.
+        return max(0, suggestionHeight / 2 - 38)
+    }
+}
+
+/// Every spatial constant native uses for an iPad keyboard, per layout family and
+/// per orientation. All measured — see docs/native-parity-ipad.md and
+/// `scripts/parity/ipad-geometry.py fit`, which reproduces the whole table from
+/// the captures in Reference/native-ipad/.
+///
+/// Bottom insets are the one derived value: native's are measured from the SCREEN
+/// edge, and an iPad input view does not reach it — the system's keyboard
+/// container keeps a ~20pt band below us (measured identically on all five widths;
+/// it is NOT the safe area, which reports 5). So what we apply is native's gap
+/// minus that band.
+struct PadAxisMetrics {
+    let margin: CGFloat
+    let gap: CGFloat
+    let keyHeight: CGFloat
+    /// The 13-inch number row is shorter than its letter rows. Zero elsewhere.
+    let numberRowHeight: CGFloat
+    let rowSpacing: CGFloat
+    let bottomInset: CGFloat
+    /// The shortcuts bar iPadOS draws ABOVE the keyboard — undo / redo / paste,
+    /// plus (for the system keyboard only) three prediction slots. It sits in the
+    /// keyboard container but outside our view, so we can neither fill it nor
+    /// remove it: `UITextInputAssistantItem` belongs to the host's responder, and
+    /// an extension "can draw only within the primary view of its
+    /// UIInputViewController". Measured on native captures, per family and
+    /// orientation. Our own strip mirrors its height so the two read as a pair of
+    /// rows rather than a row plus a sliver.
+    let shortcutBarHeight: CGFloat
+
+    /// The band the system keeps below an iPad input view.
+    static let systemBottomBand: CGFloat = 20
+
+    /// Native iPad key type, measured from the reference captures and confirmed
+    /// against a real iPad Pro 11-inch.
+    ///
+    /// The headline: the letter font is a per-ORIENTATION CONSTANT — 22.2pt in
+    /// portrait and 28.0 in landscape — on every family, whether the key is 55.3pt
+    /// tall or 61. It does not scale with the key at all. We were deriving it as
+    /// `23 * keyHeight / 45`, which gave 28.3 portrait and 37.7 landscape: letters
+    /// 27% and 43% too large. On a real device that is the difference between
+    /// "looks like Apple's" and "looks like an imitation".
+    ///
+    /// The flick label goes the other way — native draws it BIGGER than we did
+    /// (11.8 / 14.6 against our 10 / 11) and at half the opacity, so the pair reads
+    /// as one key with a hint rather than two competing glyphs.
+    struct KeyType {
+        let letter: CGFloat
+        let secondary: CGFloat
+        let secondaryTop: CGFloat
+        /// SF Symbol point size for the command keys. Native's symbols measured
+        /// consistently 0.87-0.88 of ours across globe, shift, backspace and hide.
+        let command: CGFloat
+        /// `.?123`, which is text rather than a symbol.
+        let modeSwitch: CGFloat
+        /// Where the command glyph sits in its key, as INK insets from the key's
+        /// edges. `nil` means centred.
+        ///
+        /// This is per-FAMILY, which is easy to get wrong: an iPad mini centres its
+        /// command glyphs (measured 23.0 left against 22.0 right in portrait, 38.0
+        /// against 37.5 in landscape) while every larger iPad pins them to the
+        /// bottom-outer corner. Taking a Pro 11-inch's anchoring and applying it
+        /// everywhere would have put the mini's glyphs against the wrong edge.
+        let glyphInsets: UIEdgeInsets?
+
+        static func of(
+            _ family: KeyboardLayoutProvider.PadFamily,
+            landscape: Bool
+        ) -> KeyType {
+            let insets: UIEdgeInsets?
+            switch (family, landscape) {
+            case (.compact, _):
+                insets = nil
+            case (.standard, false):
+                insets = UIEdgeInsets(top: 0, left: 7, bottom: 6, right: 7.5)
+            case (.standard, true):
+                insets = UIEdgeInsets(top: 0, left: 10, bottom: 10, right: 11)
+            case (.extended, false):
+                insets = UIEdgeInsets(top: 0, left: 14, bottom: 10, right: 15)
+            case (.extended, true):
+                insets = UIEdgeInsets(top: 0, left: 17, bottom: 11.5, right: 17.75)
+            }
+            return landscape
+                ? KeyType(letter: 28, secondary: 14.6, secondaryTop: 12.5,
+                          command: 28.5, modeSwitch: 17.5, glyphInsets: insets)
+                : KeyType(letter: 22.2, secondary: 11.8, secondaryTop: 8.7,
+                          command: 22.5, modeSwitch: 14, glyphInsets: insets)
+        }
+    }
+
+    /// Content block inside one suggestion row. Native's prediction separators run
+    /// 27.5pt from the container's top edge on every iPad in both orientations,
+    /// and the prediction text is centred in that same box; everything below it is
+    /// clearance above the keys.
+    static let suggestionContentHeight: CGFloat = 27.5
+
+    /// What to ask for so the strip actually renders at `shortcutBarHeight`.
+    ///
+    /// The iPad container settles a keyboard extension shorter than it asks for.
+    /// Sweeping the asked height 283 → 323pt on an iPad Pro 11-inch showed the
+    /// deficit is an offset rather than a scale: every extra point asked for landed
+    /// 1:1 in the strip, and the key rows never moved at all. Measured, the deficit
+    /// is our own `bottomInset` — 8pt on a 4-row portrait iPad and 11pt in landscape
+    /// both came back exact. The 13-inch is the one that does not fit, landing 2pt
+    /// out either way.
+    ///
+    /// Being wrong here only flexes the strip: the key block is bottom-anchored, so
+    /// nothing that parity is measured on can drift.
+    var askedStripHeight: CGFloat { shortcutBarHeight + bottomInset }
+
+    static func of(
+        _ family: KeyboardLayoutProvider.PadFamily,
+        landscape: Bool,
+        portraitWidth: CGFloat
+    ) -> PadAxisMetrics {
+        switch (family, landscape) {
+        case (.compact, false):
+            // 744pt. Native: key 55.5, pitch 64.5, 28pt above the screen edge.
+            PadAxisMetrics(margin: 6, gap: 12, keyHeight: 55.3, numberRowHeight: 0,
+                           rowSpacing: 8.9, bottomInset: 28 - systemBottomBand,
+                           shortcutBarHeight: 45.5)
+        case (.standard, false):
+            // 820/834pt. Key height moves 0.5pt across that range, so it is flat.
+            PadAxisMetrics(margin: 9, gap: 10, keyHeight: 55.3, numberRowHeight: 0,
+                           rowSpacing: 8.9, bottomInset: 28 - systemBottomBand,
+                           shortcutBarHeight: 45.5)
+        case (.extended, false):
+            // 1024/1032pt. Five rows; the number row is 45.5 against 61.
+            PadAxisMetrics(margin: 3.5, gap: 7, keyHeight: 61, numberRowHeight: 45.5,
+                           rowSpacing: 7.12, bottomInset: 24 - systemBottomBand,
+                           shortcutBarHeight: 43.5)
+        case (.compact, true):
+            // 1133pt.
+            PadAxisMetrics(margin: 7, gap: 14, keyHeight: 75, numberRowHeight: 0,
+                           rowSpacing: 10.75, bottomInset: 30 - systemBottomBand,
+                           shortcutBarHeight: 48.5)
+        case (.standard, true):
+            // 1180/1210pt. Unlike portrait, landscape key height tracks the
+            // device's portrait width here: 72.5/820 = 0.0884, 74/834 = 0.0887.
+            PadAxisMetrics(margin: 15, gap: 14, keyHeight: 0.08857 * portraitWidth,
+                           numberRowHeight: 0, rowSpacing: 11.75,
+                           bottomInset: 31 - systemBottomBand,
+                           shortcutBarHeight: 48.5)
+        case (.extended, true):
+            // 1366/1376pt. Identical on both.
+            PadAxisMetrics(margin: 5, gap: 10, keyHeight: 79, numberRowHeight: 59,
+                           rowSpacing: 9, bottomInset: 24 - systemBottomBand,
+                           shortcutBarHeight: 45.5)
+        }
+    }
+
+    /// How many suggestion slots to lay out at a given layout width.
+    ///
+    /// Native shows exactly three predictions on every iPad, but it draws them in a
+    /// fixed block centred in the shortcuts bar — measured slot pitch 147pt on a
+    /// mini and 155pt on everything else — and leaves the rest of the bar empty.
+    /// Our strip spans the full width, so at three slots it would be 248-344pt per
+    /// suggestion: two to three times native's density, which is what makes it read
+    /// as three words adrift in a wide empty band.
+    ///
+    /// So we keep native's density and take the slot count from it. 165pt is that
+    /// pitch with a little slack for Bangla's wider glyphs. The cap is a UX limit,
+    /// not a spatial one: a rotated 13-inch could hold nine, and nobody scans nine.
+    static func suggestionSlotCount(forLayoutWidth width: CGFloat, isPad: Bool) -> Int {
+        guard isPad else { return 3 }
+        return min(6, max(3, Int((width / 165).rounded())))
+    }
+
+    /// The key block, accounting for the extended family's shorter number row.
+    func keyBlockHeight(rowCount: Int) -> CGFloat {
+        let uniform = CGFloat(rowCount) * keyHeight
+        let numberRowAdjustment = numberRowHeight > 0 ? keyHeight - numberRowHeight : 0
+        return uniform - numberRowAdjustment + CGFloat(rowCount - 1) * rowSpacing
+    }
+}
+
+/// Native iPhone geometry in LANDSCAPE, measured off the captures in
+/// `Reference/native-iphone/landscape/` — reproduce with
+/// `scripts/parity/iphone-landscape.py fit`.
+///
+/// Landscape is not a stretched portrait. The keyboard container does not span
+/// the screen, it is inset on both sides, and on notched phones the globe and
+/// dictation keys sit OUTSIDE it in the safe-area corners, which is why native's
+/// bottom row carries three keys there and five on an SE.
+///
+/// Like portrait, everything here is class-quantized rather than proportional:
+/// key height 27.3 and pitch 35.33 hold across 852 → 956pt, a 12% span in width.
+/// The single most important fact here, and the one that is invisible from the
+/// source: **in landscape the system gives the extension a view NARROWER than the
+/// screen.** Measured from the running extension —
+///
+/// | device | screen | our view | native's inset | left for us |
+/// |---|---|---|---|---|
+/// | SE 3 | 667 | 667 | 72 | 72 |
+/// | iPhone 16 | 852 | 702 | 79 | 4 |
+/// | iPhone Air | 912 | 678 | 121 | 4 |
+/// | 17 Pro Max | 956 | 722 | 121 | 4 |
+///
+/// So the system has already applied almost exactly native's container inset for
+/// us, and what we add on top is 4pt — not 79 or 121, which would inset a second
+/// time. A home-button phone's view spans the whole screen, so it takes the full
+/// 72. Applying the screen-relative numbers directly put the keys 68pt too far in
+/// on every notched phone.
+///
+/// It also means `bounds.width` is NOT the screen's longer side, which is why the
+/// class test takes the screen size rather than the view's.
+struct PhoneLandscapeMetrics {
+    /// Applied INSIDE our view, on top of whatever the system already inset it by.
+    let sideInset: CGFloat
+    let keyHeight: CGFloat
+    let rowSpacing: CGFloat
+    let keySpacing: CGFloat
+    /// From the last key row to the bottom of OUR view. Native's rows sit 25pt
+    /// above the screen edge on a notched phone and 4pt on an SE; the difference
+    /// is the 21pt home-indicator safe area, which our view already stops above.
+    /// So the inset we apply is 4 on both.
+    let bottomInset: CGFloat
+    /// The strip WE draw. Native's zone (container top to first key row) measures
+    /// 48.7 on notched phones and 49.0 on an SE, and the system paints part of it
+    /// above our view — but that band is NOT the 16pt of portrait. Measured from
+    /// where the system actually placed our view: 10pt on a notched phone, 15 on an
+    /// SE. So the strip is 38.7 and 34 respectively.
+    ///
+    /// Deriving this from `referenceSuggestionHeight` (34, a portrait number) asked
+    /// 171pt on an iPhone 16 where the zone needs 176. The system granted 176
+    /// anyway and the strip absorbed the difference, which is exactly the kind of
+    /// accident that looks fine until a host grants literally what you ask for.
+    let stripHeight: CGFloat
+
+    var keyBlockHeight: CGFloat { 4 * keyHeight + 3 * rowSpacing }
+    /// What to ask the system for.
+    var totalHeight: CGFloat { stripHeight + keyBlockHeight + bottomInset }
+
+    /// Home-button phones are their own geometry class here, unlike in portrait
+    /// where they share the sub-410pt class. Selected on ASPECT RATIO rather than
+    /// on width: 16:9 versus the ~19.5:9 of every notched phone is the physical
+    /// difference that causes it (no safe-area inset to work around), so it keeps
+    /// classifying correctly on hardware that does not exist yet.
+    static func of(screenSize: CGSize) -> PhoneLandscapeMetrics {
+        let shorter = min(screenSize.width, screenSize.height)
+        let longer = max(screenSize.width, screenSize.height)
+        if longer / max(shorter, 1) < 2.0 {
+            // 375x667. Larger keys than any notched phone, a wider bottom row, and
+            // a view that spans the screen — so it applies native's inset itself.
+            return PhoneLandscapeMetrics(
+                sideInset: 72, keyHeight: 32, rowSpacing: 8,
+                keySpacing: 6, bottomInset: 4, stripHeight: 34
+            )
+        }
+        // Native's own inset is class-quantized on the SAME ~410pt portrait
+        // boundary the portrait geometry uses — 79 below it, 121 at and above —
+        // but the system has already applied it to our view. We add the 4pt that
+        // is left, which measured identical on every notched phone.
+        return PhoneLandscapeMetrics(
+            sideInset: 4, keyHeight: 27.3, rowSpacing: 8.03,
+            keySpacing: 6, bottomInset: 4, stripHeight: 38.7
+        )
+    }
 }
 
 enum KeyboardTheme {
@@ -149,7 +455,17 @@ enum KeyboardTheme {
     }
 
     @MainActor
-    static func metrics(for bounds: CGSize, traitCollection: UITraitCollection) -> KeyboardMetrics {
+    /// `portraitWidth` is the SCREEN's shorter side, and it has to be passed in
+    /// rather than derived from `bounds`: in landscape `bounds.width` is the
+    /// rotated width, which would classify an iPad Pro 11-inch at 1210pt as a
+    /// 13-inch and an iPhone 16 at 852pt as a large phone. Both the iPad layout
+    /// family and the iPhone landscape inset class are properties of the DEVICE.
+    static func metrics(
+        for bounds: CGSize,
+        traitCollection: UITraitCollection,
+        screenSize: CGSize = .zero
+    ) -> KeyboardMetrics {
+        let padPortraitWidth = min(screenSize.width, screenSize.height)
         let isLandscape = bounds.width > bounds.height && traitCollection.verticalSizeClass == .compact
         guard bounds.width > 0, bounds.height > 0 else {
             return fallbackMetrics
@@ -198,14 +514,29 @@ enum KeyboardTheme {
                 )
             }
 
-            let keySpacing = clamp(bounds.width * 0.0065, min: 5, max: 6)
-            let suggestionHeight = clamp(bounds.height * 0.19, min: 38, max: 44)
-            let rowSpacing = clamp(bounds.height * 0.032, min: 6.5, max: 7.5)
-            let topInset = clamp(bounds.height * 0.035, min: 6, max: 8)
-            let bottomInset = clamp(bounds.height * 0.018, min: 3.5, max: 5)
-            let keyHeight = max(
-                31,
-                floor((bounds.height - suggestionHeight - topInset - bottomInset - 3 * rowSpacing) / 4)
+            // Class-quantized off native (see PhoneLandscapeMetrics). Everything
+            // here used to be a proportion of our own height — key height fell out
+            // of `floor((bounds.height - …) / 4)`, which made every constant native
+            // actually uses a function of whatever the host granted us.
+            // From the SCREEN, never from `bounds`: in landscape the system hands
+            // us a view narrower than the screen (702pt on an 852pt iPhone 16), so
+            // `bounds.width` reads as a 1.79 aspect ratio and classified every
+            // notched phone as a home-button one.
+            let axis = PhoneLandscapeMetrics.of(
+                screenSize: screenSize.width > 1 ? screenSize : bounds
+            )
+            let keySpacing = axis.keySpacing
+            let rowSpacing = axis.rowSpacing
+            let topInset: CGFloat = 0
+            let bottomInset = axis.bottomInset
+            let keyHeight = axis.keyHeight
+            // The strip takes the remainder, so a host that grants a height other
+            // than the one we asked for flexes the strip instead of walking the key
+            // rows off native's.
+            let suggestionHeight = clamp(
+                bounds.height - topInset - bottomInset - axis.keyBlockHeight,
+                min: 20,
+                max: 60
             )
             return KeyboardMetrics(
                 keyCornerRadius: 5.5,
@@ -231,9 +562,13 @@ enum KeyboardTheme {
                 keyPreviewShadowOffset: .zero,
             keyboardInsets: UIEdgeInsets(
                 top: topInset,
-                left: clamp(bounds.width * 0.003, min: 3, max: 4),
+                // Native's landscape container does not span the screen: it is
+                // inset 79pt below the ~410pt portrait boundary and 121 above it,
+                // 72 on a home-button phone. The old 3-4pt was a phone-portrait
+                // number applied to a layout it was never measured on.
+                left: axis.sideInset,
                 bottom: bottomInset,
-                right: clamp(bounds.width * 0.003, min: 3, max: 4)
+                right: axis.sideInset
             ),
                 characterFontSize: 21,
                 symbolFontSize: 19,
@@ -250,34 +585,51 @@ enum KeyboardTheme {
         let scale = clamp(bounds.width / referencePhoneWidth, min: 0.88, max: 1.0)
         // Type and key spacing scale with the taller iPad key; `scale` is capped at
         // 1.0, so without this an 834pt iPad drew 440pt-iPhone glyphs.
-        let padTypeScale: CGFloat = traitCollection.userInterfaceIdiom == .pad ? 55.0 / 45.0 : 1
-        let keySpacing = clamp(6 * scale, min: 5.25, max: 6) * padTypeScale
+        let isPad = traitCollection.userInterfaceIdiom == .pad
+        // The device's portrait width, which is what picks the family. Falls back
+        // to the layout width, correct in portrait and the only thing available
+        // before the window exists.
+        let portraitWidth = padPortraitWidth > 1 ? padPortraitWidth : bounds.width
+        let padFamily = isPad ? KeyboardLayoutProvider.PadFamily.forPortraitWidth(Double(portraitWidth)) : nil
+        // Our own bounds are always wider than tall (a keyboard is a wide strip),
+        // so orientation has to come from comparing the layout width against the
+        // device's portrait width, never from our aspect ratio.
+        let padIsLandscape = isPad && bounds.width > portraitWidth + 1
+        let padMetrics = padFamily.map { PadAxisMetrics.of($0, landscape: padIsLandscape, portraitWidth: portraitWidth) }
+        let padTypeScale: CGFloat = padMetrics.map { $0.keyHeight / 45.0 } ?? 1
+        let padType = padFamily.map { PadAxisMetrics.KeyType.of($0, landscape: padIsLandscape) }
+        // The gap between keys is a per-family CONSTANT on iPad (12 / 10 / 7),
+        // measured off native — not a scaled version of the phone's 6pt.
+        let keySpacing = padMetrics?.gap ?? clamp(6 * scale, min: 5.25, max: 6)
         // Portrait key geometry is CLASS-QUANTIZED, not proportional to width —
         // measured against native across 375/393/402/420/430/440pt (iOS 26.5 sim,
         // modern + legacy hosts): pitch 54 / key 43 below ~410pt, pitch 56 / key 45
         // at 410pt and up, row gap 11 in both classes. The previous width/440
         // scaling shrank keys ~9% on Pro-class widths and sat the rows ~9pt below
         // native's (worst on SE-class, 18.5pt).
-        // iPad is its own geometry class. Measured against native on an iPad Pro
-        // 11-inch (M4) in portrait, 834×1210pt: key 55.1-55.7, pitch 64.2-64.8 (so a
-        // 9.5pt row gap), key block 933.4→1182.2 = 248.8, and 27.8pt below the last
-        // row. Before this, `compactWidthClass` was simply false at 834pt, so an iPad
-        // rendered iPhone Pro Max geometry — keys 10pt too short at 8.5pt too tight a
-        // pitch. Gated on the idiom so no iPhone width can reach it.
-        let isPad = traitCollection.userInterfaceIdiom == .pad
+        // iPad is its own geometry class, and unlike iPhone its VERTICAL metrics do
+        // not vary with width at all: measured across 744/820/834pt native key
+        // height moves 0.5pt and total keyboard height 3pt, so both are family
+        // constants. The 13-inch family is a different keyboard entirely — five
+        // rows, taller keys, tighter gaps. See docs/native-parity-ipad.md.
         let compactWidthClass = bounds.width < 410
-        let keyHeight: CGFloat = isPad ? 55 : (compactWidthClass ? 43 : 45)
-        let rowSpacing: CGFloat = isPad ? 9.5 : 11
+        let keyHeight: CGFloat = padMetrics?.keyHeight ?? (compactWidthClass ? 43 : 45)
+        let rowSpacing: CGFloat = padMetrics?.rowSpacing ?? 11
+        let keyRowCount = padFamily == .extended ? 5 : 4
         let topInset: CGFloat = 0
         // Verified: with 6, class-B q-rows land exactly on native's (440: 663=663).
         // Class A solves to 3 from the measured chain (q = screen − dock − keyblock
         // − bottom + strip; native q 591 @ 402pt) — re-verified on-sim.
-        let bottomInset: CGFloat = isPad ? 27.8 : (compactWidthClass ? 3 : 6)
+        let bottomInset: CGFloat = padMetrics?.bottomInset ?? (compactWidthClass ? 3 : 6)
         // The strip takes the remainder of the actual bounds, so if a host hands us
         // a height other than the one we ask for, the strip flexes instead of the
         // keys drifting off native's rows.
+        // The number row is shorter than the letter rows on the extended layout, so
+        // the key block is not simply rowCount * keyHeight.
+        let keyBlockHeight = padMetrics?.keyBlockHeight(rowCount: keyRowCount)
+            ?? (CGFloat(keyRowCount) * keyHeight + CGFloat(keyRowCount - 1) * rowSpacing)
         let suggestionHeight = clamp(
-            bounds.height - topInset - bottomInset - 3 * rowSpacing - 4 * keyHeight,
+            bounds.height - topInset - bottomInset - keyBlockHeight,
             min: 24,
             max: 96
         )
@@ -307,19 +659,34 @@ enum KeyboardTheme {
             keyPreviewShadowOffset: CGSize(width: 0, height: 2 * scale),
             keyboardInsets: UIEdgeInsets(
                 top: topInset,
-                left: clamp(6.67 * scale, min: 5.87, max: 6.67),
+                // Side margin is a measured per-family constant on iPad (6 / 9 / 3.5).
+                left: padMetrics?.margin ?? clamp(6.67 * scale, min: 5.87, max: 6.67),
                 bottom: bottomInset,
-                right: clamp(6.67 * scale, min: 5.87, max: 6.67)
+                right: padMetrics?.margin ?? clamp(6.67 * scale, min: 5.87, max: 6.67)
             ),
-            characterFontSize: 23 * scale * padTypeScale,
-            symbolFontSize: 21 * scale * padTypeScale,
+            // iPad type comes from PadAxisMetrics.Type — measured constants per
+            // orientation — not from scaling the phone's. See that type for why.
+            characterFontSize: padType.map(\.letter) ?? 23 * scale,
+            symbolFontSize: padType.map { $0.letter * 0.91 } ?? 21 * scale,
             keyPreviewFontSize: 32 * scale,
-            commandFontSize: 21 * scale * padTypeScale,
-            modeSwitchFontSize: 17 * scale * padTypeScale,
+            commandFontSize: padType.map(\.command) ?? 21 * scale,
+            modeSwitchFontSize: padType.map(\.modeSwitch) ?? 17 * scale,
             spaceIntroFontSize: 18,
             spaceLanguageFontSize: 11,
-            suggestionFontSize: 15,
-            deterministicSuggestionFontSize: 15
+            // Suggestion type scales with the iPad key like every other glyph does.
+            // At the phone's flat 15pt the strip's Bangla measured 9.5pt of ink
+            // against native's 15.5pt on the same screen, which is most of why it
+            // read as a sliver.
+            suggestionFontSize: 15 * padTypeScale,
+            deterministicSuggestionFontSize: 15 * padTypeScale,
+            padSecondaryFontSize: padType?.secondary ?? 10,
+            padSecondaryTopInset: padType?.secondaryTop ?? 8,
+            padNumberRowHeight: padMetrics?.numberRowHeight ?? 0,
+            padGlyphInsets: padType?.glyphInsets,
+            suggestionSlotCount: PadAxisMetrics.suggestionSlotCount(
+                forLayoutWidth: bounds.width, isPad: isPad
+            ),
+            suggestionContentHeight: isPad ? PadAxisMetrics.suggestionContentHeight : 0
         )
     }
 
@@ -332,22 +699,36 @@ enum KeyboardTheme {
         let longerSide = max(screenSize.width, screenSize.height)
         let isLandscape = traitCollection.verticalSizeClass == .compact || screenSize.width > screenSize.height
 
+        // iPad first, and in BOTH orientations, because the generic landscape
+        // clamps below are phone heuristics: on an iPad Pro 11-inch they asked for
+        // ~300pt against a 331pt key block, which simply overflows. Every number
+        // here comes from PadAxisMetrics, so a change there cannot drift out of
+        // step with what the rows actually need.
+        if traitCollection.userInterfaceIdiom == .pad {
+            let family = KeyboardLayoutProvider.PadFamily.forPortraitWidth(Double(shorterSide))
+            let axis = PadAxisMetrics.of(family, landscape: isLandscape, portraitWidth: shorterSide)
+            let rows = family == .extended ? 5 : 4
+            // Not `referenceSuggestionHeight`: that is the iPhone's strip, sized
+            // against the ~16pt band iOS paints above a phone keyboard. iPad's band
+            // is the 45.5pt shortcuts bar, and our strip matches it so the two form
+            // a pair of equal rows.
+            return axis.askedStripHeight + axis.keyBlockHeight(rowCount: rows) + axis.bottomInset
+        }
+
         if isLandscape {
             if shorterSide >= 600 {
                 return clamp(shorterSide * 0.36, min: 300, max: 360)
             }
-            return clamp(shorterSide * 0.50, min: 196, max: referenceLandscapeHeight)
+            // Class-quantized off native, like portrait. The previous
+            // `clamp(shorterSide * 0.50, 196...220)` was a heuristic that had never
+            // been checked against the system keyboard; it asked for 196.5 on an
+            // iPhone 16 where native's container is 207.
+            return PhoneLandscapeMetrics.of(screenSize: screenSize).totalHeight
         }
 
         // Class-quantized like the metrics: key 43 / pitch 54 / bottom 3 below
         // ~410pt, key 45 / pitch 56 / bottom 6 above (native-measured; see
         // metrics(for:)).
-        // iPad portrait, measured against native on an iPad Pro 11-inch (M4):
-        // key 55, pitch 64.5 (9.5pt gap), 27.8pt below the last row. Keep this in
-        // step with metrics(for:) or the rows drift off the height we ask for.
-        if traitCollection.userInterfaceIdiom == .pad {
-            return referenceSuggestionHeight + 4 * 55 + 3 * 9.5 + 27.8
-        }
         let compact = shorterSide < 410
         let keyHeight: CGFloat = compact ? 43 : 45
         let bottomInset: CGFloat = compact ? 3 : 6
@@ -356,6 +737,7 @@ enum KeyboardTheme {
         return clamp(classHeight, min: minimumHeight, max: max(minimumHeight, classHeight))
     }
 
+    @MainActor
     static func preferredEmojiKeyboardHeight(
         for screenSize: CGSize,
         traitCollection: UITraitCollection
@@ -363,6 +745,14 @@ enum KeyboardTheme {
         let shorterSide = min(screenSize.width, screenSize.height)
         let longerSide = max(screenSize.width, screenSize.height)
         let isLandscape = traitCollection.verticalSizeClass == .compact || screenSize.width > screenSize.height
+
+        // iPad: exactly the height of the letters keyboard. This branch did not
+        // exist, so an iPad fell through to a phone heuristic and asked for ~332pt
+        // against a 367pt keyboard — the panel jumped 35pt shorter on opening and
+        // 35pt taller on closing, on a device with room to spare.
+        if traitCollection.userInterfaceIdiom == .pad {
+            return preferredKeyboardHeight(for: screenSize, traitCollection: traitCollection)
+        }
 
         if isLandscape {
             return clamp(shorterSide * 0.58, min: 250, max: 330)
@@ -466,6 +856,31 @@ enum KeyboardTheme {
             return UIColor.white.withAlphaComponent(0.56)
         }
         return UIColor.black.withAlphaComponent(0.48)
+    }
+
+    /// The iPad flick label. Measured off native: white 0.30 in dark, black 0.25 in
+    /// light — half the weight of `secondaryTextColor`, which it used to borrow.
+    /// At 0.56 the hint competed with the letter instead of sitting under it, and
+    /// combined with our undersized glyph it inverted native's relationship
+    /// entirely: native's flick label is BIGGER and FAINTER than ours was.
+    static func padSecondaryTextColor(for traitCollection: UITraitCollection) -> UIColor {
+        if traitCollection.userInterfaceStyle == .dark {
+            return UIColor.white.withAlphaComponent(0.30)
+        }
+        return UIColor.black.withAlphaComponent(0.25)
+    }
+
+    /// Suggestion text. Deliberately darker than `secondaryTextColor`, which the
+    /// strip used to borrow: measured against native's prediction row, the system
+    /// draws it at black 0.76 / white 0.64 while the assistant glyphs beside it are
+    /// the lighter secondary tone. At 0.48 our suggestions read as chrome rather
+    /// than as content you are meant to tap. Identical on iPhone and iPad, and on
+    /// both, native measured the same to the hundredth.
+    static func suggestionTextColor(for traitCollection: UITraitCollection) -> UIColor {
+        if traitCollection.userInterfaceStyle == .dark {
+            return UIColor.white.withAlphaComponent(0.64)
+        }
+        return UIColor.black.withAlphaComponent(0.76)
     }
 
     static func suggestionHighlightColor(for traitCollection: UITraitCollection) -> UIColor {

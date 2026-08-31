@@ -4,6 +4,23 @@ import UIKit
 // DEBUG-only. A text field to summon the keyboard, plus the on-device tuning and
 // diagnostics panel. Release ships no text input at all -- see ObadhApp.swift.
 #if DEBUG
+/// DEBUG-only navigation controller that can pin the interface orientation.
+///
+/// iPad apps are resizable, so `requestGeometryUpdate` alone is ignored — the
+/// scene only rotates when the supported set actually excludes the current
+/// orientation. Used by `--landscape` so the parity captures can be taken on
+/// several simulators at once; `simctl` has no rotation primitive and the
+/// alternatives all need the Simulator window to be frontmost.
+final class OrientationPinningNavigationController: UINavigationController {
+    var pinned: UIInterfaceOrientationMask?
+
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        pinned ?? super.supportedInterfaceOrientations
+    }
+
+    override var shouldAutorotate: Bool { true }
+}
+
 /// Hosts the UIKit test screen so it can sit behind a SwiftUI NavigationLink.
 struct KeyboardTestScreen: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> KeyboardTestViewController {
@@ -85,7 +102,32 @@ final class KeyboardTestViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        requestLandscapeIfAsked()
         textView.becomeFirstResponder()
+    }
+
+    /// `--landscape` rotates the harness for the parity captures. `simctl` has no
+    /// rotation primitive and the alternatives all need the Simulator window
+    /// (menu scripting or the mouse), which does not survive running several
+    /// simulators at once — this is pure in-process API, so N devices can be
+    /// captured in parallel.
+    private func requestLandscapeIfAsked() {
+        guard ProcessInfo.processInfo.arguments.contains("--landscape"),
+              let scene = view.window?.windowScene else { return }
+        (navigationController as? OrientationPinningNavigationController)?.pinned = .landscapeRight
+        setNeedsUpdateOfSupportedInterfaceOrientations()
+        navigationController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        scene.requestGeometryUpdate(
+            .iOS(interfaceOrientations: .landscapeRight)
+        ) { error in
+            print("landscape request failed: \(error)")
+        }
+    }
+
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        ProcessInfo.processInfo.arguments.contains("--landscape")
+            ? .landscapeRight
+            : super.supportedInterfaceOrientations
     }
 
     override func viewDidLayoutSubviews() {
@@ -122,7 +164,22 @@ final class KeyboardTestViewController: UIViewController {
         textView.autocorrectionType = .yes
         textView.spellCheckingType = .yes
         textView.keyboardType = .alphabet
-        textView.text = ""
+        // `--seed=<text>` prefills the field. The native keyboard's prediction row
+        // is only populated when there is context, and `simctl` has no tap
+        // primitive, so this is the only way to capture native predictions as a
+        // reference for our own strip.
+        let seedPrefix = "--seed="
+        textView.text = ProcessInfo.processInfo.arguments
+            .first { $0.hasPrefix(seedPrefix) }
+            .map { String($0.dropFirst(seedPrefix.count)) } ?? ""
+        // `--no-shortcuts` empties the iPad shortcuts bar's button groups, which is
+        // what a host app does when it does not want one. Our strip has to look
+        // right both with the system bar above it and without, and this is how that
+        // second case gets measured rather than assumed.
+        if ProcessInfo.processInfo.arguments.contains("--no-shortcuts") {
+            textView.inputAssistantItem.leadingBarButtonGroups = []
+            textView.inputAssistantItem.trailingBarButtonGroups = []
+        }
         textView.accessibilityLabel = "Obadh keyboard test field"
         if let accessoryHeight {
             let bar = UIToolbar(frame: CGRect(x: 0, y: 0, width: 320, height: accessoryHeight))

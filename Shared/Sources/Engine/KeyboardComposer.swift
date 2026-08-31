@@ -14,7 +14,10 @@ struct KeyboardSuggestion: Equatable {
 final class KeyboardComposer {
     private let engine: BanglaTypingEngine
     private let emojiSuggester: BanglaEmojiSuggesting?
-    private let compositionSuggestionLimit: Int
+    /// How many candidates to keep for the strip. Settable because it is a property
+    /// of the layout, not of the engine: an iPad shows more of them than an iPhone,
+    /// and rotating between layout families changes it.
+    var compositionSuggestionLimit: Int
     private(set) var romanBuffer = ""
     private var compositionSuggestions: [KeyboardSuggestion] = []
     /// Up to 3 high-confidence emoji for the currently-composed word, shown in the

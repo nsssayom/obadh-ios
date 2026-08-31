@@ -12,7 +12,7 @@ enum EmojiSearchLanguage: String {
 }
 
 struct KeyboardPreferences {
-    static let appGroupIdentifier = "group.com.nsssayom.obadh"
+    static var appGroupIdentifier: String { ObadhIdentity.appGroupID }
     private static let hapticFeedbackEnabledKey = "keyboard.hapticFeedbackEnabled"
     private static let emojiSearchLanguageKey = "keyboard.emojiSearchLanguage"
     private static let fullAccessConfirmedAtKey = "keyboard.fullAccessConfirmedAt"

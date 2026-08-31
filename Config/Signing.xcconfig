@@ -1,5 +1,8 @@
 CODE_SIGN_STYLE = Automatic
 
+// Product identity (bundle ids, App Group). Single source of truth.
+#include "Identity.xcconfig"
+
 // Build identity — fallbacks for un-stamped builds (e.g. a plain Xcode GUI build
 // with no prior `scripts/stamp-build.sh` run). The generated BuildInfo.xcconfig,
 // included last, overrides these with the real git-derived values.

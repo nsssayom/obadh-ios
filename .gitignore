@@ -13,3 +13,4 @@ Config/Signing.local.xcconfig
 Config/BuildInfo.xcconfig
 __pycache__/
 *.pyc
+Config/Identity.local.xcconfig

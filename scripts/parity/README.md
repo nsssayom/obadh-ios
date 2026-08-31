@@ -5,10 +5,29 @@ width classes, host presentations, and appearances, on the iOS Simulator.
 Everything is measured from screenshots; nothing is eyeballed.
 
 ```
-scripts/parity/run.sh                    # full matrix, PASS/FAIL
+scripts/parity/all.sh                    # every gate below, serially, one verdict
+scripts/parity/run.sh                    # iPhone portrait matrix, PASS/FAIL
 scripts/parity/run.sh "iPhone 17 Pro"    # one device
 SKIP_BUILD=1 scripts/parity/run.sh       # reuse existing sim builds
 ```
+
+Four gates, because one shape of measurement is not enough:
+
+| tool | covers |
+|---|---|
+| `run.sh` | iPhone portrait: geometry AND colour, 6 devices x host x appearance |
+| `iphone-landscape.py` | iPhone landscape geometry, 6 devices |
+| `ipad-geometry.py` | iPad key rectangles, 5 devices x 2 orientations |
+| `ipad-type.py` | iPad key CONTENTS, 5 devices x 2 orientations |
+
+`ipad-type.py` was added after a build passed every geometry gate and still looked
+wrong on a real iPad: the key rectangles matched native exactly and everything
+drawn inside them did not. If a gate only measures boxes, it will go green through
+letters that are 43% too large.
+
+Serial by construction. Parallel capture is slower on this hardware and produces
+flaky shots (a device mid-boot screenshots the Apple logo), and the iPad landscape
+gate needs exclusive control of Simulator's orientation menu.
 
 Exit 0 means every cell is within tolerance. Artifacts (screenshots, probe logs,
 `report.json`) land in `build/parity/<timestamp>/`.
@@ -59,6 +78,13 @@ The device set covers both measured geometry classes (key 43 / pitch 54 below
   Xcode 26.6. iOS 27 truth comes from device screenshots (the fiducials make
   those self-measuring too; see the probe overlay switch in the debug app).
 - Pressed-state colors are not covered (static captures).
-- Landscape and iPad are not covered yet.
+- Colour is gated on **iPhone portrait only**. iPad colour has been measured by
+  hand and matches native to the unit, but is not gated.
+- The **command row** is covered by unit tests rather than any pixel gate, which
+  is how the 7a7bc5f regression survived: the tests could not compile, and no
+  capture looks at the bottom row.
+- The **emoji panel, emoji search and the flick animation** are not gated. The
+  first two are inspected via `capture-emoji.sh`; a flick gesture cannot be
+  scripted on the simulator, so only its resting state is measured.
 - This is an on-demand harness, not an XCTest target: it orchestrates
   simulators from outside the app, which XCTest cannot do.

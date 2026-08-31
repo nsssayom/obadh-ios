@@ -101,7 +101,7 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
 
         if arguments.contains("--keyboard-test") {
-            return UINavigationController(rootViewController: KeyboardTestViewController())
+            return OrientationPinningNavigationController(rootViewController: KeyboardTestViewController())
         }
 
         // Leaf screens sit behind taps, which cannot be scripted. Open them directly for
@@ -120,7 +120,7 @@ final class ObadhSceneDelegate: UIResponder, UIWindowSceneDelegate {
         // No launch argument: a Debug build opens straight into the tuning screen
         // (keyboard + haptic/key-tint sliders), bypassing onboarding, so the debug
         // controls are always reachable by just tapping the app icon.
-        return UINavigationController(rootViewController: KeyboardTestViewController())
+        return OrientationPinningNavigationController(rootViewController: KeyboardTestViewController())
         #else
         return UIHostingController(rootView: RootView())
         #endif

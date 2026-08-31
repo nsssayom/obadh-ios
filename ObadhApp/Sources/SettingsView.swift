@@ -21,6 +21,15 @@ struct SettingsView: View {
         _autoInsertTopCorrection = State(initialValue: preferences.autoInsertTopCorrection)
     }
 
+    /// Regular width means iPad, where a full-width form puts a toggle most of a
+    /// foot from the label it belongs to — 1376pt apart on a 13-inch in landscape.
+    /// A split view would be the other answer, but this screen is five rows; a
+    /// sidebar for five rows is worse than the problem. So the form keeps a
+    /// readable measure and centres, which is what it already does on a phone.
+    @Environment(\.horizontalSizeClass) private var widthClass
+
+    private static let readableFormWidth: CGFloat = 620
+
     var body: some View {
         NavigationStack {
             Form {
@@ -35,7 +44,15 @@ struct SettingsView: View {
                 debugSection
                 #endif
             }
+            .frame(maxWidth: widthClass == .regular ? Self.readableFormWidth : .infinity)
+            .frame(maxWidth: .infinity)
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("Obadh")
+            // A large title is laid out against the window's margins, so once the
+            // form is centred the two no longer line up — the title sat 87pt left
+            // of the content it belonged to. Centred inline title over centred
+            // content reads as one thing. iPhone keeps the large title.
+            .navigationBarTitleDisplayMode(widthClass == .regular ? .inline : .large)
         }
     }
 

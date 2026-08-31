@@ -25,8 +25,7 @@ final class SuggestionBarView: UIView {
     private var emojis: [EmojiSuggestion] = []
     private var quotedText: String?
     private let stackView = UIStackView()
-    private let firstSeparator = UIView()
-    private let secondSeparator = UIView()
+    private var separators: [UIView] = []
     private var slotControls: [SuggestionSlotControl] = []
     private let emojiGroup = EmojiSuggestionGroupView()
     private var variantPopover: EmojiVariantPopoverView?
@@ -34,16 +33,19 @@ final class SuggestionBarView: UIView {
     private var heightConstraint: NSLayoutConstraint?
     private var contentTopConstraint: NSLayoutConstraint?
     private var contentBottomConstraint: NSLayoutConstraint?
-    private var firstSeparatorCenterYConstraint: NSLayoutConstraint?
-    private var secondSeparatorCenterYConstraint: NSLayoutConstraint?
-    private var firstSeparatorHeightConstraint: NSLayoutConstraint?
-    private var secondSeparatorHeightConstraint: NSLayoutConstraint?
+    private var emojiGroupConstraints: [NSLayoutConstraint] = []
+    private var separatorCenterYConstraints: [NSLayoutConstraint] = []
+    private var separatorHeightConstraints: [NSLayoutConstraint] = []
     private var metrics = KeyboardTheme.defaultMetrics
 
-    /// Separator height: proportional on short strips (the shipped legacy look) but
-    /// capped at native's ~27pt so taller adaptive strips don't grow giant dividers.
+    /// Separator height. On iPad the strip mirrors the system shortcuts bar, whose
+    /// separators native draws 27.5pt tall — that is `suggestionContentHeight`.
+    /// Elsewhere: proportional on short strips (the shipped iPhone look) but capped
+    /// at native's ~27pt so a taller strip doesn't grow a giant divider.
     private func separatorHeight(for metrics: KeyboardMetrics) -> CGFloat {
-        min(27, metrics.suggestionHeight * 0.58)
+        metrics.suggestionContentHeight > 0
+            ? metrics.suggestionContentHeight
+            : min(27, metrics.suggestionHeight * 0.58)
     }
 
     override init(frame: CGRect) {
@@ -66,10 +68,12 @@ final class SuggestionBarView: UIView {
         self.suggestions = suggestions
         self.emojis = Array(emojis.prefix(3))
         self.quotedText = quotedText
-        let visibleSuggestions = Array(suggestions.prefix(3))
+        let slotCount = slotControls.count
+        let visibleSuggestions = Array(suggestions.prefix(slotCount))
         let hasEmoji = !self.emojis.isEmpty
-        let startIndex = (!hasEmoji && visibleSuggestions.count == 1) ? 1 : 0
-        let textSlotCount = hasEmoji ? 2 : 3
+        // A lone suggestion sits in the middle slot rather than hard left.
+        let startIndex = (!hasEmoji && visibleSuggestions.count == 1) ? (slotCount - 1) / 2 : 0
+        let textSlotCount = hasEmoji ? slotCount - 1 : slotCount
         let showsChrome = !visibleSuggestions.isEmpty || hasEmoji
         stackView.isHidden = !showsChrome
         setSeparatorsHidden(!showsChrome)
@@ -98,19 +102,23 @@ final class SuggestionBarView: UIView {
         }
 
         let separatorColor = KeyboardTheme.separatorColor(for: traitCollection)
-        firstSeparator.backgroundColor = separatorColor
-        secondSeparator.backgroundColor = separatorColor
+        for separator in separators {
+            separator.backgroundColor = separatorColor
+        }
     }
 
     func applyMetrics(_ metrics: KeyboardMetrics) {
         self.metrics = metrics
+        rebuildSlotsIfNeeded(count: max(1, metrics.suggestionSlotCount))
         heightConstraint?.constant = metrics.suggestionHeight
         contentTopConstraint?.constant = metrics.suggestionContentTopInset
         contentBottomConstraint?.constant = -metrics.suggestionContentBottomInset
-        firstSeparatorCenterYConstraint?.constant = contentVerticalOffset(for: metrics)
-        secondSeparatorCenterYConstraint?.constant = contentVerticalOffset(for: metrics)
-        firstSeparatorHeightConstraint?.constant = separatorHeight(for: metrics)
-        secondSeparatorHeightConstraint?.constant = separatorHeight(for: metrics)
+        for constraint in separatorCenterYConstraints {
+            constraint.constant = contentVerticalOffset(for: metrics)
+        }
+        for constraint in separatorHeightConstraints {
+            constraint.constant = separatorHeight(for: metrics)
+        }
         update(suggestions: suggestions, emojis: emojis, quotedText: quotedText)
     }
 
@@ -126,15 +134,6 @@ final class SuggestionBarView: UIView {
         stackView.spacing = 0
         stackView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stackView)
-
-        for _ in 0..<3 {
-            let slotControl = SuggestionSlotControl()
-            slotControl.addTarget(self, action: #selector(handleSuggestionTap(_:)), for: .touchUpInside)
-            slotControls.append(slotControl)
-            stackView.addArrangedSubview(slotControl)
-        }
-        configureSeparator(firstSeparator)
-        configureSeparator(secondSeparator)
 
         emojiGroup.translatesAutoresizingMaskIntoConstraints = false
         emojiGroup.isHidden = true
@@ -158,53 +157,15 @@ final class SuggestionBarView: UIView {
         self.contentTopConstraint = contentTopConstraint
         self.contentBottomConstraint = contentBottomConstraint
 
-        let firstSeparatorCenterYConstraint = firstSeparator.centerYAnchor.constraint(
-            equalTo: centerYAnchor,
-            constant: contentVerticalOffset(for: metrics)
-        )
-        let secondSeparatorCenterYConstraint = secondSeparator.centerYAnchor.constraint(
-            equalTo: centerYAnchor,
-            constant: contentVerticalOffset(for: metrics)
-        )
-        self.firstSeparatorCenterYConstraint = firstSeparatorCenterYConstraint
-        self.secondSeparatorCenterYConstraint = secondSeparatorCenterYConstraint
-
-        let firstSeparatorHeightConstraint = firstSeparator.heightAnchor.constraint(
-            equalToConstant: separatorHeight(for: metrics)
-        )
-        let secondSeparatorHeightConstraint = secondSeparator.heightAnchor.constraint(
-            equalToConstant: separatorHeight(for: metrics)
-        )
-        self.firstSeparatorHeightConstraint = firstSeparatorHeightConstraint
-        self.secondSeparatorHeightConstraint = secondSeparatorHeightConstraint
-
         NSLayoutConstraint.activate([
             stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
             stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
             contentTopConstraint,
             contentBottomConstraint,
-            heightConstraint,
-
-            emojiGroup.leadingAnchor.constraint(equalTo: slotControls[2].leadingAnchor),
-            emojiGroup.trailingAnchor.constraint(equalTo: slotControls[2].trailingAnchor),
-            emojiGroup.topAnchor.constraint(equalTo: slotControls[2].topAnchor),
-            emojiGroup.bottomAnchor.constraint(equalTo: slotControls[2].bottomAnchor),
-
-            NSLayoutConstraint(
-                item: firstSeparator, attribute: .centerX, relatedBy: .equal,
-                toItem: self, attribute: .trailing, multiplier: 1.0 / 3.0, constant: 0
-            ),
-            NSLayoutConstraint(
-                item: secondSeparator, attribute: .centerX, relatedBy: .equal,
-                toItem: self, attribute: .trailing, multiplier: 2.0 / 3.0, constant: 0
-            ),
-            firstSeparatorCenterYConstraint,
-            secondSeparatorCenterYConstraint,
-            firstSeparatorHeightConstraint,
-            secondSeparatorHeightConstraint,
-            firstSeparator.widthAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
-            secondSeparator.widthAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale)
+            heightConstraint
         ])
+
+        rebuildSlotsIfNeeded(count: metrics.suggestionSlotCount)
 
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: SuggestionBarView, _) in
             view.update(suggestions: view.suggestions, emojis: view.emojis, quotedText: view.quotedText)
@@ -213,25 +174,88 @@ final class SuggestionBarView: UIView {
         update(suggestions: [])
     }
 
-    private func configureSeparator(_ separator: UIView) {
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        separator.isUserInteractionEnabled = false
-        separator.isHidden = true
-        addSubview(separator)
+    /// Lay out `count` equal slots with `count - 1` hairlines between them.
+    ///
+    /// Slot count is a per-device constant (three on iPhone, up to six on iPad), so
+    /// this runs on first layout and again only if the keyboard moves to a width in
+    /// a different class — a rotation. It is not a per-keystroke path. The
+    /// separators use multiplier constraints against `trailing`, which cannot be
+    /// mutated after the fact, hence the teardown.
+    private func rebuildSlotsIfNeeded(count: Int) {
+        guard count != slotControls.count else { return }
+
+        for slotControl in slotControls {
+            stackView.removeArrangedSubview(slotControl)
+            slotControl.removeFromSuperview()
+        }
+        for separator in separators {
+            separator.removeFromSuperview()
+        }
+        slotControls.removeAll()
+        separators.removeAll()
+        separatorCenterYConstraints.removeAll()
+        separatorHeightConstraints.removeAll()
+
+        for _ in 0..<count {
+            let slotControl = SuggestionSlotControl()
+            slotControl.addTarget(self, action: #selector(handleSuggestionTap(_:)), for: .touchUpInside)
+            slotControls.append(slotControl)
+            stackView.addArrangedSubview(slotControl)
+        }
+
+        var constraints: [NSLayoutConstraint] = []
+        for index in 1..<max(1, count) {
+            let separator = UIView()
+            separator.translatesAutoresizingMaskIntoConstraints = false
+            separator.isUserInteractionEnabled = false
+            separator.isHidden = true
+            addSubview(separator)
+            separators.append(separator)
+
+            let centerY = separator.centerYAnchor.constraint(
+                equalTo: centerYAnchor,
+                constant: contentVerticalOffset(for: metrics)
+            )
+            let height = separator.heightAnchor.constraint(
+                equalToConstant: separatorHeight(for: metrics)
+            )
+            separatorCenterYConstraints.append(centerY)
+            separatorHeightConstraints.append(height)
+            constraints += [
+                NSLayoutConstraint(
+                    item: separator, attribute: .centerX, relatedBy: .equal,
+                    toItem: self, attribute: .trailing,
+                    multiplier: CGFloat(index) / CGFloat(count), constant: 0
+                ),
+                centerY,
+                height,
+                separator.widthAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale)
+            ]
+        }
+
+        // Emoji live in the trailing slot, native-style, so the text candidates
+        // ahead of them are untouched.
+        NSLayoutConstraint.deactivate(emojiGroupConstraints)
+        if let trailingSlot = slotControls.last {
+            emojiGroupConstraints = [
+                emojiGroup.leadingAnchor.constraint(equalTo: trailingSlot.leadingAnchor),
+                emojiGroup.trailingAnchor.constraint(equalTo: trailingSlot.trailingAnchor),
+                emojiGroup.topAnchor.constraint(equalTo: trailingSlot.topAnchor),
+                emojiGroup.bottomAnchor.constraint(equalTo: trailingSlot.bottomAnchor)
+            ]
+            constraints += emojiGroupConstraints
+        }
+        NSLayoutConstraint.activate(constraints)
     }
 
     private func setSeparatorsHidden(_ hidden: Bool) {
-        firstSeparator.isHidden = hidden
-        secondSeparator.isHidden = hidden
+        for separator in separators {
+            separator.isHidden = hidden
+        }
     }
 
-    /// Vertical offset of the strip's content from its center, positive = down.
-    /// Measured rule (native 26.5 + our pre-26-probed strip agree): suggestion text
-    /// centers ~26pt above the strip's BOTTOM edge regardless of strip height, so
-    /// taller adaptive strips keep the text near the keys like native does. The -7
-    /// floor preserves the tuned look of the shortest (legacy 34pt) strip.
     private func contentVerticalOffset(for metrics: KeyboardMetrics) -> CGFloat {
-        max(-7, metrics.suggestionHeight / 2 - 26)
+        metrics.suggestionContentOffset
     }
 
     @objc private func handleSuggestionTap(_ sender: UIControl) {
@@ -321,11 +345,9 @@ private final class SuggestionSlotControl: UIControl {
         metrics: KeyboardMetrics
     ) {
         label.text = suggestion.map { isQuoted ? "\u{201C}\($0.text)\u{201D}" : $0.text }
-        label.textColor = suggestion == nil ? .clear : KeyboardTheme.secondaryTextColor(for: traitCollection)
+        label.textColor = suggestion == nil ? .clear : KeyboardTheme.suggestionTextColor(for: traitCollection)
         label.font = font(for: suggestion, metrics: metrics)
-        // Same rule as SuggestionBarView.contentVerticalOffset: text centers ~26pt
-        // above the strip bottom (native-measured), floored at the legacy -7 lift.
-        label.transform = CGAffineTransform(translationX: 0, y: max(-7, metrics.suggestionHeight / 2 - 26))
+        label.transform = CGAffineTransform(translationX: 0, y: metrics.suggestionContentOffset)
         // Native-style: every shown slot is tappable. The deterministic literal is the
         // "keep my spelling" button (quoted when it isn't a dictionary word); the rest
         // are corrections / next-word picks.
@@ -461,6 +483,8 @@ private final class EmojiCellControl: UIControl {
     private(set) var suggestion: EmojiSuggestion?
     private let label = UILabel()
     private let leadingDivider = UIView()
+    private var dividerCenterYConstraint: NSLayoutConstraint?
+    private var dividerHeightConstraint: NSLayoutConstraint?
 
     init() {
         super.init(frame: .zero)
@@ -476,13 +500,21 @@ private final class EmojiCellControl: UIControl {
         leadingDivider.isUserInteractionEnabled = false
         addSubview(leadingDivider)
 
+        // The cell spans the whole strip, so the divider has to be placed against
+        // the content block rather than the cell's own centre — otherwise it drifts
+        // away from the slot separators either side of it.
+        let dividerCenterY = leadingDivider.centerYAnchor.constraint(equalTo: centerYAnchor)
+        let dividerHeight = leadingDivider.heightAnchor.constraint(equalToConstant: 16)
+        dividerCenterYConstraint = dividerCenterY
+        dividerHeightConstraint = dividerHeight
+
         NSLayoutConstraint.activate([
             label.centerXAnchor.constraint(equalTo: centerXAnchor),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
             leadingDivider.leadingAnchor.constraint(equalTo: leadingAnchor),
-            leadingDivider.centerYAnchor.constraint(equalTo: centerYAnchor),
+            dividerCenterY,
             leadingDivider.widthAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
-            leadingDivider.heightAnchor.constraint(equalTo: heightAnchor, multiplier: 0.58)
+            dividerHeight
         ])
     }
 
@@ -495,9 +527,11 @@ private final class EmojiCellControl: UIControl {
         self.suggestion = suggestion
         label.text = suggestion?.display
         label.font = .systemFont(ofSize: metrics.suggestionFontSize + 4, weight: .regular)
-        // Same rule as SuggestionBarView.contentVerticalOffset: text centers ~26pt
-        // above the strip bottom (native-measured), floored at the legacy -7 lift.
-        label.transform = CGAffineTransform(translationX: 0, y: max(-7, metrics.suggestionHeight / 2 - 26))
+        label.transform = CGAffineTransform(translationX: 0, y: metrics.suggestionContentOffset)
+        dividerCenterYConstraint?.constant = metrics.suggestionContentOffset
+        dividerHeightConstraint?.constant = metrics.suggestionContentHeight > 0
+            ? metrics.suggestionContentHeight
+            : min(27, metrics.suggestionHeight * 0.58)
         leadingDivider.isHidden = !showsLeadingDivider
         leadingDivider.backgroundColor = KeyboardTheme.separatorColor(for: traitCollection)
         isEnabled = suggestion != nil
