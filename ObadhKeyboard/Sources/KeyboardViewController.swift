@@ -2431,6 +2431,14 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
                     handleKeyPress(.character(String(name)))
                 }
             }
+        case "sym":
+            // Press a SYMBOL key, which `tap` cannot: `tap` sends `.character`, so
+            // it goes straight to the composer and bypasses the symbol routing
+            // entirely — including the colon-joins-a-composition rule that makes
+            // bisarga reachable. `sym::` is the colon key on the numbers page.
+            if let argument, !argument.isEmpty {
+                handleKeyPress(.symbol(.literal(argument)))
+            }
         case "cursor":
             if let argument, let offset = Int(argument) {
                 textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
