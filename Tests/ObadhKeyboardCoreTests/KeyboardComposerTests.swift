@@ -202,6 +202,23 @@ private struct FixtureEngine: BanglaTypingEngine {
 }
 
 extension KeyboardComposerTests {
+    /// A colon typed mid-word stays in the roman buffer and reaches the engine, so
+    /// bisarga renders. The keyboard routes it here rather than through the literal
+    /// symbol path, which would commit the word first.
+    func testColonJoinsTheCompositionSoBisargaRenders() {
+        let composer = KeyboardComposer(engine: BisargaFixtureEngine())
+        for scalar in "du" { composer.append(String(scalar)) }
+        XCTAssertEqual(composer.preview, "দু")
+
+        composer.append(":")
+        XCTAssertEqual(composer.romanBuffer, "du:")
+        XCTAssertEqual(composer.preview, "দুঃ")
+
+        for scalar in "kho" { composer.append(String(scalar)) }
+        XCTAssertEqual(composer.romanBuffer, "du:kho")
+        XCTAssertEqual(composer.preview, "দুঃখ")
+    }
+
     /// Builds a composer at a word with a deterministic + one autocorrect candidate.
     private func composerWithCorrection() -> KeyboardComposer {
         let composer = KeyboardComposer(engine: BanhlaFixtureEngine())
@@ -323,6 +340,24 @@ extension KeyboardComposerTests {
         composer.append("x")
         XCTAssertNil(composer.autocorrectTarget)
     }
+}
+
+/// Bisarga is typed as a colon inside a word: `du` `:` `kho` is দুঃখ. The colon
+/// therefore has to reach the engine as part of the roman token — if anything
+/// commits the composition when it is pressed, the engine sees `du` and a separate
+/// `:`, and bisarga becomes unreachable from this keyboard entirely.
+private struct BisargaFixtureEngine: BanglaTypingEngine {
+    func transliterate(_ input: String) -> String {
+        switch input {
+        case "du:kho": "দুঃখ"
+        case "du:": "দুঃ"
+        case "du": "দু"
+        default: ""
+        }
+    }
+
+    func compositionSuggestions(for romanInput: String, limit: Int) -> [String] { [] }
+    func autosuggestSuggestions(for context: String, limit: Int) -> [String] { [] }
 }
 
 private struct BanhlaFixtureEngine: BanglaTypingEngine {

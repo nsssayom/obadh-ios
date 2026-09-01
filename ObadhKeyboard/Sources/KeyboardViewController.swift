@@ -1275,6 +1275,21 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             shifted = false
             refreshCompositionPreview()
         case let .symbol(symbol):
+            // A symbol that is part of Bangla's roman orthography joins the word
+            // being composed rather than ending it. Today that is only the colon,
+            // which is how bisarga is typed: `du` `:` `kho` is দুঃখ.
+            //
+            // Without this bisarga is simply unreachable. `insertLiteralSymbol`
+            // commits the composition first, so the engine only ever saw `du` and
+            // then a separate `:` — it never got `du:kho` as one token, and no
+            // sequence of keys on this keyboard could produce ঃ.
+            if symbol.role == .literal,
+               Self.compositionJoiningSymbols.contains(symbol.output),
+               composer.hasActiveInput {
+                composer.append(symbol.output)
+                refreshCompositionPreview()
+                return
+            }
             switch symbol.role {
             case .sentenceTerminator:
                 insertSentenceTerminator(symbol.output)
@@ -1561,6 +1576,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     /// Any other symbol (digits, `,`, `.`, `৳`, brackets, quotes, dashes…):
     /// finalize active composition, otherwise insert with Apple-style smart
     /// punctuation (`--`→—, `...`→…, straight→curly quotes).
+    /// Symbols that continue a composition instead of committing it, but only
+    /// while one is already active.
+    ///
+    /// Scoped deliberately. A standalone colon stays a literal colon, so ordinary
+    /// punctuation is unaffected; it only becomes bisarga when it lands inside a
+    /// word the engine is already transliterating. The engine settles the rest:
+    /// 0.9.2 keeps a colon between digits literal, so `9:45` is ৯:৪৫ even though
+    /// the same key produces ঃ in দুঃখ.
+    private static let compositionJoiningSymbols: Set<String> = [":"]
+
     private func insertLiteralSymbol(_ output: String) {
         if commitActiveInputIfNeeded(trailingText: output) {
             return
