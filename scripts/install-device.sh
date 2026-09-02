@@ -111,9 +111,10 @@ xcodebuild \
   -project "$ROOT_DIR/Obadh.xcodeproj" \
   -scheme Obadh \
   -configuration "$CONFIG" \
-  -destination "generic/platform=iOS" \
+  -destination "platform=iOS,id=$DEVICE_UDID" \
   -derivedDataPath "$DERIVED_DATA_DIR" \
   -allowProvisioningUpdates \
+  -allowProvisioningDeviceRegistration \
   build
 
 app_path="$DERIVED_DATA_DIR/Build/Products/$CONFIG-iphoneos/Obadh.app"
