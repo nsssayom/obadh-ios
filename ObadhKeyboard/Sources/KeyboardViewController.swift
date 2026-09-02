@@ -2439,6 +2439,18 @@ extension KeyboardViewController: KeyboardDebugCommandHandler {
             if let argument, !argument.isEmpty {
                 handleKeyPress(.symbol(.literal(argument)))
             }
+        case "flick":
+            // Drive the iPad flick through its real delegate path, which no other
+            // command reaches: `tap` sends `.character` and `sym` sends `.symbol`,
+            // but a flick resolves the secondary itself and routes through
+            // endTouch. `flick:m` is a downward flick on the m key.
+            if let argument, argument.count == 1 {
+                keyboardTouchSurface(
+                    keyboardTouchSurface,
+                    didEnd: .character(argument),
+                    flickedDown: true
+                )
+            }
         case "cursor":
             if let argument, let offset = Int(argument) {
                 textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
