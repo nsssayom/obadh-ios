@@ -28,6 +28,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     private let feedbackController = KeyboardFeedbackController()
     private let backspaceRepeater = BackspaceRepeatController()
     private let suggestionBar = SuggestionBarView()
+    /// Emoji for the word that was just committed, kept on screen after a space
+    /// while the text slots move on to next-word suggestions. Cleared by the next
+    /// letter. Committing used to blank the emoji slot outright, which put the
+    /// suggestion one keystroke out of reach at exactly the moment a user reaches
+    /// for it.
+    private var carriedEmojis: [EmojiSuggestion] = []
     private let emojiPanelView = EmojiPanelView()
     private let emojiRecentStore = EmojiRecentStore()
     // Per-emoji skin-tone memory, shared with the emoji panel (same App Group
@@ -1145,7 +1151,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
         let contextBeforeInput = textDocumentProxy.documentContextBeforeInput ?? ""
         guard contextBeforeInput.contains(where: { !$0.isWhitespace }) else {
-            suggestionBar.update(suggestions: [])
+            suggestionBar.update(suggestions: [], emojis: carriedEmojis)
             return
         }
 
@@ -1163,7 +1169,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
                     .map { KeyboardSuggestion(text: $0, source: .autocorrect) }
                 Task { @MainActor in
                     guard let self, self.suggestionGeneration == generation else { return }
-                    self.suggestionBar.update(suggestions: alternatives)
+                    self.suggestionBar.update(suggestions: alternatives, emojis: self.carriedEmojis)
                 }
             }
             return
@@ -1198,7 +1204,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             }
             Task { @MainActor in
                 guard let self, self.suggestionGeneration == generation else { return }
-                self.suggestionBar.update(suggestions: merged)
+                self.suggestionBar.update(suggestions: merged, emojis: self.carriedEmojis)
             }
         }
     }
@@ -1267,6 +1273,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
         switch key {
         case let .character(value):
+            // The next letter starts a new word, so the previous word's emoji stop
+            // being relevant — from here the composing path supplies its own.
+            carriedEmojis = []
             #if DEBUG
             KeystrokeProfile.shared.measureEngine { composer.append(shifted ? value.uppercased() : value) }
             #else
@@ -1552,6 +1561,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     @discardableResult
     private func commitActiveInputIfNeeded(trailingText: String = "") -> Bool {
         guard composer.hasActiveInput else { return false }
+        // Captured BEFORE the commit clears the composer. The emoji belong to the
+        // word just typed and stay on screen after it commits, so a space does not
+        // snatch away the one suggestion the user was reaching for.
+        carriedEmojis = resolvedEmojiSuggestions()
         guard let committed = composer.commitActiveInput() else { return false }
         performTextUpdate {
             compositionController.commit(finalText: committed, trailingText: trailingText, in: documentEditor)
@@ -2276,6 +2289,9 @@ extension KeyboardViewController: SuggestionBarViewDelegate {
         performTextUpdate {
             textDocumentProxy.insertText(emoji)
         }
+        // Taking the offer ends it. Without this the carried slot keeps offering the
+        // same emoji after it has been inserted, and a second tap doubles it.
+        carriedEmojis = []
         emojiRecentStore.record(emoji)
         emojiPanelView.recordRecentEmoji(emoji)
         refreshKeyboard()
